@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { PLAYER, SCORE, RENDER, COLORS } from './constants.js';
+import { PLAYER, SCORE, RENDER } from './constants.js';
 import { Input } from './Input.js';
 import { CameraRig } from './CameraRig.js';
 import { Player } from './Player.js';
@@ -124,7 +124,7 @@ export class Game {
   }
 
   update(dt) {
-    const stats = this._stats();
+    
 
     if (this.state === 'playing') {
       const inp = this.input.consume();
@@ -192,7 +192,7 @@ export class Game {
       this.world.update(this.player.z);
     }
 
-    const speedNorm = stats.speedNorm;
+    const speedNorm = this._stats().speedNorm;
     this.fx.update(dt, this.player.group.position, this.state === 'playing' ? speedNorm : 0.15);
     this.rig.update(dt, this.player.group.position, this.state === 'playing' ? speedNorm : 0);
     this.ui.update(this._stats());
