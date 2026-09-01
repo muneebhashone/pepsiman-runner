@@ -3,6 +3,12 @@ import { INPUT } from './constants.js';
 /**
  * Keyboard + mobile swipe input for lane / jump / slide.
  * Buffers one queued lane change for Subway-Surfers-style chaining.
+ *
+ * Lane mapping (chase cam behind player, looking +Z):
+ *   ArrowLeft / swipe-left  → lane index +1 (screen-left on chase cam)
+ *   ArrowRight / swipe-right → lane index −1 (screen-right on chase cam)
+ * Signs are flipped from naive world-X because the camera lateral follow
+ * mirrors perceived lane motion; playtest confirmed this mapping.
  */
 export class Input {
   constructor(target = window) {
@@ -54,8 +60,8 @@ export class Input {
     const k = e.code;
     if (this._keys.has(k)) return;
     this._keys.add(k);
-    if (k === 'ArrowLeft' || k === 'KeyA') this._queueLane(-1);
-    if (k === 'ArrowRight' || k === 'KeyD') this._queueLane(1);
+    if (k === 'ArrowLeft' || k === 'KeyA') this._queueLane(1);
+    if (k === 'ArrowRight' || k === 'KeyD') this._queueLane(-1);
     if (k === 'ArrowUp' || k === 'KeyW' || k === 'Space') {
       this.onAction?.('jump');
       this.jump = true;
@@ -90,7 +96,7 @@ export class Input {
       return;
     }
     if (adx > ady * 1.15) {
-      this._queueLane(dx > 0 ? 1 : -1);
+      this._queueLane(dx > 0 ? -1 : 1);
     } else {
       if (dy < 0) {
         this.onAction?.('jump');

@@ -18,7 +18,6 @@ export class World {
     this.scene = scene;
     this.pool = [];
     this.active = [];
-    this.nextSegZ = 0;
     this.scrollT = 0;
     this.speedNorm = 0;
 
@@ -343,47 +342,61 @@ export class World {
     }
   }
 
-  _acquireSegment(z) {
+  _prepareSegment(seg, z) {
+    this._decorateSegment(seg, (z * 0.017 + this.active.length * 31) | 0);
+    seg.position.set(0, 0, z);
+    seg.visible = true;
+    if (!seg.parent) this.scene.add(seg);
+    return seg;
+  }
+
+  /** Pull from pool or create when pool is empty. */
+  _takeSegment(z) {
     let seg = this.pool.pop();
     if (!seg) {
       seg = new THREE.Group();
       seg.frustumCulled = false;
     }
-    this._decorateSegment(seg, (z * 0.017 + this.active.length * 31) | 0);
-    seg.position.set(0, 0, z);
-    seg.visible = true;
-    if (!seg.parent) this.scene.add(seg);
-    this.active.push(seg);
-    return seg;
+    return this._prepareSegment(seg, z);
   }
 
-  _recycleSegment() {
-    const old = this.active.shift();
-    if (!old) return;
-    old.visible = false;
-    this.pool.push(old);
+  _sortActive() {
+    this.active.sort((a, b) => a.position.z - b.position.z);
   }
 
+  /**
+   * Single placement authority: extend behind/ahead of sorted active segments
+   * so there is never a gap larger than one segment near the player.
+   */
   _ensureSegmentCoverage(playerZ) {
+    const behindZ = playerZ - WORLD.segmentLength * WORLD.segmentsBehind;
+    const aheadZ = playerZ + WORLD.segmentLength * (WORLD.segmentsAhead + 1);
     const minActive = WORLD.segmentsBehind + WORLD.segmentsAhead + 1;
-    while (this.active.length < minActive) {
-      const backZ =
-        this.active.length > 0
-          ? this.active[0].position.z - WORLD.segmentLength
-          : playerZ - WORLD.segmentLength * WORLD.segmentsBehind;
-      this._acquireSegment(backZ);
+
+    this._sortActive();
+
+    if (this.active.length === 0) {
+      let z = Math.floor(behindZ / WORLD.segmentLength) * WORLD.segmentLength;
+      while (this.active.length < minActive || z <= aheadZ) {
+        this.active.push(this._takeSegment(z));
+        z += WORLD.segmentLength;
+      }
+      return;
     }
-    const frontZ = playerZ + WORLD.segmentLength * (WORLD.segmentsAhead + 1);
+
+    while (this.active[0].position.z > behindZ) {
+      const z = this.active[0].position.z - WORLD.segmentLength;
+      this.active.unshift(this._takeSegment(z));
+    }
+
     while (
-      this.active.length < POOL &&
-      (this.active.length === 0 || this.active[this.active.length - 1].position.z < frontZ)
+      this.active[this.active.length - 1].position.z < aheadZ ||
+      this.active.length < minActive
     ) {
-      const aheadZ =
-        this.active.length > 0
-          ? this.active[this.active.length - 1].position.z + WORLD.segmentLength
-          : playerZ;
-      this._acquireSegment(aheadZ);
+      const z = this.active[this.active.length - 1].position.z + WORLD.segmentLength;
+      this.active.push(this._takeSegment(z));
     }
+
     for (const seg of this.active) {
       seg.position.x = 0;
       seg.position.y = 0;
@@ -392,14 +405,30 @@ export class World {
     }
   }
 
-  _seedSegments() {
-    this.nextSegZ = -WORLD.segmentLength;
-    for (let i = 0; i < POOL; i++) this._spawnSegment();
+  /**
+   * Recycle the rearmost segment and place it immediately ahead of the front.
+   * Keeps active sorted by z — no separate nextSegZ counter.
+   */
+  _recycleAhead() {
+    const old = this.active.shift();
+    if (!old) return;
+
+    const lastZ =
+      this.active.length > 0
+        ? this.active[this.active.length - 1].position.z
+        : old.position.z;
+    const newZ = lastZ + WORLD.segmentLength;
+    this._prepareSegment(old, newZ);
+    this.active.push(old);
   }
 
-  _spawnSegment() {
-    this._acquireSegment(this.nextSegZ);
-    this.nextSegZ += WORLD.segmentLength;
+  _seedSegments() {
+    this.active = [];
+    let z = -WORLD.segmentLength;
+    for (let i = 0; i < POOL; i++) {
+      this.active.push(this._takeSegment(z));
+      z += WORLD.segmentLength;
+    }
   }
 
   update(playerZ, speed = PLAYER.runSpeedBase) {
@@ -409,10 +438,9 @@ export class World {
     );
     this.scrollT += speed * 0.012;
 
-    const recycleZ = playerZ - WORLD.segmentLength * WORLD.segmentsBehind;
+    const recycleZ = playerZ - WORLD.segmentLength * (WORLD.segmentsBehind + 1);
     while (this.active.length && this.active[0].position.z < recycleZ) {
-      this._recycleSegment();
-      this._spawnSegment();
+      this._recycleAhead();
     }
     this._ensureSegmentCoverage(playerZ);
 
@@ -452,7 +480,6 @@ export class World {
       this.pool.push(seg);
     }
     this.active = [];
-    this.nextSegZ = 0;
     this.scrollT = 0;
     this.speedNorm = 0;
     this._seedSegments();
