@@ -31,14 +31,31 @@ export const PLAYER = {
   runSpeedBase: 18,
   runSpeedMax: 42,
   accelPerSec: 0.35,
+  /** Lane switch: 0.18–0.22s with overshoot settle */
   laneSwitchDuration: 0.2,
+  laneOvershoot: 0.14,
+  laneLeanMax: 0.42,
+  laneLeanDamp: 10,
+  /** Jump: ~0.45s sin arc apex */
   jumpDuration: 0.45,
   jumpHeight: 2.4,
+  /** Coyote-ish forgiveness after leaving ground */
+  coyoteTime: 0.1,
+  /** Slide: ~0.5s flat squash */
   slideDuration: 0.5,
   slideHeight: 0.55,
   invulnAfterHit: 0,
   radius: 0.55,
   height: 1.8,
+};
+
+export const INPUT = {
+  /** Buffer one queued lane change during active switch */
+  laneBufferMax: 1,
+  /** Touch swipe minimum distance (px) */
+  swipeMin: 24,
+  /** Touch swipe max time (ms) before ignored */
+  swipeMaxMs: 280,
 };
 
 export const WORLD = {
@@ -68,12 +85,18 @@ export const SCORE = {
 };
 
 export const CAMERA = {
-  offset: { x: 0, y: 5.2, z: -9.5 },
+  offset: { x: 0, y: 5.4, z: -9.8 },
   lookAhead: 14,
-  lag: 0.12,
+  lookAheadSpeedBoost: 6,
+  /** Exponential lag — lower = snappier, higher = floatier */
+  lag: 0.1,
+  lagY: 0.14,
   fovBase: 55,
+  fovSpeedBoost: 7,
   fovPunch: 8,
-  landShake: 0.18,
+  fovPunchDecay: 16,
+  landShake: 0.16,
+  landShakeDuration: 0.24,
 };
 
 export const RENDER = {

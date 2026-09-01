@@ -127,11 +127,11 @@ export class Game {
     
 
     if (this.state === 'playing') {
-      const inp = this.input.consume();
+      const inp = this.input.consume(this.player.canQueueLane());
       if (inp.laneDelta) {
         if (this.player.tryLane(inp.laneDelta)) {
           this.audio.whoosh(inp.laneDelta * 0.6);
-          this.rig.punchFov(3);
+          this.rig.punchFov(4);
         }
       }
       if (inp.jump && this.player.tryJump()) this.audio.jump();
@@ -194,7 +194,12 @@ export class Game {
 
     const speedNorm = this._stats().speedNorm;
     this.fx.update(dt, this.player.group.position, this.state === 'playing' ? speedNorm : 0.15);
-    this.rig.update(dt, this.player.group.position, this.state === 'playing' ? speedNorm : 0);
+    this.rig.update(
+      dt,
+      this.player.group.position,
+      this.state === 'playing' ? speedNorm : 0,
+      this.player.lean
+    );
     this.ui.update(this._stats());
   }
 
