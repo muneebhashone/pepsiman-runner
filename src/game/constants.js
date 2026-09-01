@@ -84,9 +84,9 @@ export const SPAWN = {
   obstacleMinGap: 38,
   obstacleMaxGap: 48,
   obstacleGapTighten: 0.1,
-  obstacleWarmupZ: 130,
-  obstacleWarmupGapMin: 52,
-  obstacleWarmupGapMax: 68,
+  obstacleWarmupZ: 105,
+  obstacleWarmupGapMin: 36,
+  obstacleWarmupGapMax: 48,
   /** Wider Z gap between first forced tutorial obstacles so lesson 2 isn't stacked on lesson 1 */
   obstacleTutorialGapMin: 72,
   obstacleTutorialGapMax: 82,
