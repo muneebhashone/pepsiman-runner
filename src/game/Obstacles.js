@@ -126,6 +126,10 @@ export class Obstacles {
     this._signHintState = 'idle';
     this._railReadyStartMs = 0;
     this._signReadyStartMs = 0;
+    this._railVerbStartMs = 0;
+    this._signVerbStartMs = 0;
+    this._railVerbFading = false;
+    this._signVerbFading = false;
     this._graceSlideUsed = false;
     this._graceJumpUsed = false;
     this._onTutorialHint = null;
@@ -298,26 +302,43 @@ export class Obstacles {
   }
 
   /** Re-flash verb hint after tutorial grace (bypasses one-shot shown guard). */
-  _reflashSlideHint() {
-    this._emitTutorialHint('slide');
+  _scheduleGraceRetry(kind) {
+    const isRail = kind === 'rail';
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const readyMsKey = isRail ? '_railReadyStartMs' : '_signReadyStartMs';
+    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
+    this[stateKey] = 'retryBeat';
+    this[readyMsKey] = performance.now();
+    this[fadeKey] = false;
+    this._emitTutorialHint('again');
   }
 
-  _reflashJumpHint() {
-    this._emitTutorialHint('jump');
+  onTutorialCorrectAction(kind) {
+    const isRail = kind === 'slide';
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
+    const state = this[stateKey];
+    if (state === 'idle' || state === 'done') return;
+    this[stateKey] = 'done';
+    this[fadeKey] = false;
+    this._emitTutorialHint(null);
   }
 
   _tutorialHintStartTtc() {
     return SPAWN.tutorialHintReadyStartSec + 0.35;
   }
 
-  /** TTC-driven GET READY → verb sequence for first tutorial rail/sign. */
+  /** Timed GET READY → verb sequence for first tutorial rail/sign. */
   _updateFirstTutorialHint(kind, ttc) {
     const isRail = kind === 'rail';
     const stateKey = isRail ? '_railHintState' : '_signHintState';
     const readyMsKey = isRail ? '_railReadyStartMs' : '_signReadyStartMs';
-    const verb = isRail ? 'slide' : 'jump';
-    const verbTail = SPAWN.tutorialHintVerbTailSec;
+    const verbMsKey = isRail ? '_railVerbStartMs' : '_signVerbStartMs';
+    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
     const readyHold = SPAWN.tutorialHintReadyBeforeVerbSec;
+    const verbVisible = SPAWN.tutorialHintVerbVisibleSec;
+    const verbFade = SPAWN.tutorialHintVerbFadeSec;
+    const retryBeat = SPAWN.tutorialHintRetryBeatSec;
     let state = this[stateKey];
 
     if (state === 'done') return;
@@ -336,21 +357,34 @@ export class Obstacles {
       const elapsed = (performance.now() - this[readyMsKey]) / 1000;
       if (elapsed >= readyHold) {
         this[stateKey] = 'verb';
+        this[verbMsKey] = performance.now();
+        this[fadeKey] = false;
         if (isRail) this._fireSlideHint();
         else this._fireJumpHint();
-      } else {
-        this._emitTutorialHint('ready');
+      }
+      return;
+    }
+
+    if (state === 'retryBeat') {
+      const elapsed = (performance.now() - this[readyMsKey]) / 1000;
+      if (elapsed >= retryBeat) {
+        this[stateKey] = 'verb';
+        this[verbMsKey] = performance.now();
+        this[fadeKey] = false;
+        this._emitTutorialHint(isRail ? 'slide' : 'jump');
       }
       return;
     }
 
     if (state === 'verb') {
-      if (ttc > verbTail) {
-        if (isRail) this._emitTutorialHint('slide');
-        else this._emitTutorialHint('jump');
-      } else {
+      const verbElapsed = (performance.now() - this[verbMsKey]) / 1000;
+      if (verbElapsed >= verbVisible + verbFade) {
         this[stateKey] = 'done';
+        this[fadeKey] = false;
         this._emitTutorialHint(null);
+      } else if (verbElapsed >= verbVisible && !this[fadeKey]) {
+        this[fadeKey] = true;
+        this._emitTutorialHint('fade');
       }
     }
   }
@@ -987,7 +1021,7 @@ export class Obstacles {
         if (it.isFirstTutorialRail === true && !this._graceSlideUsed) {
           this._graceSlideUsed = true;
           it.collisionDisabled = true;
-          this._reflashSlideHint();
+          this._scheduleGraceRetry('rail');
           this._onTutorialGrace?.('slide');
           continue;
         }
@@ -1000,7 +1034,7 @@ export class Obstacles {
         if (it.isFirstTutorialSign === true && !this._graceJumpUsed) {
           this._graceJumpUsed = true;
           it.collisionDisabled = true;
-          this._reflashJumpHint();
+          this._scheduleGraceRetry('sign');
           this._onTutorialGrace?.('jump');
           continue;
         }
@@ -1070,6 +1104,10 @@ export class Obstacles {
     this._signHintState = 'idle';
     this._railReadyStartMs = 0;
     this._signReadyStartMs = 0;
+    this._railVerbStartMs = 0;
+    this._signVerbStartMs = 0;
+    this._railVerbFading = false;
+    this._signVerbFading = false;
     this._graceSlideUsed = false;
     this._graceJumpUsed = false;
   }

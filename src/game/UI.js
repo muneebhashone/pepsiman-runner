@@ -1,3 +1,5 @@
+import { SPAWN } from './constants.js';
+
 export class UI {
   constructor() {
     this.hud = document.getElementById('hud');
@@ -206,7 +208,7 @@ export class UI {
     this.setTutorialHint(action);
   }
 
-  /** Show tutorial hint at full opacity until clearTutorialHint (TTC-driven). */
+  /** Show tutorial hint at full opacity until cleared or faded. */
   setTutorialHint(action) {
     if (!this.tutorialHint) return;
     clearTimeout(this._tutorialHintTimer);
@@ -214,12 +216,24 @@ export class UI {
     const same = this._tutorialHintAction === action;
     this._tutorialHintAction = action;
     const isReady = action === 'ready';
+    const isAgain = action === 'again';
     const isSlide = action === 'slide';
-    const label = isReady ? 'GET READY' : isSlide ? 'SLIDE' : 'JUMP';
-    const arrow = isReady ? '' : isSlide ? '↓' : '↑';
+    const label = isReady ? 'GET READY' : isAgain ? 'AGAIN' : isSlide ? 'SLIDE' : 'JUMP';
+    const arrow = isReady || isAgain ? '' : isSlide ? '↓' : '↑';
     this.tutorialHint.textContent = arrow ? `${arrow} ${label}` : label;
-    this.tutorialHint.classList.remove('hidden', 'slide', 'jump', 'ready', 'flash', 'hold', 'pop');
-    this.tutorialHint.classList.add('hold', isReady ? 'ready' : isSlide ? 'slide' : 'jump');
+    this.tutorialHint.classList.remove(
+      'hidden',
+      'slide',
+      'jump',
+      'ready',
+      'again',
+      'flash',
+      'hold',
+      'pop',
+      'fade-out'
+    );
+    const tone = isReady || isAgain ? (isAgain ? 'again' : 'ready') : isSlide ? 'slide' : 'jump';
+    this.tutorialHint.classList.add('hold', tone);
     if (!same) {
       void this.tutorialHint.offsetWidth;
       this.tutorialHint.classList.add('pop');
@@ -227,11 +241,29 @@ export class UI {
     this.tutorialHint.setAttribute('aria-hidden', 'false');
   }
 
+  fadeTutorialHint() {
+    if (!this.tutorialHint || this.tutorialHint.classList.contains('hidden')) return;
+    this.tutorialHint.classList.remove('hold', 'pop');
+    this.tutorialHint.classList.add('fade-out');
+    clearTimeout(this._tutorialHintTimer);
+    const fadeMs = SPAWN.tutorialHintVerbFadeSec * 1000 + 50;
+    this._tutorialHintTimer = setTimeout(() => this.clearTutorialHint(), fadeMs);
+  }
+
   clearTutorialHint() {
     if (!this.tutorialHint) return;
     this._tutorialHintAction = null;
     this.tutorialHint.classList.add('hidden');
-    this.tutorialHint.classList.remove('hold', 'pop', 'flash', 'slide', 'jump', 'ready');
+    this.tutorialHint.classList.remove(
+      'hold',
+      'pop',
+      'flash',
+      'fade-out',
+      'slide',
+      'jump',
+      'ready',
+      'again'
+    );
     this.tutorialHint.setAttribute('aria-hidden', 'true');
     clearTimeout(this._tutorialHintTimer);
     clearTimeout(this._tutorialHintChainTimer);

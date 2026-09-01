@@ -51,7 +51,8 @@ export class Game {
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
     this.obstacles.setTutorialHintCallback((action) => {
-      if (action) this.ui.setTutorialHint(action);
+      if (action === 'fade') this.ui.fadeTutorialHint();
+      else if (action) this.ui.setTutorialHint(action);
       else this.ui.clearTutorialHint();
     });
     this.obstacles.setTutorialGraceCallback((action) => this._tutorialGrace(action));
@@ -269,8 +270,12 @@ export class Game {
       if (inp.jump && this.player.tryJump()) {
         this.audio.jump();
         this.rig.punchFov(2.8);
+        this.obstacles.onTutorialCorrectAction('jump');
       }
-      if (inp.slide && this.player.trySlide()) this.audio.slide();
+      if (inp.slide && this.player.trySlide()) {
+        this.audio.slide();
+        this.obstacles.onTutorialCorrectAction('slide');
+      }
 
       this.player.speed = Math.min(
         PLAYER.runSpeedMax,
