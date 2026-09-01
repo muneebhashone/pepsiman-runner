@@ -21,10 +21,14 @@ export class CameraRig {
     this._pos.copy(camera.position);
   }
 
-  landShake(strength = CAMERA.landShake) {
+  landShake(strength = CAMERA.landShake, duration = CAMERA.landShakeDuration) {
     this.shakeAmp = Math.max(this.shakeAmp, strength);
-    this.shakeTime = CAMERA.landShakeDuration;
+    this.shakeTime = duration;
     this._shakeSeed = Math.random() * 1000;
+  }
+
+  deathShake(strength, duration) {
+    this.landShake(strength, duration);
   }
 
   punchFov(amount = CAMERA.fovPunch) {

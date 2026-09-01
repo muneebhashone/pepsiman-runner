@@ -75,15 +75,19 @@ export const WORLD = {
 export const SPAWN = {
   runwayZ: 55,
   minSpawnAhead: 55,
-  obstacleMinGap: 20,
-  obstacleMaxGap: 32,
-  obstacleGapTighten: 0.22,
+  /** Z gap between patterns — ~1.0–1.6s at base speed, tightens with velocity */
+  obstacleMinGap: 18,
+  obstacleMaxGap: 28,
+  obstacleGapTighten: 0.28,
   obstacleWarmupZ: 180,
-  obstacleWarmupGapMin: 28,
-  obstacleWarmupGapMax: 36,
+  obstacleWarmupGapMin: 22,
+  obstacleWarmupGapMax: 30,
   warmupPatternCount: 2,
   /** First N post-warmup patterns alternate forced slide/jump obstacles */
-  postWarmupTutorialPatterns: 8,
+  postWarmupTutorialPatterns: 6,
+  /** Rolling window (seconds) — must include jump + slide threats */
+  varietyWindowSec: 15,
+  varietyHistorySize: 10,
   collectibleChance: 0.9,
   collectibleWarmupZ: 200,
   collectibleCluster: 3,
@@ -104,8 +108,8 @@ export const SPAWN = {
   /** Bias spawn toward jump/slide obstacles after warmup */
   verticalObstacleBias: 0.82,
   patternLookahead: 3,
-  doubleChanceBase: 0.05,
-  doubleChanceMax: 0.35,
+  doubleChanceBase: 0.08,
+  doubleChanceMax: 0.38,
   starterCanSpacing: 5.5,
   starterCanCount: 6,
   hitboxShrink: 0.78,
@@ -119,6 +123,22 @@ export const SCORE = {
   comboDecay: 1.6,
   /** Min seconds between pickups to advance combo */
   comboSpacing: 0.28,
+};
+
+export const NEAR_MISS = {
+  /** Max lateral miss distance (same lane, tight squeeze) */
+  proximityX: 0.62,
+  /** Z band behind obstacle front where near-miss registers */
+  proximityZ: 2.4,
+  scoreBonus: 12,
+  cooldown: 0.4,
+};
+
+export const DEATH = {
+  hitStopDuration: 0.07,
+  fovPunch: 11,
+  shakeStrength: 0.44,
+  shakeDuration: 0.32,
 };
 
 export const CAMERA = {

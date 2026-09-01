@@ -104,6 +104,17 @@ body {
   animation: pickup-pop 0.85s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
+.float-pickup.near-miss .float-can-label {
+  font-size: clamp(11px, 2.4vw, 15px);
+  color: #a8f0ff;
+  -webkit-text-stroke: 1px rgba(0, 85, 191, 0.7);
+}
+
+.float-pickup.near-miss .float-pts {
+  font-size: clamp(12px, 2.6vw, 17px);
+  opacity: 0.9;
+}
+
 .float-can-label {
   font-size: clamp(14px, 3vw, 20px);
   font-weight: 900;

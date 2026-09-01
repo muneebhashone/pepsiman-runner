@@ -86,6 +86,27 @@ export class AudioSys {
     noise.stop(t + 0.18);
   }
 
+  nearMissWhoosh() {
+    if (!this._started || !this.enabled) return;
+    const t = this._t();
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'bandpass';
+    f.frequency.setValueAtTime(520, t);
+    f.frequency.exponentialRampToValueAtTime(1400, t + 0.06);
+    f.Q.value = 3;
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(220, t);
+    osc.frequency.exponentialRampToValueAtTime(80, t + 0.12);
+    this._env(g, 0.003, 0.02, 0.35, 0.1, 0.22);
+    osc.connect(f);
+    f.connect(g);
+    g.connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.16);
+  }
+
   jump() {
     if (!this._started || !this.enabled) return;
     const t = this._t();

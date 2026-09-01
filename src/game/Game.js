@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { PLAYER, SCORE, RENDER } from './constants.js';
+import { PLAYER, SCORE, RENDER, DEATH, NEAR_MISS } from './constants.js';
 import { Input } from './Input.js';
 import { CameraRig } from './CameraRig.js';
 import { Player } from './Player.js';
@@ -21,6 +21,7 @@ export class Game {
     this.comboTimer = 0;
     this.lastPickupAt = -99;
     this.distance = 0;
+    this.hitStopT = 0;
     this.clock = new THREE.Clock(false);
     this._raf = 0;
 
@@ -119,6 +120,7 @@ export class Game {
     this.comboTimer = 0;
     this.lastPickupAt = -99;
     this.distance = 0;
+    this.hitStopT = 0;
     this.player.reset();
     this.world.reset();
     this.obstacles.reset();
@@ -180,18 +182,28 @@ export class Game {
   _gameOver() {
     if (this.state !== 'playing') return;
     this.state = 'gameover';
+    this.hitStopT = DEATH.hitStopDuration;
     this.player.kill();
     this.audio.crash();
-    this.fx.crashBurst(this.player.group.position.clone());
+    this.fx.crashBurst(this.player.group.position.clone(), true);
     this.ui.flashHit(this.fx.hitFlashIntensity());
-    this.rig.landShake(0.28);
+    this.rig.deathShake(DEATH.shakeStrength, DEATH.shakeDuration);
+    this.rig.punchFov(DEATH.fovPunch);
     this.input.enabled = false;
     setTimeout(() => {
       if (this.state === 'gameover') {
         this.audio.gameOver();
         this.ui.showGameOver(this.score, this.coins, this.bestCombo);
       }
-    }, 280);
+    }, 320);
+  }
+
+  _nearMiss(bonus) {
+    this.score += bonus;
+    this.audio.nearMissWhoosh();
+    this.fx.nearMissSpark(this.player.group.position.clone());
+    this.rig.punchFov(1.8);
+    this.ui.floatNearMiss(bonus);
   }
 
   _loop() {
@@ -203,7 +215,25 @@ export class Game {
 
   update(dt) {
     const playing = this.state === 'playing';
+    const gameover = this.state === 'gameover';
     const stats = this._stats();
+
+    if (this.hitStopT > 0) {
+      this.hitStopT -= dt;
+      this.player.update(dt);
+      this.fx.update(dt, this.player.group.position, stats.speedNorm, playing || gameover);
+      this.rig.update(
+        dt,
+        this.player.group.position,
+        playing ? stats.speedNorm : 0,
+        this.player.lean,
+        this.player.jumping,
+        this.player.y,
+        this.player.isLaneSwitching()
+      );
+      this.ui.update(this._stats(), dt);
+      return;
+    }
 
     if (playing) {
       const inp = this.input.consume(this.player.canQueueLane());
@@ -249,6 +279,15 @@ export class Game {
       if (hit) {
         hit.alive = false;
         this._gameOver();
+      } else {
+        const nearBonus = this.obstacles.checkNearMiss(
+          box,
+          this.player.jumping,
+          this.player.sliding,
+          this.player.z,
+          this.player.lane
+        );
+        if (nearBonus > 0) this._nearMiss(nearBonus);
       }
 
       const got = this.collectibles.collect(box);
@@ -262,7 +301,7 @@ export class Game {
         this.comboTimer -= dt;
         if (this.comboTimer <= 0) this.combo = 1;
       }
-    } else if (this.state === 'menu' || this.state === 'gameover') {
+    } else if (this.state === 'menu' || gameover) {
       this.player.update(dt);
       this.world.update(this.player.z, this.player.speed);
     }
