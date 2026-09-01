@@ -20,6 +20,7 @@ export class Collectibles {
     this.obstacles = null;
     this.nextZ = 14;
     this.bobT = 0;
+    this._laneCursor = 0;
     this.magnetRange = 2.8;
     this.magnetRangeMax = 4.2;
 
@@ -66,13 +67,19 @@ export class Collectibles {
     this.obstacles = obstacles;
   }
 
-  _pickOpenLane(z, preferred = 1) {
+  _pickOpenLane(z, preferred = -1) {
+    // Prefer cycling across all three lanes rather than center-only chains.
+    const cycle =
+      preferred >= 0 ? preferred : (((this._laneCursor = (this._laneCursor || 0) + 1) - 1) % 3);
     if (this.obstacles?.openLanesNear) {
       const open = this.obstacles.openLanesNear(z, 6);
-      if (open.includes(preferred)) return preferred;
+      if (open.includes(cycle)) return cycle;
+      // Prefer any open non-center lane if available, else any open
+      const nonCenter = open.filter((l) => l !== 1);
+      if (nonCenter.length) return nonCenter[(Math.random() * nonCenter.length) | 0];
       return open[(Math.random() * open.length) | 0];
     }
-    return preferred;
+    return cycle >= 0 ? cycle : (Math.random() * 3) | 0;
   }
 
   _createCanMesh() {
@@ -162,6 +169,7 @@ export class Collectibles {
   }
 
   _spawnCluster(z, diff, forceLane = -1) {
+    // Bias across all three lanes (not only center chains).
     const lane =
       forceLane >= 0 ? forceLane : this._pickOpenLane(z, (Math.random() * 3) | 0);
     const chain = forceLane < 0 && Math.random() < SPAWN.chainChance + diff * 0.1;
@@ -170,17 +178,24 @@ export class Collectibles {
     if (chain) {
       const len = SPAWN.chainLength + ((Math.random() * 2) | 0);
       const spacing = 2.4 - diff * 0.15;
+      // Spread chain across lanes: stay preferred ~50%, else hop to another open lane
       for (let i = 0; i < len; i++) {
         const lz = z + i * spacing;
-        const useLane = this._pickOpenLane(lz, lane);
+        let useLane = lane;
+        if (Math.random() < 0.5) {
+          useLane = this._pickOpenLane(lz, -1);
+        } else {
+          useLane = this._pickOpenLane(lz, lane);
+        }
         if (!this._acquire(useLane, lz, chainId)) break;
       }
     } else {
       const n = 1 + ((Math.random() * SPAWN.collectibleCluster) | 0);
       for (let i = 0; i < n; i++) {
         const lz = z + i * 2.6;
+        // Each can independently biased across lanes
         const useLane =
-          forceLane >= 0 ? forceLane : this._pickOpenLane(lz, lane);
+          forceLane >= 0 ? forceLane : this._pickOpenLane(lz, -1);
         if (!this._acquire(useLane, lz)) break;
       }
     }
@@ -188,8 +203,10 @@ export class Collectibles {
 
   _seedStarterCans() {
     const startZ = 10;
+    // Starter cans across all three lanes, not center-only
     for (let i = 0; i < SPAWN.starterCanCount; i++) {
-      this._acquire(1, startZ + i * SPAWN.starterCanSpacing);
+      const lane = i % 3;
+      this._acquire(lane, startZ + i * SPAWN.starterCanSpacing);
     }
     this.nextZ = startZ + SPAWN.starterCanCount * SPAWN.starterCanSpacing + 8;
   }
@@ -214,8 +231,8 @@ export class Collectibles {
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
 
     while (this.nextZ < horizon) {
-      const laneBias = inWarmup ? 1 : -1;
-      this._spawnCluster(this.nextZ, diff, laneBias >= 0 && inWarmup ? 1 : -1);
+      // Never force center-only; bias across all three lanes even in warmup
+      this._spawnCluster(this.nextZ, diff, -1);
       this.nextZ += (inWarmup ? 6 : 8) + Math.random() * (inWarmup ? 7 : 10) - diff * 1.2;
     }
 
@@ -350,6 +367,7 @@ export class Collectibles {
     this.items = [];
     this.nextZ = 14;
     this.bobT = 0;
+    this._laneCursor = 0;
     this._seedStarterCans();
   }
 }

@@ -352,6 +352,7 @@ export class Obstacles {
   }
 
   _acquire(type, lane, z) {
+    try {
     let mesh = this.pool.pop();
     if (!mesh) {
       mesh = this._buildMesh(type);
@@ -427,6 +428,10 @@ export class Obstacles {
     };
     this.items.push(item);
     return item;
+    } catch (e) {
+      console.error('_acquire failed', type, lane, z, e);
+      return null;
+    }
   }
 
   _release(item) {
@@ -497,7 +502,8 @@ export class Obstacles {
         }
       }
       const zOff = !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
-      this._acquire(type, lane, z + zOff);
+      const placed = this._acquire(type, lane, z + zOff);
+      if (!placed) continue;
       placedTypes.push(type);
     }
     if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
@@ -529,16 +535,46 @@ export class Obstacles {
   update(dt, playerZ, speed) {
     this._pulseT += dt;
     const diff = speedNorm(speed);
-    const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
+    const horizonDist = WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
+    const horizon = playerZ + horizonDist;
     const minAhead = this._minAhead(speed);
+    const runwayZ = SPAWN.runwayZ;
 
-    if (playerZ < SPAWN.runwayZ) {
-      this.nextZ = Math.max(this.nextZ, SPAWN.runwayZ);
+    // Keep runway empty until near its end, but always allow pre-seeding
+    // obstacles from runwayZ onward into the horizon so threats exist on arrival.
+    if (playerZ < runwayZ - 5) {
+      this.nextZ = Math.max(this.nextZ, runwayZ);
     } else {
-      this.nextZ = Math.max(this.nextZ, playerZ + minAhead);
-      while (this.nextZ < horizon) {
+      this.nextZ = Math.max(this.nextZ, Math.max(runwayZ, playerZ + minAhead));
+    }
+
+    // Always fill horizon (pre-seed from runwayZ while still on runway)
+    while (this.nextZ < playerZ + horizonDist) {
+      if (this.nextZ < runwayZ) {
+        this.nextZ = runwayZ;
+        if (this.nextZ >= playerZ + horizonDist) break;
+      }
+      try {
         this._spawnPattern(this.nextZ, diff, playerZ);
         this.nextZ += this._gapForSpeed(speed, playerZ);
+      } catch (e) {
+        console.error(e);
+        this.nextZ += 20;
+      }
+    }
+
+    // Safety: if somehow empty past runway, force visible blockers ahead
+    if (
+      playerZ > runwayZ + 10 &&
+      this.items.filter((i) => i.alive).length === 0
+    ) {
+      try {
+        this._acquire('barrier', 1, playerZ + 25);
+        this._acquire('rail', 0, playerZ + 40);
+        this._acquire('sign', 2, playerZ + 55);
+        this.nextZ = Math.max(this.nextZ, playerZ + 75);
+      } catch (e) {
+        console.error(e);
       }
     }
 

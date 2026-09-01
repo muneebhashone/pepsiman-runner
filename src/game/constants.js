@@ -73,7 +73,7 @@ export const WORLD = {
 };
 
 export const SPAWN = {
-  runwayZ: 180,
+  runwayZ: 55,
   minSpawnAhead: 55,
   obstacleMinGap: 20,
   obstacleMaxGap: 32,
@@ -122,8 +122,8 @@ export const SCORE = {
 };
 
 export const CAMERA = {
-  offset: { x: 0, y: 8.4, z: -16.5 },
-  lookAhead: 24,
+  offset: { x: 0, y: 5.8, z: -11.5 },
+  lookAhead: 16,
   lookAheadSpeedBoost: 9,
   lookHeight: 0.85,
   /** Extra pull-back / look-ahead while airborne */
