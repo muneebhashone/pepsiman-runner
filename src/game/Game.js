@@ -46,7 +46,12 @@ export class Game {
 
     this.input = new Input(window);
     this.input.setActionCallback((action) => {
-      if (this.state === 'playing') this.obstacles.onTutorialInputConsumed(action);
+      if (this.state !== 'playing') return;
+      const dismissed = this.obstacles.onTutorialInputConsumed(action);
+      if (!dismissed && this.ui.isTutorialHintVisible() && this.ui.matchesTutorialAction(action)) {
+        this.obstacles.clearAllTutorialHints();
+        this.ui.clearTutorialHint();
+      }
     });
     this.input.attach();
     this.rig = new CameraRig(this.camera);
@@ -195,6 +200,8 @@ export class Game {
   _gameOver() {
     if (this.state !== 'playing') return;
     this.state = 'gameover';
+    this.obstacles.clearAllTutorialHints();
+    this.ui.clearTutorialHint();
     this.hitStopT = DEATH.hitStopDuration;
     this.player.kill();
     this.audio.crash();

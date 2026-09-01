@@ -134,6 +134,10 @@ export class Obstacles {
     this._graceJumpUsed = false;
     this._pendingGraceRetry = null;
     this._graceRetryTimer = null;
+    this._railVerbLifecycleTimer = null;
+    this._signVerbLifecycleTimer = null;
+    this._railRetryBeatTimer = null;
+    this._signRetryBeatTimer = null;
     this._lastPlayerZ = 0;
     this._lastSpeed = 0;
     this._onTutorialHint = null;
@@ -292,30 +296,84 @@ export class Obstacles {
   _emitTutorialHint(action) {
     if (action != null && action !== 'fade') {
       if (action === 'slide' || action === 'ready') {
-        if (this._railHintState === 'done') return;
+        const rail = this._railHintState;
+        if (rail === 'done') return;
       } else if (action === 'jump') {
         if (this._signHintState === 'done') return;
       } else if (action === 'again') {
         const forRail = this._railHintState === 'retryBeat';
         const forSign = this._signHintState === 'retryBeat';
-        if (forRail && this._railHintState === 'done') return;
-        if (forSign && this._signHintState === 'done') return;
         if (!forRail && !forSign) return;
       }
     }
     this._onTutorialHint?.(action);
   }
 
-  _fireSlideHint() {
-    if (this._hintSlideShown) return;
-    this._hintSlideShown = true;
-    this._emitTutorialHint('slide');
+  _clearVerbLifecycle(isRail) {
+    const key = isRail ? '_railVerbLifecycleTimer' : '_signVerbLifecycleTimer';
+    clearTimeout(this[key]);
+    this[key] = null;
   }
 
-  _fireJumpHint() {
-    if (this._hintJumpShown) return;
-    this._hintJumpShown = true;
-    this._emitTutorialHint('jump');
+  _clearRetryBeatTimer(isRail) {
+    const key = isRail ? '_railRetryBeatTimer' : '_signRetryBeatTimer';
+    clearTimeout(this[key]);
+    this[key] = null;
+  }
+
+  _clearHintTimers(isRail) {
+    this._clearVerbLifecycle(isRail);
+    this._clearRetryBeatTimer(isRail);
+  }
+
+  /** Arm fade + clear after pop settles and full-opacity hold — independent of obstacle updates. */
+  _armVerbLifecycle(isRail) {
+    this._clearVerbLifecycle(isRail);
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
+    const pop = SPAWN.tutorialHintVerbPopSec;
+    const hold = this._verbVisibleSec();
+    const fade = SPAWN.tutorialHintVerbFadeSec;
+    const timerKey = isRail ? '_railVerbLifecycleTimer' : '_signVerbLifecycleTimer';
+
+    this[timerKey] = setTimeout(() => {
+      this[timerKey] = null;
+      if (this[stateKey] !== 'verb') return;
+      if (this[fadeKey]) return;
+      this[fadeKey] = true;
+      this._emitTutorialHint('fade');
+      this[timerKey] = setTimeout(() => {
+        this[timerKey] = null;
+        if (this[stateKey] !== 'verb') return;
+        this[stateKey] = 'done';
+        this[fadeKey] = false;
+        this._emitTutorialHint(null);
+      }, fade * 1000 + 50);
+    }, (pop + hold) * 1000 + 16);
+  }
+
+  _enterTutorialVerb(isRail) {
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const verbMsKey = isRail ? '_railVerbStartMs' : '_signVerbStartMs';
+    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
+    this._clearRetryBeatTimer(isRail);
+    this[stateKey] = 'verb';
+    this[verbMsKey] = performance.now();
+    this[fadeKey] = false;
+    this._emitTutorialHint(isRail ? 'slide' : 'jump');
+    this._armVerbLifecycle(isRail);
+  }
+
+  _armRetryBeatTimer(isRail) {
+    this._clearRetryBeatTimer(isRail);
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const timerKey = isRail ? '_railRetryBeatTimer' : '_signRetryBeatTimer';
+    const retryBeat = SPAWN.tutorialHintRetryBeatSec;
+    this[timerKey] = setTimeout(() => {
+      this[timerKey] = null;
+      if (this[stateKey] !== 'retryBeat') return;
+      this._enterTutorialVerb(isRail);
+    }, retryBeat * 1000 + 16);
   }
 
   /** Re-flash verb hint after tutorial grace (bypasses one-shot shown guard). */
@@ -323,12 +381,15 @@ export class Obstacles {
     const isRail = kind === 'rail';
     const stateKey = isRail ? '_railHintState' : '_signHintState';
     const readyMsKey = isRail ? '_railReadyStartMs' : '_signReadyStartMs';
-    const verbMsKey = isRail ? '_railVerbStartMs' : '_signVerbStartMs';
     const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
+
+    // Reset per-kind hint state so the retry verb is owned again (dismiss + self-fade).
+    this._clearHintTimers(isRail);
     this[stateKey] = 'retryBeat';
     this[readyMsKey] = performance.now();
     this[fadeKey] = false;
     this._emitTutorialHint('again');
+    this._armRetryBeatTimer(isRail);
   }
 
   /** Let the current verb finish its hold before showing AGAIN. */
@@ -339,9 +400,11 @@ export class Obstacles {
     clearTimeout(this._graceRetryTimer);
     this._pendingGraceRetry = kind;
     if (this[stateKey] === 'verb') {
-      const verbVisible = this._verbVisibleSec();
+      const pop = SPAWN.tutorialHintVerbPopSec;
+      const hold = this._verbVisibleSec();
+      const fade = SPAWN.tutorialHintVerbFadeSec;
       const elapsed = (performance.now() - this[verbMsKey]) / 1000;
-      const remaining = Math.max(0, verbVisible - elapsed);
+      const remaining = Math.max(0, pop + hold + fade - elapsed);
       if (remaining > 0) {
         this._graceRetryTimer = setTimeout(() => this._flushGraceRetry(), remaining * 1000 + 16);
         return;
@@ -376,10 +439,10 @@ export class Obstacles {
   _dismissTutorialHint(isRail) {
     const stateKey = isRail ? '_railHintState' : '_signHintState';
     const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
-    if (this[stateKey] === 'done') return false;
+    this._clearHintTimers(isRail);
     this[stateKey] = 'done';
     this[fadeKey] = false;
-    this._emitTutorialHint(null);
+    this._onTutorialHint?.(null);
     return true;
   }
 
@@ -387,7 +450,6 @@ export class Obstacles {
   _tryDismissTutorial(kind) {
     const isRail = kind === 'slide';
     const stateKey = isRail ? '_railHintState' : '_signHintState';
-    if (this[stateKey] === 'done') return false;
     const state = this[stateKey];
     if (state !== 'idle') return this._dismissTutorialHint(isRail);
     const ttc = this._firstTutorialTtc(isRail);
@@ -411,7 +473,6 @@ export class Obstacles {
   onTutorialInputConsumed(kind) {
     const isRail = kind === 'slide';
     const stateKey = isRail ? '_railHintState' : '_signHintState';
-    if (this[stateKey] === 'done') return false;
     const ttc = this._firstTutorialTtc(isRail);
     const obstacleAhead = ttc != null && ttc > 0;
     if (!this._tutorialHintActive(kind) && !obstacleAhead) return false;
@@ -439,11 +500,7 @@ export class Obstacles {
     const isRail = kind === 'rail';
     const stateKey = isRail ? '_railHintState' : '_signHintState';
     const readyMsKey = isRail ? '_railReadyStartMs' : '_signReadyStartMs';
-    const verbMsKey = isRail ? '_railVerbStartMs' : '_signVerbStartMs';
-    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
     const readyHold = SPAWN.tutorialHintReadyBeforeVerbSec;
-    const verbVisible = this._verbVisibleSec();
-    const verbFade = SPAWN.tutorialHintVerbFadeSec;
     const retryBeat = SPAWN.tutorialHintRetryBeatSec;
     let state = this[stateKey];
 
@@ -462,11 +519,12 @@ export class Obstacles {
     if (state === 'ready') {
       const elapsed = (performance.now() - this[readyMsKey]) / 1000;
       if (elapsed >= readyHold) {
-        this[stateKey] = 'verb';
-        this[verbMsKey] = performance.now();
-        this[fadeKey] = false;
-        if (isRail) this._fireSlideHint();
-        else this._fireJumpHint();
+        this._enterTutorialVerb(isRail);
+        if (isRail) {
+          this._hintSlideShown = true;
+        } else {
+          this._hintJumpShown = true;
+        }
       }
       return;
     }
@@ -474,25 +532,12 @@ export class Obstacles {
     if (state === 'retryBeat') {
       const elapsed = (performance.now() - this[readyMsKey]) / 1000;
       if (elapsed >= retryBeat) {
-        this[stateKey] = 'verb';
-        this[verbMsKey] = performance.now();
-        this[fadeKey] = false;
-        this._emitTutorialHint(isRail ? 'slide' : 'jump');
+        this._enterTutorialVerb(isRail);
       }
       return;
     }
 
-    if (state === 'verb') {
-      const verbElapsed = (performance.now() - this[verbMsKey]) / 1000;
-      if (verbElapsed >= verbVisible + verbFade) {
-        this[stateKey] = 'done';
-        this[fadeKey] = false;
-        this._emitTutorialHint(null);
-      } else if (verbElapsed >= verbVisible && !this[fadeKey]) {
-        this[fadeKey] = true;
-        this._emitTutorialHint('fade');
-      }
-    }
+    // Verb fade/clear is driven by _armVerbLifecycle timers (survives obstacle recycle).
   }
 
   _minTutorialSpawnZ(playerZ, speed) {
@@ -1200,6 +1245,19 @@ export class Obstacles {
     return 0;
   }
 
+  clearAllTutorialHints() {
+    clearTimeout(this._graceRetryTimer);
+    this._graceRetryTimer = null;
+    this._pendingGraceRetry = null;
+    this._clearHintTimers(true);
+    this._clearHintTimers(false);
+    this._railHintState = 'idle';
+    this._signHintState = 'idle';
+    this._railVerbFading = false;
+    this._signVerbFading = false;
+    this._onTutorialHint?.(null);
+  }
+
   reset() {
     while (this.items.length) this._release(this.items.shift());
     this.nextZ = SPAWN.runwayZ;
@@ -1228,5 +1286,8 @@ export class Obstacles {
     this._pendingGraceRetry = null;
     clearTimeout(this._graceRetryTimer);
     this._graceRetryTimer = null;
+    this._clearHintTimers(true);
+    this._clearHintTimers(false);
+    this._onTutorialHint?.(null);
   }
 }
