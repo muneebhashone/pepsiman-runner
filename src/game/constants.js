@@ -17,8 +17,9 @@ export const COLORS = {
   buildingC: 0x445878,
   fog: 0x2a3868,
   sky: 0x142040,
-  canBody: 0xff3a48,
-  canTop: 0xe8ecf4,
+  canBody: 0xffd54f,
+  canBand: 0x00e5ff,
+  canTop: 0xfff8e8,
   telegraph: 0xe32934,
   telegraphGlow: 0xf25560,
   telegraphSlide: 0xff6600,
@@ -27,7 +28,8 @@ export const COLORS = {
   truckTrailer: 0xe32934,
   barrier: 0xffaa00,
   rail: 0x8899aa,
-  sign: 0xe32934,
+  sign: 0xf0f4ff,
+  signFrame: 0xffaa00,
 };
 
 export const PLAYER = {
@@ -75,26 +77,28 @@ export const WORLD = {
 export const SPAWN = {
   runwayZ: 55,
   minSpawnAhead: 55,
-  /** Z gap between patterns — ~1.0–1.6s at base speed, tightens with velocity */
-  obstacleMinGap: 18,
-  obstacleMaxGap: 28,
-  obstacleGapTighten: 0.28,
+  /** Z gap between patterns — ~1.8–2.5s at base speed, tightens slowly with velocity */
+  obstacleMinGap: 32,
+  obstacleMaxGap: 42,
+  obstacleGapTighten: 0.14,
   obstacleWarmupZ: 180,
-  obstacleWarmupGapMin: 22,
-  obstacleWarmupGapMax: 30,
+  obstacleWarmupGapMin: 32,
+  obstacleWarmupGapMax: 42,
   warmupPatternCount: 2,
-  /** First N post-warmup patterns alternate forced slide/jump obstacles */
-  postWarmupTutorialPatterns: 6,
+  /** First N post-warmup patterns alternate forced slide/jump obstacles in center lane */
+  postWarmupTutorialPatterns: 8,
+  /** Max hazards visible ahead of player at once */
+  maxConcurrentBlockers: 4,
   /** Rolling window (seconds) — must include jump + slide threats */
   varietyWindowSec: 15,
   varietyHistorySize: 10,
   collectibleChance: 0.9,
   collectibleWarmupZ: 200,
-  collectibleCluster: 3,
-  chainChance: 0.22,
-  chainLength: 5,
-  /** Seconds of runway warning at current speed */
-  telegraphLead: 1.5,
+  collectibleCluster: 1,
+  chainChance: 0.06,
+  chainLength: 3,
+  /** Seconds of runway warning at current speed (~0.7–0.9s strip) */
+  telegraphLead: 0.8,
   /** Extra spawn margin beyond leadDist so warnings are fully readable */
   telegraphReactionMargin: 8,
   telegraphStripLength: 8,
@@ -102,16 +106,16 @@ export const SPAWN = {
   /** World-Z gap between strip end and obstacle front */
   telegraphObstacleGap: 1.5,
   telegraphAhead: 14,
-  telegraphChevronCount: 10,
+  telegraphChevronCount: 6,
   /** Minimum telegraph opacity at far edge of warn zone */
   telegraphMinAlpha: 0.82,
   /** Bias spawn toward jump/slide obstacles after warmup */
   verticalObstacleBias: 0.82,
   patternLookahead: 3,
-  doubleChanceBase: 0.08,
-  doubleChanceMax: 0.38,
-  starterCanSpacing: 5.5,
-  starterCanCount: 6,
+  doubleChanceBase: 0.03,
+  doubleChanceMax: 0.16,
+  starterCanSpacing: 8,
+  starterCanCount: 4,
   hitboxShrink: 0.78,
 };
 
@@ -135,10 +139,10 @@ export const NEAR_MISS = {
 };
 
 export const DEATH = {
-  hitStopDuration: 0.07,
-  fovPunch: 11,
-  shakeStrength: 0.44,
-  shakeDuration: 0.32,
+  hitStopDuration: 0.1,
+  fovPunch: 12,
+  shakeStrength: 0.62,
+  shakeDuration: 0.42,
 };
 
 export const CAMERA = {
