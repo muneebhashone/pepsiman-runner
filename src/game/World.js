@@ -30,7 +30,7 @@ export class World {
     this.lineMat = new THREE.MeshStandardMaterial({
       color: COLORS.asphaltLine,
       emissive: COLORS.asphaltLine,
-      emissiveIntensity: 0.22,
+      emissiveIntensity: 0.38,
       roughness: 0.45,
     });
     this.sidewalkMat = new THREE.MeshStandardMaterial({
@@ -137,15 +137,15 @@ export class World {
     this.sky = new THREE.Mesh(skyGeo, skyMat);
     this.scene.add(this.sky);
 
-    const hemi = new THREE.HemisphereLight(0x7799cc, 0x3a2848, 1.08);
+    const hemi = new THREE.HemisphereLight(0x8899cc, 0x4a3858, 2.05);
     this.scene.add(hemi);
     this.hemi = hemi;
 
-    const ambient = new THREE.AmbientLight(0x445577, 0.62);
+    const ambient = new THREE.AmbientLight(0x556688, 1.22);
     this.scene.add(ambient);
     this.ambient = ambient;
 
-    const sun = new THREE.DirectionalLight(0xfff0e8, 1.62);
+    const sun = new THREE.DirectionalLight(0xfff0e8, 2.1);
     sun.position.set(-8, 24, 12);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -159,12 +159,12 @@ export class World {
     this.scene.add(sun);
     this.sun = sun;
 
-    const fill = new THREE.PointLight(COLORS.pepsiBlue, 0.95, 70);
+    const fill = new THREE.PointLight(COLORS.pepsiBlue, 1.75, 70);
     fill.position.set(0, 7, 6);
     this.scene.add(fill);
     this.fill = fill;
 
-    const rim = new THREE.PointLight(COLORS.pepsiRed, 0.58, 50);
+    const rim = new THREE.PointLight(COLORS.pepsiRed, 1.05, 50);
     rim.position.set(5, 5, -3);
     this.scene.add(rim);
     this.rim = rim;
@@ -326,6 +326,7 @@ export class World {
     for (let i = 0; i < POOL; i++) {
       const g = new THREE.Group();
       g.visible = false;
+      g.frustumCulled = false;
       this._decorateSegment(g, 1000 + i * 97);
       this.scene.add(g);
       this.pool.push(g);
@@ -333,11 +334,15 @@ export class World {
   }
 
   _acquireSegment(z) {
-    const seg = this.pool.pop() ?? new THREE.Group();
+    let seg = this.pool.pop();
+    if (!seg) {
+      seg = new THREE.Group();
+      seg.frustumCulled = false;
+    }
     this._decorateSegment(seg, (z * 0.017 + this.active.length * 31) | 0);
     seg.position.z = z;
     seg.visible = true;
-    this.scene.add(seg);
+    if (!seg.parent) this.scene.add(seg);
     this.active.push(seg);
     return seg;
   }
@@ -346,8 +351,22 @@ export class World {
     const old = this.active.shift();
     if (!old) return;
     old.visible = false;
-    this.scene.remove(old);
     this.pool.push(old);
+  }
+
+  _ensureSegmentCoverage(playerZ) {
+    const minActive = WORLD.segmentsBehind + 3;
+    while (this.active.length < minActive) {
+      const backZ =
+        this.active.length > 0
+          ? this.active[0].position.z - WORLD.segmentLength
+          : playerZ - WORLD.segmentLength * WORLD.segmentsBehind;
+      this._acquireSegment(backZ);
+    }
+    for (const seg of this.active) {
+      seg.visible = true;
+      if (!seg.parent) this.scene.add(seg);
+    }
   }
 
   _seedSegments() {
@@ -372,20 +391,21 @@ export class World {
       this._recycleSegment();
       this._spawnSegment();
     }
+    this._ensureSegmentCoverage(playerZ);
 
     if (this.fill) {
       this.fill.position.z = playerZ + 8;
-      this.fill.intensity = 0.85 + this.speedNorm * 0.4;
+      this.fill.intensity = 1.55 + this.speedNorm * 0.55;
     }
     if (this.rim) {
       this.rim.position.z = playerZ - 4;
-      this.rim.intensity = 0.48 + this.speedNorm * 0.28;
+      this.rim.intensity = 0.92 + this.speedNorm * 0.35;
     }
     if (this.ambient) {
-      this.ambient.intensity = 0.58 + this.speedNorm * 0.14;
+      this.ambient.intensity = 1.12 + this.speedNorm * 0.18;
     }
     if (this.hemi) {
-      this.hemi.intensity = 1.02 + this.speedNorm * 0.1;
+      this.hemi.intensity = 1.92 + this.speedNorm * 0.12;
     }
     if (this.sun) this.sun.position.z = playerZ + 12;
 
@@ -402,7 +422,6 @@ export class World {
   reset() {
     for (const seg of this.active) {
       seg.visible = false;
-      this.scene.remove(seg);
       this.pool.push(seg);
     }
     this.active = [];
