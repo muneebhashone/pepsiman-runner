@@ -32,7 +32,7 @@ export class UI {
     this._cueQueue = [];
     this._cueActive = null;
     this._cueGen = 0;
-    this._cueTimers = { hold: null, fade: null };
+    this._cueTimers = { pop: null, hold: null, fade: null };
     this._cueIdleWaiters = [];
     this._onCueComplete = null;
 
@@ -290,16 +290,35 @@ export class UI {
     this.tutorialHint.setAttribute('aria-hidden', 'false');
     void this.tutorialHint.offsetWidth;
 
-    const pop = SPAWN.tutorialHintVerbPopSec * 1000;
-    const hold = this._holdMs(action);
-    const fade = this._fadeAfter(action) ? SPAWN.tutorialHintVerbFadeSec * 1000 : 0;
+    const popMs = SPAWN.tutorialHintVerbPopSec * 1000;
+    const holdMs = this._holdMs(action);
+    const fadeMs = this._fadeAfter(action) ? SPAWN.tutorialHintVerbFadeSec * 1000 : 0;
 
     this._clearCueTimers();
-    this._cueTimers.hold = setTimeout(() => {
+
+    const startHoldClock = () => {
       if (this._cueActive?.gen !== gen) return;
-      if (fade > 0) this._beginCueFade(gen, fade);
-      else this._finishCue(gen);
-    }, pop + hold + 16);
+      this._cueActive.holdSettledAt = performance.now();
+      this._cueTimers.hold = setTimeout(() => {
+        if (this._cueActive?.gen !== gen) return;
+        if (fadeMs > 0) this._beginCueFade(gen, fadeMs);
+        else this._finishCue(gen);
+      }, holdMs);
+    };
+
+    let holdClockStarted = false;
+    const onPopSettled = () => {
+      if (holdClockStarted || this._cueActive?.gen !== gen) return;
+      holdClockStarted = true;
+      this.tutorialHint?.removeEventListener('animationend', onPopSettled);
+      clearTimeout(this._cueTimers.pop);
+      this._cueTimers.pop = null;
+      startHoldClock();
+    };
+
+    this.tutorialHint.addEventListener('animationend', onPopSettled);
+    // Wall-clock fallback if animationend does not fire (e.g. reduced motion).
+    this._cueTimers.pop = setTimeout(onPopSettled, popMs + 32);
   }
 
   _beginCueFade(gen, fadeMs) {
@@ -341,8 +360,10 @@ export class UI {
   }
 
   _clearCueTimers() {
+    clearTimeout(this._cueTimers.pop);
     clearTimeout(this._cueTimers.hold);
     clearTimeout(this._cueTimers.fade);
+    this._cueTimers.pop = null;
     this._cueTimers.hold = null;
     this._cueTimers.fade = null;
   }

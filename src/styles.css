@@ -78,16 +78,17 @@ body {
   transform: translateX(-50%);
   z-index: 18;
   pointer-events: none;
-  font-size: clamp(20px, 4vw, 28px);
+  font-size: clamp(18px, 3.5vw, 24px);
+  line-height: 1;
   font-weight: 900;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   color: #ffffff;
-  -webkit-text-stroke: 2px rgba(0, 26, 58, 0.95);
+  -webkit-text-stroke: 1.5px rgba(0, 26, 58, 0.95);
   paint-order: stroke fill;
   text-shadow:
-    0 0 24px rgba(227, 41, 52, 0.9),
-    0 5px 0 rgba(0, 26, 58, 0.95),
-    0 0 48px rgba(0, 0, 0, 0.45);
+    0 0 20px rgba(227, 41, 52, 0.9),
+    0 3px 0 rgba(0, 26, 58, 0.95),
+    0 0 40px rgba(0, 0, 0, 0.45);
   opacity: 0;
   visibility: hidden;
   white-space: nowrap;
@@ -97,29 +98,29 @@ body {
   color: #ffcc44;
   -webkit-text-stroke-color: #cc0066;
   text-shadow:
-    0 0 28px rgba(255, 45, 149, 0.95),
-    0 0 16px rgba(255, 102, 0, 0.9),
-    0 5px 0 rgba(80, 0, 40, 0.95);
+    0 0 24px rgba(255, 45, 149, 0.95),
+    0 0 14px rgba(255, 102, 0, 0.9),
+    0 3px 0 rgba(80, 0, 40, 0.95);
 }
 
 #tutorial-hint.jump {
   color: #e8ffff;
   -webkit-text-stroke-color: #0066aa;
   text-shadow:
-    0 0 28px rgba(0, 229, 255, 0.95),
-    0 0 16px rgba(58, 160, 255, 0.85),
-    0 5px 0 rgba(0, 40, 80, 0.95);
+    0 0 24px rgba(0, 229, 255, 0.95),
+    0 0 14px rgba(58, 160, 255, 0.85),
+    0 3px 0 rgba(0, 40, 80, 0.95);
 }
 
 #tutorial-hint.ready,
 #tutorial-hint.again {
-  font-size: clamp(18px, 3.8vw, 26px);
+  font-size: clamp(15px, 3.2vw, 20px);
   color: #ffffff;
   -webkit-text-stroke-color: rgba(0, 55, 120, 0.95);
-  letter-spacing: 0.14em;
+  letter-spacing: 0.1em;
   text-shadow:
-    0 0 20px rgba(255, 230, 102, 0.85),
-    0 4px 0 rgba(0, 26, 58, 0.9);
+    0 0 16px rgba(255, 230, 102, 0.85),
+    0 2px 0 rgba(0, 26, 58, 0.9);
 }
 
 #tutorial-hint.hold {

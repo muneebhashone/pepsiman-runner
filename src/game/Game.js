@@ -47,11 +47,7 @@ export class Game {
     this.input = new Input(window);
     this.input.setActionCallback((action) => {
       if (this.state !== 'playing') return;
-      const dismissed = this.obstacles.onTutorialInputConsumed(action);
-      if (!dismissed && this.ui.isTutorialHintVisible() && this.ui.matchesTutorialAction(action)) {
-        this.obstacles.clearAllTutorialHints();
-        this.ui.clearTutorialHint();
-      }
+      this._dismissTutorialCueOnInput(action);
     });
     this.input.attach();
     this.rig = new CameraRig(this.camera);
@@ -60,7 +56,6 @@ export class Game {
     this.obstacles = new Obstacles(this.scene);
     this.obstacles.setTutorialHintCallback((action, kind) => {
       if (action) this.ui.enqueueTutorialCue(action, kind);
-      else this.ui.clearTutorialHint();
     });
     this.obstacles.setTutorialCueGate({
       isBusy: () => this.ui.isCueBusy(),
@@ -130,6 +125,13 @@ export class Game {
     this.camera.updateProjectionMatrix();
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, RENDER.maxPixelRatio));
     this.renderer.setSize(w, h, false);
+  }
+
+  _dismissTutorialCueOnInput(action) {
+    if (!this.ui.isTutorialHintVisible() || !this.ui.matchesTutorialAction(action)) return;
+    if (!this.obstacles.canDismissTutorialOnInput(action)) return;
+    this.obstacles.markTutorialDismissed(action);
+    this.ui.clearTutorialHint();
   }
 
   async start() {
@@ -284,7 +286,7 @@ export class Game {
         }
       }
       if (inp.jump) {
-        this.obstacles.onTutorialInputConsumed('jump');
+        this._dismissTutorialCueOnInput('jump');
         const jumped = this.player.tryJump();
         if (jumped) {
           this.audio.jump();
@@ -292,7 +294,7 @@ export class Game {
         }
       }
       if (inp.slide) {
-        this.obstacles.onTutorialInputConsumed('slide');
+        this._dismissTutorialCueOnInput('slide');
         const slid = this.player.trySlide();
         if (slid) this.audio.slide();
       }
@@ -306,12 +308,13 @@ export class Game {
       this.score += this.player.speed * dt * SCORE.perMeter * (1 + (this.combo - 1) * 0.03);
 
       this.player.update(dt);
-      this.obstacles.checkTutorialPoseDismiss(
+      const poseDismiss = this.obstacles.checkTutorialPoseDismiss(
         this.player.sliding,
         this.player.jumping,
         this.player.z,
         this.player.speed
       );
+      if (poseDismiss) this._dismissTutorialCueOnInput(poseDismiss);
       if (this.player.justLanded) {
         this.audio.land();
         this.rig.landShake();

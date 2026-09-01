@@ -9,6 +9,7 @@ import { SPAWN } from '../src/game/constants.js';
 
 // Minimal DOM shim for UI cue queue
 function makeEl() {
+  const listeners = new Map();
   return {
     textContent: '',
     classList: {
@@ -28,6 +29,16 @@ function makeEl() {
     offsetWidth: 0,
     setAttribute() {},
     getAttribute: () => null,
+    addEventListener(type, fn) {
+      if (!listeners.has(type)) listeners.set(type, new Set());
+      listeners.get(type).add(fn);
+    },
+    removeEventListener(type, fn) {
+      listeners.get(type)?.delete(fn);
+    },
+    dispatchAnimationEnd() {
+      for (const fn of listeners.get('animationend') ?? []) fn();
+    },
   };
 }
 
@@ -37,7 +48,7 @@ class CueQueueHarness {
     this._cueQueue = [];
     this._cueActive = null;
     this._cueGen = 0;
-    this._cueTimers = { hold: null, fade: null };
+    this._cueTimers = { pop: null, hold: null, fade: null };
     this._cueIdleWaiters = [];
     this._onCueComplete = null;
     this._tutorialHintAction = null;
@@ -90,18 +101,32 @@ class CueQueueHarness {
     this._tutorialHintAction = action;
     this.tutorialHint.textContent = action === 'slide' ? '↓ SLIDE' : action;
     this.tutorialHint.classList.remove('hidden');
-    const pop = SPAWN.tutorialHintVerbPopSec * 1000;
-    const hold = this._holdMs(action);
-    const fade = this._fadeAfter(action) ? SPAWN.tutorialHintVerbFadeSec * 1000 : 0;
-    this._cueActive.endsAt = this.now + pop + hold + fade;
-    this._cueActive.holdEndsAt = this.now + pop + hold;
-    setTimeout(() => {
+    const popMs = SPAWN.tutorialHintVerbPopSec * 1000;
+    const holdMs = this._holdMs(action);
+    const fadeMs = this._fadeAfter(action) ? SPAWN.tutorialHintVerbFadeSec * 1000 : 0;
+
+    const startHoldClock = () => {
       if (this._cueActive?.gen !== gen) return;
-      if (fade > 0) {
-        this._cueActive.fading = true;
-        setTimeout(() => this._finishCue(gen), fade + 50);
-      } else this._finishCue(gen);
-    }, pop + hold + 16);
+      this._cueActive.holdSettledAt = this.now;
+      this._cueTimers.hold = setTimeout(() => {
+        if (this._cueActive?.gen !== gen) return;
+        if (fadeMs > 0) {
+          this._cueActive.fading = true;
+          setTimeout(() => this._finishCue(gen), fadeMs + 50);
+        } else this._finishCue(gen);
+      }, holdMs);
+    };
+
+    let holdClockStarted = false;
+    const onPopSettled = () => {
+      if (holdClockStarted || this._cueActive?.gen !== gen) return;
+      holdClockStarted = true;
+      clearTimeout(this._cueTimers.pop);
+      this._cueTimers.pop = null;
+      startHoldClock();
+    };
+
+    this._cueTimers.pop = setTimeout(onPopSettled, popMs + 32);
   }
 
   _finishCue(gen) {
@@ -141,14 +166,17 @@ async function sleep(ms) {
 async function testVerbHold() {
   const q = new CueQueueHarness();
   q.enqueueTutorialCue('slide', 'rail');
-  const holdMs = SPAWN.tutorialHintVerbPopSec * 1000 + SPAWN.tutorialHintVerbVisibleSec * 1000;
-  await sleep(holdMs - 50);
+  const popMs = SPAWN.tutorialHintVerbPopSec * 1000;
+  const holdMs = SPAWN.tutorialHintVerbVisibleSec * 1000;
+  await sleep(popMs + 50);
+  assert(q._cueActive?.holdSettledAt != null, 'hold clock should start after pop settles');
+  await sleep(holdMs - 100);
   assert(q._cueActive?.action === 'slide', 'slide should still be active before hold ends');
   assert(q.tutorialHint.textContent.includes('SLIDE'), 'slide text visible during hold');
   await sleep(500);
   assert(q.completed.some((c) => c.action === 'slide'), 'slide should complete after hold+fade');
   assert(q.tutorialHint.textContent === '', 'textContent cleared after cue');
-  console.log('PASS verb hold >= 1.6s and text cleared');
+  console.log('PASS verb hold >= 1.6s after pop settles and text cleared');
 }
 
 async function testNoPreemption() {
@@ -174,7 +202,7 @@ async function testGraceSequence() {
   await sleep(
     (SPAWN.tutorialHintVerbPopSec + SPAWN.tutorialHintVerbVisibleSec + SPAWN.tutorialHintVerbFadeSec) *
       1000 +
-      100
+      150
   );
   q.enqueueTutorialCue('again', 'rail');
   q.enqueueTutorialCue('slide', 'rail');
@@ -206,8 +234,33 @@ function testGameConstructorOrder() {
   console.log('PASS Game constructor assigns UI before cue callback wiring');
 }
 
+function testObstaclesNoNullClearOnDismiss() {
+  const obsPath = join(dirname(fileURLToPath(import.meta.url)), '../src/game/Obstacles.js');
+  const src = readFileSync(obsPath, 'utf8');
+  assert(src.includes('canDismissTutorialOnInput'), 'Obstacles exposes input-gated dismiss');
+  assert(!src.includes('_dismissTutorialHint'), 'legacy proximity dismiss helper removed');
+  const gamePath = join(dirname(fileURLToPath(import.meta.url)), '../src/game/Game.js');
+  const gameSrc = readFileSync(gamePath, 'utf8');
+  assert(
+    !gameSrc.includes('else this.ui.clearTutorialHint()'),
+    'hint callback must not clear UI on null action'
+  );
+  console.log('PASS obstacles cannot truncate cue via proximity null callback');
+}
+
+function testCueBoxCss() {
+  const cssPath = join(dirname(fileURLToPath(import.meta.url)), '../src/styles.css');
+  const css = readFileSync(cssPath, 'utf8');
+  assert(css.includes('font-size: clamp(18px, 3.5vw, 24px)'), 'verb font-size clamp present');
+  assert(css.includes('line-height: 1'), 'tutorial hint uses tight line-height');
+  assert(css.includes('top: 18%'), 'tutorial hint top position preserved');
+  console.log('PASS cue box CSS targets <=28px height');
+}
+
 (async () => {
   testGameConstructorOrder();
+  testObstaclesNoNullClearOnDismiss();
+  testCueBoxCss();
   await testVerbHold();
   await testNoPreemption();
   await testGraceSequence();
