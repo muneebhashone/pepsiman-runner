@@ -1,5 +1,3 @@
-import { Game } from './game/Game.js';
-
 const canvas = document.getElementById('game-canvas');
 if (!canvas) {
   throw new Error('Missing #game-canvas');
@@ -24,11 +22,29 @@ function showBootError(err) {
   console.error('Pepsiman Runner boot failed', err);
 }
 
-let game;
-try {
-  game = new Game(canvas);
-  window.__pepsimanGame = game;
-  console.info('Pepsiman Runner ready — click Start Run');
-} catch (err) {
+let bootFailed = false;
+function onBootError(err) {
+  if (bootFailed) return;
+  bootFailed = true;
   showBootError(err);
 }
+
+window.addEventListener('error', (ev) => {
+  onBootError(ev.error ?? new Error(ev.message));
+});
+window.addEventListener('unhandledrejection', (ev) => {
+  onBootError(ev.reason);
+});
+
+let game;
+import('./game/Game.js')
+  .then(({ Game }) => {
+    try {
+      game = new Game(canvas);
+      window.__pepsimanGame = game;
+      console.info('Pepsiman Runner ready — click Start Run');
+    } catch (err) {
+      onBootError(err);
+    }
+  })
+  .catch(onBootError);

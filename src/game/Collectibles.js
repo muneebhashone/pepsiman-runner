@@ -228,6 +228,8 @@ export class Collectibles {
       item.mesh.position.y = y;
     }
   }
+
+  _seedStarterCans() {
     const startZ = 10;
     // Starter cans across all three lanes, not center-only
     for (let i = 0; i < SPAWN.starterCanCount; i++) {

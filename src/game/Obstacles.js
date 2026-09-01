@@ -527,6 +527,7 @@ export class Obstacles {
   _inWarmup(playerZ) {
     return (
       playerZ < SPAWN.runwayZ ||
+      playerZ < SPAWN.obstacleWarmupZ ||
       this.patternsSpawned < SPAWN.warmupPatternCount
     );
   }
