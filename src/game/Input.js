@@ -18,6 +18,12 @@ export class Input {
     this._boundTouchStart = (e) => this._onTouchStart(e);
     this._boundTouchEnd = (e) => this._onTouchEnd(e);
     this.enabled = true;
+    /** @type {((action: 'jump' | 'slide') => void) | null} */
+    this.onAction = null;
+  }
+
+  setActionCallback(fn) {
+    this.onAction = fn;
   }
 
   attach() {
@@ -50,8 +56,14 @@ export class Input {
     this._keys.add(k);
     if (k === 'ArrowLeft' || k === 'KeyA') this._queueLane(-1);
     if (k === 'ArrowRight' || k === 'KeyD') this._queueLane(1);
-    if (k === 'ArrowUp' || k === 'KeyW' || k === 'Space') this.jump = true;
-    if (k === 'ArrowDown' || k === 'KeyS') this.slide = true;
+    if (k === 'ArrowUp' || k === 'KeyW' || k === 'Space') {
+      this.onAction?.('jump');
+      this.jump = true;
+    }
+    if (k === 'ArrowDown' || k === 'KeyS') {
+      this.onAction?.('slide');
+      this.slide = true;
+    }
   }
 
   _onKeyUp(e) {
@@ -80,8 +92,13 @@ export class Input {
     if (adx > ady * 1.15) {
       this._queueLane(dx > 0 ? 1 : -1);
     } else {
-      if (dy < 0) this.jump = true;
-      else this.slide = true;
+      if (dy < 0) {
+        this.onAction?.('jump');
+        this.jump = true;
+      } else {
+        this.onAction?.('slide');
+        this.slide = true;
+      }
     }
     this._touchStart = null;
   }
