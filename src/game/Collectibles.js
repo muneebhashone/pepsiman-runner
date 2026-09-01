@@ -3,6 +3,8 @@ import { COLORS, LANES, SPAWN, WORLD, PLAYER } from './constants.js';
 
 const POOL_SIZE = 96;
 const CAN_SCALE = 1.45;
+const SUCK_COLLECT_DIST = 1.35;
+const SUCK_COLLECT_DIST_WARMUP = 1.55;
 
 function speedNorm(speed) {
   return Math.min(1, (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase));
@@ -16,8 +18,8 @@ export class Collectibles {
     this.obstacles = null;
     this.nextZ = 14;
     this.bobT = 0;
-    this.magnetRange = 2.6;
-    this.magnetRangeMax = 3.8;
+    this.magnetRange = 2.8;
+    this.magnetRangeMax = 4.2;
 
     this.canGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.72, 16);
     this.canMat = new THREE.MeshStandardMaterial({
@@ -73,18 +75,18 @@ export class Collectibles {
     const g = new THREE.Group();
     g.scale.set(CAN_SCALE, CAN_SCALE, CAN_SCALE);
 
-    const body = new THREE.Mesh(this.canGeo, this.canMat);
+    const body = new THREE.Mesh(this.canGeo, this.canMat.clone());
     body.castShadow = true;
     g.add(body);
 
-    const band = new THREE.Mesh(this.bandGeo, this.bandMat);
+    const band = new THREE.Mesh(this.bandGeo, this.bandMat.clone());
     g.add(band);
 
-    const top = new THREE.Mesh(this.topGeo, this.topMat);
+    const top = new THREE.Mesh(this.topGeo, this.topMat.clone());
     top.position.y = 0.38;
     g.add(top);
 
-    const logo = new THREE.Mesh(this.logoGeo, this.logoMat);
+    const logo = new THREE.Mesh(this.logoGeo, this.logoMat.clone());
     logo.position.set(0, 0.05, 0.35);
     g.add(logo);
 
@@ -96,6 +98,15 @@ export class Collectibles {
     return g;
   }
 
+  _setCanOpacity(mesh, opacity) {
+    mesh.traverse((child) => {
+      if (child.isMesh && child.material) {
+        child.material.transparent = opacity < 1;
+        child.material.opacity = opacity;
+      }
+    });
+  }
+
   _acquire(lane, z, chainId = -1) {
     const mesh = this.pool.pop();
     if (!mesh) return null;
@@ -103,6 +114,7 @@ export class Collectibles {
     mesh.scale.set(CAN_SCALE, CAN_SCALE, CAN_SCALE);
     mesh.position.set(LANES[lane], 1.05, z);
     mesh.rotation.set(0, 0, 0);
+    this._setCanOpacity(mesh, 1);
 
     const item = {
       lane,
@@ -110,6 +122,7 @@ export class Collectibles {
       mesh,
       alive: true,
       sucking: false,
+      suckT: 0,
       popping: false,
       popT: 0,
       chainId,
@@ -123,8 +136,10 @@ export class Collectibles {
   _release(item) {
     item.alive = false;
     item.sucking = false;
+    item.suckT = 0;
     item.popping = false;
     item.mesh.visible = false;
+    this._setCanOpacity(item.mesh, 1);
     this.pool.push(item.mesh);
   }
 
@@ -161,12 +176,20 @@ export class Collectibles {
     this.nextZ = startZ + SPAWN.starterCanCount * SPAWN.starterCanSpacing + 8;
   }
 
+  _beginPop(item) {
+    item.popping = true;
+    item.popT = 0;
+    item.sucking = false;
+    item.suckT = 0;
+    this._setCanOpacity(item.mesh, 1);
+  }
+
   update(dt, playerZ, playerX, playerY, speed) {
     this.bobT += dt;
     const diff = speedNorm(speed);
     const inWarmup = playerZ < SPAWN.collectibleWarmupZ;
     const magnet =
-      (inWarmup ? 3.4 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
+      (inWarmup ? 3.6 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
 
     while (this.nextZ < horizon) {
@@ -193,22 +216,39 @@ export class Collectibles {
 
       const mesh = it.mesh;
       const bob = Math.sin(this.bobT * 3.5 + it.bobPhase) * 0.14;
-      mesh.position.y = 1.05 + bob;
+      if (!it.sucking) {
+        mesh.position.y = 1.05 + bob;
+      }
       mesh.rotation.y += dt * it.spin;
 
       const dx = playerX - mesh.position.x;
       const dz = playerZ - mesh.position.z;
       const dist = Math.hypot(dx, dz);
-      const pullStrength = inWarmup ? 0.42 : 0.28 + diff * 0.18;
+      const pullStrength = inWarmup ? 0.38 : 0.24 + diff * 0.16;
+
       if (dist < magnet && dist > 0.01) {
         it.sucking = true;
-        const pull = ((magnet - dist) / magnet) ** 1.25;
+        it.suckT += dt;
+        const pull = ((magnet - dist) / magnet) ** 1.15;
         const step = pull * pullStrength * dt * 60;
-        mesh.position.x += dx * step * 0.2;
-        mesh.position.z += dz * step * 0.2;
-        mesh.position.y += (playerY + 1.1 - mesh.position.y) * step * 0.16;
-        mesh.rotation.y += dt * 10;
+        mesh.position.x += dx * step * 0.22;
+        mesh.position.z += dz * step * 0.22;
+        const targetY = playerY + 1.35;
+        mesh.position.y += (targetY - mesh.position.y) * step * 0.14;
+        mesh.rotation.y += dt * 12;
+
+        const shrink = THREE.MathUtils.clamp(1 - pull * 0.82, 0.12, 1);
+        const s = CAN_SCALE * shrink;
+        mesh.scale.set(s, s, s);
+        const fade = THREE.MathUtils.clamp(1 - pull * 0.95, 0.08, 1);
+        this._setCanOpacity(mesh, fade);
+      } else if (it.sucking) {
+        it.sucking = false;
+        it.suckT = 0;
+        mesh.scale.set(CAN_SCALE, CAN_SCALE, CAN_SCALE);
+        this._setCanOpacity(mesh, 1);
       }
+
       it.z = mesh.position.z;
     }
 
@@ -233,13 +273,14 @@ export class Collectibles {
       const dx = Math.abs(playerBox.x - mx);
       const dz = Math.abs(playerBox.z - mz);
       const dy = Math.abs(playerBox.y + 0.5 - my);
-      const laneReach = dx < 1.15;
-      const trackReach = dz < 1.25;
-      const heightReach = dy < 1.4;
-      const sweptThrough = dz < 0.85 && dx < 2.2;
-      if ((laneReach && trackReach && heightReach) || sweptThrough) {
-        it.popping = true;
-        it.popT = 0;
+      const laneReach = dx < 1.35;
+      const trackReach = dz < 1.45;
+      const heightReach = dy < 1.5;
+      const sweptThrough = dz < 1.0 && dx < 2.4;
+      const suckCollect = it.sucking ? SUCK_COLLECT_DIST : SUCK_COLLECT_DIST * 0.85;
+      const suckedIn = it.sucking && Math.hypot(dx, dz) < suckCollect;
+      if ((laneReach && trackReach && heightReach) || sweptThrough || suckedIn) {
+        this._beginPop(it);
         got.push(it);
       }
     }

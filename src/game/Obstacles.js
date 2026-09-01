@@ -396,7 +396,9 @@ export class Obstacles {
 
   _minAhead(speed) {
     const diff = speedNorm(speed);
-    return SPAWN.minSpawnAhead + diff * 12;
+    const leadDist = speed * SPAWN.telegraphLead;
+    const reaction = SPAWN.telegraphReactionMargin + diff * 6;
+    return Math.max(SPAWN.minSpawnAhead + diff * 12, leadDist + reaction);
   }
 
   update(dt, playerZ, speed) {
@@ -416,65 +418,70 @@ export class Obstacles {
     }
 
     const leadDist = speed * SPAWN.telegraphLead;
-    const stripLen = Math.max(SPAWN.telegraphStripLength, leadDist * 0.92);
+    const stripLen = Math.max(SPAWN.telegraphStripLength, leadDist * 0.98);
     const pulse = 0.72 + Math.sin(this._pulseT * 10) * 0.28;
+    const minAlpha = SPAWN.telegraphMinAlpha;
 
     for (const it of this.items) {
       if (!it.alive) continue;
       const dist = it.z - playerZ;
-      const inWarn = dist > 0 && dist < leadDist;
+      const inWarn = dist > 0 && dist <= leadDist;
       const urgency = inWarn ? 1 - dist / leadDist : 0;
       const blink = 0.82 + Math.sin(this._pulseT * 14 + it.z * 0.25) * 0.18;
-      const stripCenterZ = it.z - leadDist * 0.48;
+      const stripCenterZ = it.z - leadDist * 0.5;
       const stripScaleY = stripLen / SPAWN.telegraphStripLength;
 
       if (it.tel) {
-        const alpha = inWarn && dist > 2.5
-          ? (0.38 + 0.58 * urgency ** 1.1) * blink
-          : dist <= 2.5 && dist > 0
+        const alpha = inWarn
+          ? (minAlpha + (1 - minAlpha) * urgency ** 0.85) * blink
+          : dist <= 0 && dist > -2
             ? 0.82 * pulse
             : 0;
         it.tel.material.opacity = alpha;
         it.tel.position.set(LANES[it.lane], 0.06, stripCenterZ);
-        const wScale = 1 + urgency * 0.12;
+        const wScale = 1 + urgency * 0.14;
         it.tel.scale.set(wScale, stripScaleY, 1);
       }
 
       if (it.telOuter) {
-        const outerAlpha = inWarn && dist > 2.5
-          ? (0.22 + 0.48 * urgency ** 1.05) * pulse
-          : dist <= 2.5 && dist > 0
+        const outerAlpha = inWarn
+          ? (minAlpha * 0.55 + (1 - minAlpha * 0.55) * urgency ** 0.8) * pulse
+          : dist <= 0 && dist > -2
             ? 0.5 * pulse
             : 0;
         it.telOuter.material.opacity = outerAlpha;
         it.telOuter.position.set(LANES[it.lane], 0.05, stripCenterZ);
-        const wScale = 1 + urgency * 0.16;
+        const wScale = 1 + urgency * 0.18;
         it.telOuter.scale.set(wScale, stripScaleY * 1.12, 1);
       }
 
       if (it.shadow) {
-        const shAlpha = inWarn && dist > 2
-          ? 0.18 + 0.45 * urgency
-          : dist <= 2 && dist > 0
+        const shAlpha = inWarn
+          ? 0.16 + 0.42 * urgency
+          : dist <= 0 && dist > -1.5
             ? 0.48
             : 0;
         it.shadow.material.opacity = shAlpha;
-        it.shadow.position.set(LANES[it.lane], 0.04, it.z - leadDist * 0.32);
+        it.shadow.position.set(LANES[it.lane], 0.04, it.z - leadDist * 0.35);
       }
 
       if (it.chevrons?.length) {
-        const chevSpan = leadDist * 0.88;
+        const chevSpan = leadDist;
         for (let ci = 0; ci < it.chevrons.length; ci++) {
           const chev = it.chevrons[ci];
-          const t = (ci + 1) / (it.chevrons.length + 1);
+          const t = (ci + 0.5) / it.chevrons.length;
           const chevZ = it.z - chevSpan * t;
           const chevDist = chevZ - playerZ;
-          const chevUrg = chevDist > 0 && chevDist < leadDist ? 1 - chevDist / leadDist : 0;
-          const chevAlpha = chevUrg > 0 ? (0.35 + 0.55 * chevUrg) * blink : 0;
+          const chevUrg =
+            chevDist > 0 && chevDist <= leadDist ? 1 - chevDist / leadDist : 0;
+          const chevAlpha =
+            chevUrg > 0
+              ? (minAlpha + (1 - minAlpha) * chevUrg ** 0.75) * blink
+              : 0;
           chev.material.opacity = chevAlpha;
           chev.material.color.setHex(it.telColors?.core ?? COLORS.telegraph);
           chev.position.set(LANES[it.lane], 0.08, chevZ);
-          const s = 0.85 + chevUrg * 0.35;
+          const s = 0.82 + chevUrg * 0.38;
           chev.scale.set(s, s, 1);
         }
       }

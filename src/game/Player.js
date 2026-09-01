@@ -1,6 +1,8 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/index.js';
+import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
 import { LANES, PLAYER, COLORS } from './constants.js';
+
+const HERO_SCALE = 0.62;
 
 function gloss(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
@@ -156,7 +158,7 @@ export class Player {
     this.flap = flap;
 
     this.group.add(root);
-    root.scale.set(0.94, 0.94, 0.94);
+    root.scale.set(HERO_SCALE, HERO_SCALE, HERO_SCALE);
   }
 
   _makeArm(upperMat, lowerMat, gloveMat) {
@@ -223,8 +225,8 @@ export class Player {
     gsap.killTweensOf(this.root.scale);
     gsap.fromTo(
       this.root.scale,
-      { x: 1.12, y: 0.86, z: 1.12 },
-      { x: 0.94, y: 0.94, z: 0.94, duration: 0.14, ease: 'power2.out' }
+      { x: HERO_SCALE * 1.12, y: HERO_SCALE * 0.86, z: HERO_SCALE * 1.12 },
+      { x: HERO_SCALE, y: HERO_SCALE, z: HERO_SCALE, duration: 0.14, ease: 'power2.out' }
     );
     return true;
   }
@@ -239,7 +241,7 @@ export class Player {
     this.sliding = true;
     this.slideT = 0;
     gsap.killTweensOf(this.root.scale);
-    gsap.to(this.root.scale, { x: 1.18, y: 0.5, z: 1.08, duration: 0.1, ease: 'power2.out' });
+    gsap.to(this.root.scale, { x: HERO_SCALE * 1.18, y: HERO_SCALE * 0.5, z: HERO_SCALE * 1.08, duration: 0.1, ease: 'power2.out' });
     return true;
   }
 
@@ -299,8 +301,8 @@ export class Player {
         gsap.killTweensOf(this.root.scale);
         gsap.fromTo(
           this.root.scale,
-          { x: 1.08, y: 0.78, z: 1.08 },
-          { x: 0.94, y: 0.94, z: 0.94, duration: 0.18, ease: 'back.out(2.2)' }
+          { x: HERO_SCALE * 1.08, y: HERO_SCALE * 0.78, z: HERO_SCALE * 1.08 },
+          { x: HERO_SCALE, y: HERO_SCALE, z: HERO_SCALE, duration: 0.18, ease: 'back.out(2.2)' }
         );
       }
     }
@@ -311,7 +313,7 @@ export class Player {
       if (this.slideT >= 1) {
         this.sliding = false;
         gsap.killTweensOf(this.root.scale);
-        gsap.to(this.root.scale, { x: 0.94, y: 0.94, z: 0.94, duration: 0.14, ease: 'power2.out' });
+        gsap.to(this.root.scale, { x: HERO_SCALE, y: HERO_SCALE, z: HERO_SCALE, duration: 0.14, ease: 'power2.out' });
       }
     }
 
@@ -385,7 +387,7 @@ export class Player {
     this.wasGrounded = true;
     gsap.killTweensOf(this.root.scale);
     gsap.killTweensOf(this.root.rotation);
-    this.root.scale.set(0.94, 0.94, 0.94);
+    this.root.scale.set(HERO_SCALE, HERO_SCALE, HERO_SCALE);
     this.root.rotation.set(0, 0, 0);
     this.head.rotation.set(0, 0, 0);
     this.torso.rotation.set(0, 0, 0);
