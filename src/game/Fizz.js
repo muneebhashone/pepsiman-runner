@@ -28,6 +28,7 @@ export class FizzMeter {
   }
 
   onCanPickup() {
+    if (this.isRush) return false;
     this._streakCount += 1;
     this._streakT = FIZZ.streakWindow;
     const bonus = Math.min(FIZZ.streakCap, this._streakCount * FIZZ.perCanStreak);
@@ -35,27 +36,37 @@ export class FizzMeter {
   }
 
   onNearMiss() {
+    if (this.isRush) return false;
     return this.add(FIZZ.perNearMiss);
   }
 
   startRush() {
+    if (this.isRush) return false;
     this.level = FIZZ.max;
     this.rushT = FIZZ.rushDuration;
+    this._streakCount = 0;
+    this._streakT = 0;
+    return true;
+  }
+
+  endRush() {
+    this.rushT = 0;
+    this.level = FIZZ.emptyAfterRush;
     this._streakCount = 0;
     this._streakT = 0;
   }
 
   update(dt) {
+    if (this.isRush) {
+      this.rushT = Math.max(0, this.rushT - dt);
+      this.level = Math.max(FIZZ.emptyAfterRush, this.rushT / FIZZ.rushDuration);
+      if (this.rushT <= 0) this.endRush();
+      return;
+    }
+
     if (this._streakT > 0) {
       this._streakT -= dt;
       if (this._streakT <= 0) this._streakCount = 0;
-    }
-    if (this.rushT > 0) {
-      this.rushT -= dt;
-      if (this.rushT <= 0) {
-        this.rushT = 0;
-        this.level = FIZZ.emptyAfterRush;
-      }
     }
   }
 
