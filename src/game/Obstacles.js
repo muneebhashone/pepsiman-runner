@@ -3,6 +3,13 @@ import { COLORS, LANES, SPAWN, WORLD, PLAYER } from './constants.js';
 
 const TYPES = ['barrier', 'rail', 'sign', 'truck'];
 const WARMUP_TYPES = ['rail', 'sign'];
+const CENTER_LANE = 1;
+/** Forced center-lane tutorial right after runway */
+const TUTORIAL_SEQUENCE = [
+  { type: 'rail', lane: CENTER_LANE },
+  { type: 'sign', lane: CENTER_LANE },
+  { type: 'barrier', lane: CENTER_LANE },
+];
 const POOL_SIZE = 48;
 
 function speedNorm(speed) {
@@ -303,6 +310,33 @@ export class Obstacles {
     mesh.material.opacity = 0;
   }
 
+  _safeAcquire(type, lane, z) {
+    try {
+      return this._acquire(type, lane, z);
+    } catch (err) {
+      console.warn('[Obstacles] acquire failed', type, lane, z, err);
+      return null;
+    }
+  }
+
+  _safeSpawnPattern(z, diff, playerZ) {
+    try {
+      this._spawnPattern(z, diff, playerZ);
+      return true;
+    } catch (err) {
+      console.warn('[Obstacles] pattern spawn failed at z=', z, err);
+      return false;
+    }
+  }
+
+  _safeEnsureItemTelegraphs(it) {
+    try {
+      this._ensureItemTelegraphs(it);
+    } catch (err) {
+      console.warn('[Obstacles] telegraph ensure failed', err);
+    }
+  }
+
   _buildMesh(type) {
     const g = new THREE.Group();
     let hit = { w: 1.0, h: 0.95, d: 0.45, y: 0.55, mode: 'block' };
@@ -464,16 +498,32 @@ export class Obstacles {
   _spawnPattern(z, diff, playerZ) {
     const rng = this._rng;
     const warmup = this._inWarmup(playerZ);
+
+    if (warmup && this.patternsSpawned < TUTORIAL_SEQUENCE.length) {
+      const tut = TUTORIAL_SEQUENCE[this.patternsSpawned];
+      this._safeAcquire(tut.type, tut.lane, z);
+      this.patternsSpawned += 1;
+      return;
+    }
+
     const doubleChance = warmup
       ? 0
       : SPAWN.doubleChanceBase + (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
     const count = warmup ? 1 : rng() < doubleChance ? 2 : 1;
-    const blocked = pickLanes(count, rng);
+    const blocked =
+      warmup && count === 1 ? [CENTER_LANE] : pickLanes(count, rng);
     const open = [0, 1, 2].find((l) => !blocked.includes(l));
 
     const placedTypes = [];
     for (let bi = 0; bi < blocked.length; bi++) {
-      const lane = blocked[bi];
+      let lane = blocked[bi];
+      if (
+        !warmup &&
+        count === 1 &&
+        this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns
+      ) {
+        lane = CENTER_LANE;
+      }
       let type;
       if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
         type = POST_WARMUP_SEQUENCE[this.postWarmupPatterns % POST_WARMUP_SEQUENCE.length];
@@ -497,7 +547,7 @@ export class Obstacles {
         }
       }
       const zOff = !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
-      this._acquire(type, lane, z + zOff);
+      this._safeAcquire(type, lane, z + zOff);
       placedTypes.push(type);
     }
     if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
@@ -508,15 +558,18 @@ export class Obstacles {
 
   _gapForSpeed(speed, playerZ) {
     const diff = speedNorm(speed);
+    let gap;
     if (this._inWarmup(playerZ)) {
-      return (
+      gap =
         SPAWN.obstacleWarmupGapMin +
-        this._rng() * (SPAWN.obstacleWarmupGapMax - SPAWN.obstacleWarmupGapMin)
-      );
+        this._rng() * (SPAWN.obstacleWarmupGapMax - SPAWN.obstacleWarmupGapMin);
+    } else {
+      const min = SPAWN.obstacleMinGap - diff * SPAWN.obstacleGapTighten * 10;
+      const max = SPAWN.obstacleMaxGap - diff * SPAWN.obstacleGapTighten * 8;
+      gap = min + this._rng() * Math.max(10, max - min);
     }
-    const min = SPAWN.obstacleMinGap - diff * SPAWN.obstacleGapTighten * 10;
-    const max = SPAWN.obstacleMaxGap - diff * SPAWN.obstacleGapTighten * 8;
-    return min + this._rng() * Math.max(10, max - min);
+    if (!Number.isFinite(gap)) return 24;
+    return Math.max(8, gap);
   }
 
   _minAhead(speed) {
@@ -535,9 +588,15 @@ export class Obstacles {
     if (playerZ < SPAWN.runwayZ) {
       this.nextZ = Math.max(this.nextZ, SPAWN.runwayZ);
     } else {
-      this.nextZ = Math.max(this.nextZ, playerZ + minAhead);
-      while (this.nextZ < horizon) {
-        this._spawnPattern(this.nextZ, diff, playerZ);
+      const spawnFloor = playerZ + Math.min(minAhead, 28);
+      this.nextZ = Math.max(this.nextZ, spawnFloor);
+      let guard = 0;
+      while (this.nextZ < horizon && guard < 96) {
+        guard += 1;
+        if (!this._safeSpawnPattern(this.nextZ, diff, playerZ)) {
+          this.nextZ += 24;
+          continue;
+        }
         this.nextZ += this._gapForSpeed(speed, playerZ);
       }
     }
@@ -552,7 +611,7 @@ export class Obstacles {
 
     for (const it of this.items) {
       if (!it.alive) continue;
-      this._ensureItemTelegraphs(it);
+      this._safeEnsureItemTelegraphs(it);
 
       const dist = it.z - playerZ;
       const inWarn = dist > 0 && dist <= leadDist + 2;

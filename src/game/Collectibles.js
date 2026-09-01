@@ -172,7 +172,7 @@ export class Collectibles {
       const spacing = 2.4 - diff * 0.15;
       for (let i = 0; i < len; i++) {
         const lz = z + i * spacing;
-        const useLane = this._pickOpenLane(lz, lane);
+        const useLane = this._pickOpenLane(lz, (Math.random() * 3) | 0);
         if (!this._acquire(useLane, lz, chainId)) break;
       }
     } else {
@@ -180,7 +180,9 @@ export class Collectibles {
       for (let i = 0; i < n; i++) {
         const lz = z + i * 2.6;
         const useLane =
-          forceLane >= 0 ? forceLane : this._pickOpenLane(lz, lane);
+          forceLane >= 0
+            ? forceLane
+            : this._pickOpenLane(lz, ((i + lane) % 3));
         if (!this._acquire(useLane, lz)) break;
       }
     }
@@ -188,8 +190,10 @@ export class Collectibles {
 
   _seedStarterCans() {
     const startZ = 10;
+    const lanes = [0, 1, 2];
     for (let i = 0; i < SPAWN.starterCanCount; i++) {
-      this._acquire(1, startZ + i * SPAWN.starterCanSpacing);
+      const lane = lanes[i % lanes.length];
+      this._acquire(lane, startZ + i * SPAWN.starterCanSpacing);
     }
     this.nextZ = startZ + SPAWN.starterCanCount * SPAWN.starterCanSpacing + 8;
   }
@@ -214,8 +218,7 @@ export class Collectibles {
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
 
     while (this.nextZ < horizon) {
-      const laneBias = inWarmup ? 1 : -1;
-      this._spawnCluster(this.nextZ, diff, laneBias >= 0 && inWarmup ? 1 : -1);
+      this._spawnCluster(this.nextZ, diff, -1);
       this.nextZ += (inWarmup ? 6 : 8) + Math.random() * (inWarmup ? 7 : 10) - diff * 1.2;
     }
 

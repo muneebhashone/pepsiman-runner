@@ -73,19 +73,20 @@ export const WORLD = {
 };
 
 export const SPAWN = {
-  runwayZ: 180,
-  minSpawnAhead: 55,
+  /** Clear runway before first hazard (~4s at base speed) */
+  runwayZ: 70,
+  minSpawnAhead: 42,
   obstacleMinGap: 20,
   obstacleMaxGap: 32,
   obstacleGapTighten: 0.22,
-  obstacleWarmupZ: 180,
-  obstacleWarmupGapMin: 28,
-  obstacleWarmupGapMax: 36,
-  warmupPatternCount: 2,
-  /** First N post-warmup patterns alternate forced slide/jump obstacles */
-  postWarmupTutorialPatterns: 8,
+  obstacleWarmupZ: 70,
+  obstacleWarmupGapMin: 22,
+  obstacleWarmupGapMax: 30,
+  warmupPatternCount: 3,
+  /** Extra post-warmup center-lane vertical patterns after tutorial trio */
+  postWarmupTutorialPatterns: 3,
   collectibleChance: 0.9,
-  collectibleWarmupZ: 200,
+  collectibleWarmupZ: 90,
   collectibleCluster: 3,
   chainChance: 0.22,
   chainLength: 5,
@@ -122,10 +123,11 @@ export const SCORE = {
 };
 
 export const CAMERA = {
-  offset: { x: 0, y: 8.4, z: -16.5 },
-  lookAhead: 24,
-  lookAheadSpeedBoost: 9,
-  lookHeight: 0.85,
+  /** ~27% closer / lower so limbs read in chase view */
+  offset: { x: 0, y: 6.1, z: -12.0 },
+  lookAhead: 20,
+  lookAheadSpeedBoost: 7,
+  lookHeight: 0.72,
   /** Extra pull-back / look-ahead while airborne */
   jumpPullback: 2.4,
   jumpLookBoost: 5.5,
@@ -139,8 +141,8 @@ export const CAMERA = {
   /** Tighter clamp during fast lane switches — stay nearer road center */
   maxLateralOffLaneSwitch: 0.48,
   /** Vertical bounds relative to player */
-  minYOffset: 6.8,
-  maxYOffset: 10.2,
+  minYOffset: 5.0,
+  maxYOffset: 7.6,
   /** Damp lean-driven lateral lead (0 = none) */
   lateralLeadScale: 0.08,
   fovBase: 58,
