@@ -37,6 +37,7 @@ export class Game {
     this._zoneLevel = 0;
     this._rushVisuals = false;
     this._rushEnding = false;
+    this._runTime = 0;
     this._persisted = loadPersisted();
     this.clock = new THREE.Clock(false);
     this._raf = 0;
@@ -132,6 +133,7 @@ export class Game {
       speedNorm: Math.max(0, Math.min(1, speedNorm)),
       fizzLevel: this.fizz.level,
       rushActive: this.fizz.isRush,
+      rushNorm: this.fizz.rushNorm,
       missions: this.missions.snapshot(),
     };
   }
@@ -186,10 +188,12 @@ export class Game {
     this._zoneLevel = 0;
     this._rushVisuals = false;
     this._rushEnding = false;
+    this._runTime = 0;
     this.player.reset();
     this.player.setGhost(false);
     this.world.reset();
     this.world.setZoneLevel(0);
+    this.world.setRushActive(false);
     this.obstacles.reset();
     this.collectibles.reset();
     this.collectibles.setRushActive(false);
@@ -235,18 +239,30 @@ export class Game {
     }
   }
 
+  _scoreMult() {
+    return this.fizz.isRush ? FIZZ.rushScoreMult : 1;
+  }
+
+  _addScore(pts) {
+    this.score += pts * this._scoreMult();
+  }
+
   _startRush() {
     this.audio.rushStinger();
+    this.audio.startRushLoop();
     this.ui.floatRush();
     this.collectibles.setRushActive(true);
     this.fx.setRushActive(true);
+    this.world.setRushActive(true);
     this.player.setGhost(true);
     this.player.speed = Math.min(PLAYER.runSpeedMax, this.player.speed * FIZZ.speedBoost);
   }
 
   _endRush() {
+    this.audio.stopRushLoop();
     this.collectibles.setRushActive(false);
     this.fx.setRushActive(false);
+    this.world.setRushActive(false);
     this.player.setGhost(false);
   }
 
@@ -273,7 +289,7 @@ export class Game {
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     const mult = 1 + SCORE.comboMultStep * (this.combo - 1);
     const pts = SCORE.canBase * this.combo * mult;
-    this.score += pts;
+    this._addScore(pts);
     this.coins += 1;
 
     this.fizz.onCanPickup();
@@ -312,13 +328,19 @@ export class Game {
     this.input.enabled = false;
 
     const floored = Math.floor(this.score);
+    const distM = Math.floor(this.distance);
     const allTimeBestCombo = Math.max(this._persisted.bestCombo, this.bestCombo);
     const highScore = Math.max(this._persisted.highScore, floored);
+    const topScores = [...(this._persisted.topScores || []), floored]
+      .sort((a, b) => b - a)
+      .filter((v, i, arr) => arr.indexOf(v) === i)
+      .slice(0, 3);
     const soClose = this._persisted.highScore > 0 && floored >= this._persisted.highScore * 0.9;
     savePersisted({
       highScore,
       bestCombo: allTimeBestCombo,
       totalCans: this._persisted.totalCans + this.coins,
+      topScores,
     });
     this._persisted = loadPersisted();
 
@@ -330,13 +352,15 @@ export class Game {
           allTimeBestCombo,
           soClose,
           diedDuringRush,
+          distance: distM,
+          topScores: this._persisted.topScores || topScores,
         });
       }
     }, 320);
   }
 
   _nearMiss(bonus) {
-    this.score += bonus;
+    this._addScore(bonus);
     this.fizz.onNearMiss();
     if (this.fizz.isRush && !this._rushVisuals) {
       this._rushVisuals = true;
@@ -408,6 +432,8 @@ export class Game {
         this.rig.setZoneFov(ZONE.fovTick * (this._zoneLevel % 2 === 0 ? 1 : -0.5));
       }
 
+      this._runTime += dt;
+
       const inp = this.input.consume(this.player.canQueueLane());
       if (inp.laneDelta) {
         if (this.player.tryLane(inp.laneDelta)) {
@@ -435,10 +461,13 @@ export class Game {
         PLAYER.runSpeedMax,
         this.player.speed + PLAYER.accelPerSec * dt
       );
+      if (this._runTime < PLAYER.earlySpeedCapSec) {
+        this.player.speed = Math.min(this.player.speed, PLAYER.earlySpeedCap);
+      }
       this.player.z += this.player.speed * dt;
       this.distance += this.player.speed * dt;
       const comboMeter = 1 + (this.combo - 1) * 0.04;
-      this.score += this.player.speed * dt * SCORE.perMeter * comboMeter;
+      this._addScore(this.player.speed * dt * SCORE.perMeter * comboMeter);
 
       this.player.update(dt);
 
@@ -446,6 +475,18 @@ export class Game {
       if (this.obstacles.checkRamp(box, this.player.lane) && !this.player.jumping) {
         this.player.tryJump();
         this.audio.jump();
+      }
+
+      if (this.fizz.isRush) {
+        const smashHit = this.obstacles.collide(box, this.player.jumping, this.player.sliding);
+        if (smashHit) {
+          const pos = smashHit.mesh.position.clone();
+          pos.y += smashHit.hit?.y ?? 0.8;
+          this.obstacles.destroyObstacle(smashHit);
+          this.fx.smashBurst(pos);
+          this.audio.rushSmash();
+          this._addScore(35);
+        }
       }
 
       const poseDismiss = this.obstacles.checkTutorialPoseDismiss(
@@ -501,7 +542,7 @@ export class Game {
       const got = this.collectibles.collect(box, this.player.lane);
       if (got.length) {
         const chainBonus = this.collectibles.chainBonus(got);
-        if (chainBonus > 0) this.score += chainBonus;
+        if (chainBonus > 0) this._addScore(chainBonus);
       }
       for (const c of got) this._collectPickup(c);
 

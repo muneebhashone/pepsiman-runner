@@ -35,7 +35,10 @@ export const COLORS = {
 export const PLAYER = {
   runSpeedBase: 18,
   runSpeedMax: 42,
-  accelPerSec: 0.22,
+  accelPerSec: 0.18,
+  /** Hold early pace flat so median run stretches toward 30–45s */
+  earlySpeedCap: 19,
+  earlySpeedCapSec: 16,
   /** Lane switch: 0.18–0.22s with overshoot settle */
   laneSwitchDuration: 0.2,
   laneOvershoot: 0.14,
@@ -89,9 +92,15 @@ export const SPAWN = {
   obstacleTutorialGapMax: 82,
   /** How many initial tutorial patterns use the wider gap */
   obstacleTutorialWideGapCount: 4,
+  /** Post-warmup patterns that keep wide gaps before density ramps */
+  postWarmupWideGapCount: 5,
+  /** No double-lane blocks until after this many patterns (post-warmup) */
+  earlyNoDoublePatterns: 8,
   warmupPatternCount: 10,
   /** First N post-warmup patterns alternate forced slide/jump obstacles in center lane */
   postWarmupTutorialPatterns: 0,
+  /** Forced obstacle-type rotation length after center tutorial */
+  rotationTableLength: 20,
   /** Max hazards visible ahead of player at once */
   maxConcurrentBlockers: 4,
   /** Rolling window (seconds) — must include jump + slide threats */
@@ -175,6 +184,10 @@ export const FIZZ = {
   rushDuration: 4,
   speedBoost: 1.12,
   magnetAllLanes: true,
+  /** Fizz bar pulses when this full — rush is imminent */
+  readyPulseAt: 0.85,
+  /** Score multiplier while rush is active */
+  rushScoreMult: 2,
 };
 
 export const MISSIONS = {

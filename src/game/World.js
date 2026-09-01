@@ -20,6 +20,8 @@ export class World {
     this.active = [];
     this.scrollT = 0;
     this.speedNorm = 0;
+    this._rushActive = false;
+    this._preRushFog = null;
 
     this.roadMat = new THREE.MeshStandardMaterial({
       color: COLORS.asphalt,
@@ -482,6 +484,7 @@ export class World {
 
   /** Speed-zone palette tick — subtle fog shift, no camera sickness */
   setZoneLevel(level = 0) {
+    if (this._rushActive) return;
     const fog = this.scene.fog;
     if (!fog) return;
     const t = Math.min(1, level);
@@ -491,6 +494,26 @@ export class World {
       this.sky.material.uniforms.uGlow.value.setHex(
         t > 0.5 ? COLORS.pepsiRed : COLORS.pepsiBlue
       );
+    }
+  }
+
+  setRushActive(active) {
+    this._rushActive = active;
+    const fog = this.scene.fog;
+    if (!fog) return;
+    if (active) {
+      this._preRushFog = { near: fog.near, far: fog.far, color: fog.color.getHex() };
+      fog.color.setHex(0x1a2868);
+      fog.near = WORLD.fogNear - 6;
+      fog.far = WORLD.fogFar + 42;
+      if (this.sky?.material?.uniforms?.uGlow) {
+        this.sky.material.uniforms.uGlow.value.setHex(COLORS.pepsiRed);
+      }
+    } else if (this._preRushFog) {
+      fog.near = this._preRushFog.near;
+      fog.far = this._preRushFog.far;
+      fog.color.setHex(this._preRushFog.color);
+      this._preRushFog = null;
     }
   }
 

@@ -7,6 +7,8 @@ export class AudioSys {
     this.master = null;
     this.enabled = true;
     this._started = false;
+    this._rushLoop = null;
+    this._rushGain = null;
   }
 
   async ensure() {
@@ -316,6 +318,74 @@ export class AudioSys {
       osc.start(t + i * 0.05);
       osc.stop(t + 0.45);
     }
+  }
+
+  startRushLoop() {
+    if (!this._started || !this.enabled || this._rushLoop) return;
+    const t = this._t();
+    this._rushGain = this.ctx.createGain();
+    this._rushGain.gain.value = 0.0001;
+    this._rushGain.connect(this.master);
+
+    const oscA = this.ctx.createOscillator();
+    const oscB = this.ctx.createOscillator();
+    oscA.type = 'square';
+    oscB.type = 'triangle';
+    oscA.frequency.value = 110;
+    oscB.frequency.value = 165;
+    const f = this.ctx.createBiquadFilter();
+    f.type = 'lowpass';
+    f.frequency.value = 900;
+    const lfo = this.ctx.createOscillator();
+    const lfoG = this.ctx.createGain();
+    lfo.frequency.value = 6.5;
+    lfoG.gain.value = 0.08;
+    lfo.connect(lfoG);
+    lfoG.connect(this._rushGain.gain);
+    oscA.connect(f);
+    oscB.connect(f);
+    f.connect(this._rushGain);
+    oscA.start(t);
+    oscB.start(t);
+    lfo.start(t);
+    this._rushGain.gain.exponentialRampToValueAtTime(0.14, t + 0.12);
+    this._rushLoop = { oscA, oscB, lfo, f, gain: this._rushGain };
+  }
+
+  stopRushLoop() {
+    if (!this._rushLoop || !this.ctx) return;
+    const t = this._t();
+    const { oscA, oscB, lfo, f, gain } = this._rushLoop;
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(gain.gain.value, t);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+    const stopAt = t + 0.2;
+    oscA.stop(stopAt);
+    oscB.stop(stopAt);
+    lfo.stop(stopAt);
+    try {
+      f.disconnect();
+      gain.disconnect();
+    } catch {
+      /* already disconnected */
+    }
+    this._rushLoop = null;
+    this._rushGain = null;
+  }
+
+  rushSmash() {
+    if (!this._started || !this.enabled) return;
+    const t = this._t();
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(48, t + 0.1);
+    this._env(g, 0.002, 0.03, 0.2, 0.08, 0.28);
+    osc.connect(g);
+    g.connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.14);
   }
 
   missionComplete() {

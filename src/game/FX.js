@@ -245,6 +245,37 @@ export class FX {
     }
   }
 
+  smashBurst(pos) {
+    this.hitFlashT = 0.22;
+    for (let i = 0; i < 18; i++) {
+      const mat = this._makeSparkMat(
+        i % 3 === 0 ? COLORS.pepsiRed : i % 3 === 1 ? COLORS.pepsiBlue : 0xffffff,
+        0.9
+      );
+      const m = new THREE.Mesh(i % 2 ? this.sparkGeo : this.burstGeo, mat);
+      m.position.copy(pos);
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 14,
+        2 + Math.random() * 8,
+        (Math.random() - 0.5) * 10
+      );
+      this._spawnParticle(m, vel, 0.35 + Math.random() * 0.2, 9, 8, 0.95);
+    }
+    const ringMat = new THREE.MeshBasicMaterial({
+      color: COLORS.pepsiBlue,
+      transparent: true,
+      opacity: 0.7,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.65, 16), ringMat);
+    ring.rotation.x = -Math.PI / 2;
+    ring.position.set(pos.x, 0.14, pos.z);
+    ring.userData.expand = true;
+    this._spawnParticle(ring, new THREE.Vector3(0, 0.3, 0), 0.28, 0, 0, 0.7);
+  }
+
   hitFlashIntensity() {
     if (this.hitFlashT <= 0) return 0;
     return Math.pow(this.hitFlashT / 0.35, 0.6);
