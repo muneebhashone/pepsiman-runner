@@ -117,7 +117,7 @@ export const SPAWN = {
   /** Opacity ramps to full only in the last N seconds before hazard */
   telegraphRampSec: 0.35,
   /** Verb hint pop-in duration (seconds) — hold timer starts after this settles */
-  tutorialHintVerbPopSec: 0.12,
+  tutorialHintVerbPopSec: 0.18,
   /** Verb hint full-opacity dwell before fade (seconds) — after pop settles */
   tutorialHintVerbVisibleSec: 1.6,
   /** Verb hint fade-out duration (seconds) — runs after hold, not inside it */
