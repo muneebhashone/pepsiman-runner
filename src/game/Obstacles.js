@@ -26,10 +26,10 @@ function typeForLane(lane, openLane, rng, warmup) {
 }
 
 const TELEGRAPH_COLORS = {
-  barrier: { core: 0xffcc44, glow: 0xff8800 },
-  rail: { core: 0x44ffff, glow: 0x00ccff },
-  sign: { core: 0xff6688, glow: 0xff2244 },
-  truck: { core: 0xff4466, glow: 0xff0033 },
+  barrier: { core: COLORS.telegraph, glow: COLORS.telegraphGlow },
+  rail: { core: COLORS.telegraph, glow: COLORS.telegraphGlow },
+  sign: { core: COLORS.telegraph, glow: COLORS.telegraphGlow },
+  truck: { core: COLORS.telegraph, glow: COLORS.telegraphGlow },
 };
 
 function chevronGeometry() {
@@ -64,8 +64,8 @@ export class Obstacles {
       sign: new THREE.BoxGeometry(1.7, 0.9, 0.45),
       truckCab: new THREE.BoxGeometry(1.8, 1.6, 1.4),
       truckBody: new THREE.BoxGeometry(1.9, 2.0, 3.2),
-      tel: new THREE.PlaneGeometry(1.55, SPAWN.telegraphStripLength),
-      telOuter: new THREE.PlaneGeometry(2.5, SPAWN.telegraphStripLength * 1.35),
+      tel: new THREE.PlaneGeometry(SPAWN.telegraphStripWidth, SPAWN.telegraphStripLength),
+      telOuter: new THREE.PlaneGeometry(SPAWN.telegraphStripWidth * 1.55, SPAWN.telegraphStripLength * 1.4),
       shadow: new THREE.PlaneGeometry(1.3, 1.8),
       chevron: chevronGeometry(),
     };
@@ -109,8 +109,19 @@ export class Obstacles {
         emissive: 0xffffff,
         emissiveIntensity: 0.25,
       }),
-      telegraph: new THREE.MeshBasicMaterial({
+      telegraph: new THREE.MeshStandardMaterial({
         color: COLORS.telegraph,
+        emissive: COLORS.telegraph,
+        emissiveIntensity: 2.4,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        toneMapped: false,
+      }),
+      telegraphOuter: new THREE.MeshStandardMaterial({
+        color: COLORS.telegraphGlow,
+        emissive: COLORS.telegraphGlow,
+        emissiveIntensity: 1.8,
         transparent: true,
         opacity: 0,
         depthWrite: false,
@@ -134,21 +145,23 @@ export class Obstacles {
       const tel = new THREE.Mesh(this._geo.tel, this._mats.telegraph.clone());
       tel.rotation.x = -Math.PI / 2;
       tel.visible = false;
-      tel.frustumCulled = true;
+      tel.frustumCulled = false;
+      tel.renderOrder = 12;
       this.scene.add(tel);
       this.telPool.push(tel);
 
-      const telOuter = new THREE.Mesh(this._geo.telOuter, this._mats.telegraph.clone());
+      const telOuter = new THREE.Mesh(this._geo.telOuter, this._mats.telegraphOuter.clone());
       telOuter.rotation.x = -Math.PI / 2;
       telOuter.visible = false;
-      telOuter.frustumCulled = true;
+      telOuter.frustumCulled = false;
+      telOuter.renderOrder = 11;
       this.scene.add(telOuter);
       this.telOuterPool.push(telOuter);
 
       const sh = new THREE.Mesh(this._geo.shadow, this._mats.shadow.clone());
       sh.rotation.x = -Math.PI / 2;
       sh.visible = false;
-      sh.frustumCulled = true;
+      sh.frustumCulled = false;
       this.scene.add(sh);
       this.shadowPool.push(sh);
     }
@@ -157,19 +170,21 @@ export class Obstacles {
     for (let i = 0; i < chevCount; i++) {
       const chev = new THREE.Mesh(
         this._geo.chevron,
-        new THREE.MeshBasicMaterial({
+        new THREE.MeshStandardMaterial({
           color: COLORS.telegraph,
+          emissive: COLORS.telegraph,
+          emissiveIntensity: 2.2,
           transparent: true,
           opacity: 0,
           depthWrite: false,
-          blending: THREE.AdditiveBlending,
           side: THREE.DoubleSide,
           toneMapped: false,
         })
       );
       chev.rotation.x = -Math.PI / 2;
       chev.visible = false;
-      chev.frustumCulled = true;
+      chev.frustumCulled = false;
+      chev.renderOrder = 13;
       this.scene.add(chev);
       this.chevronPool.push(chev);
     }
@@ -420,54 +435,63 @@ export class Obstacles {
     }
 
     const leadDist = speed * SPAWN.telegraphLead;
-    const stripLen = Math.max(SPAWN.telegraphStripLength, leadDist * 0.98);
-    const pulse = 0.88 + Math.sin(this._pulseT * 10) * 0.12;
+    const stripLen = Math.max(SPAWN.telegraphStripLength, leadDist);
+    const pulse = 0.9 + Math.sin(this._pulseT * 10) * 0.1;
     const minAlpha = SPAWN.telegraphMinAlpha;
-    const alphaBoost = 1.35;
+    const alphaBoost = 1.55;
 
     for (const it of this.items) {
       if (!it.alive) continue;
       const dist = it.z - playerZ;
       const inWarn = dist > 0 && dist <= leadDist;
       const urgency = inWarn ? 1 - dist / leadDist : 0;
-      const blink = 0.82 + Math.sin(this._pulseT * 14 + it.z * 0.25) * 0.18;
-      const stripCenterZ = it.z - leadDist * 0.5;
+      const blink = 0.88 + Math.sin(this._pulseT * 14 + it.z * 0.25) * 0.12;
+      const stripStartZ = it.z - leadDist;
+      const stripCenterZ = stripStartZ + stripLen * 0.5;
       const stripScaleY = stripLen / SPAWN.telegraphStripLength;
+      const laneX = LANES[it.lane];
 
       if (it.tel) {
         const alpha = inWarn
-          ? Math.min(1, (minAlpha + (1 - minAlpha) * urgency ** 0.75) * blink * alphaBoost)
+          ? Math.min(1, (minAlpha + (1 - minAlpha) * urgency ** 0.65) * blink * alphaBoost)
           : dist <= 0 && dist > -2
-            ? 0.92 * pulse
+            ? 0.95 * pulse
             : 0;
+        it.tel.visible = alpha > 0.02;
         it.tel.material.opacity = alpha;
+        it.tel.material.emissiveIntensity = 2.2 + urgency * 1.4;
         it.tel.material.color.setHex(it.telColors?.core ?? COLORS.telegraph);
-        it.tel.position.set(LANES[it.lane], 0.06, stripCenterZ);
-        const wScale = 1 + urgency * 0.14;
+        it.tel.material.emissive.setHex(it.telColors?.core ?? COLORS.telegraph);
+        it.tel.position.set(laneX, 0.08, stripCenterZ);
+        const wScale = 1 + urgency * 0.1;
         it.tel.scale.set(wScale, stripScaleY, 1);
       }
 
       if (it.telOuter) {
         const outerAlpha = inWarn
-          ? Math.min(1, (minAlpha * 0.72 + (1 - minAlpha * 0.72) * urgency ** 0.7) * pulse * alphaBoost)
+          ? Math.min(1, (minAlpha * 0.85 + (1 - minAlpha * 0.85) * urgency ** 0.6) * pulse * alphaBoost)
           : dist <= 0 && dist > -2
-            ? 0.62 * pulse
+            ? 0.72 * pulse
             : 0;
+        it.telOuter.visible = outerAlpha > 0.02;
         it.telOuter.material.opacity = outerAlpha;
-        it.telOuter.material.color.setHex(it.telColors?.glow ?? COLORS.neonCyan);
-        it.telOuter.position.set(LANES[it.lane], 0.05, stripCenterZ);
-        const wScale = 1 + urgency * 0.18;
-        it.telOuter.scale.set(wScale, stripScaleY * 1.12, 1);
+        it.telOuter.material.emissiveIntensity = 1.6 + urgency * 1.2;
+        it.telOuter.material.color.setHex(it.telColors?.glow ?? COLORS.telegraphGlow);
+        it.telOuter.material.emissive.setHex(it.telColors?.glow ?? COLORS.telegraphGlow);
+        it.telOuter.position.set(laneX, 0.06, stripCenterZ);
+        const wScale = 1 + urgency * 0.14;
+        it.telOuter.scale.set(wScale, stripScaleY * 1.08, 1);
       }
 
       if (it.shadow) {
         const shAlpha = inWarn
-          ? 0.16 + 0.42 * urgency
+          ? 0.2 + 0.38 * urgency
           : dist <= 0 && dist > -1.5
-            ? 0.48
+            ? 0.52
             : 0;
+        it.shadow.visible = shAlpha > 0.02;
         it.shadow.material.opacity = shAlpha;
-        it.shadow.position.set(LANES[it.lane], 0.04, it.z - leadDist * 0.35);
+        it.shadow.position.set(laneX, 0.05, it.z - leadDist * 0.35);
       }
 
       if (it.chevrons?.length) {
@@ -481,12 +505,15 @@ export class Obstacles {
             chevDist > 0 && chevDist <= leadDist ? 1 - chevDist / leadDist : 0;
           const chevAlpha =
             chevUrg > 0
-              ? Math.min(1, (minAlpha + (1 - minAlpha) * chevUrg ** 0.65) * blink * alphaBoost)
+              ? Math.min(1, (minAlpha + (1 - minAlpha) * chevUrg ** 0.55) * blink * alphaBoost)
               : 0;
+          chev.visible = chevAlpha > 0.02;
           chev.material.opacity = chevAlpha;
+          chev.material.emissiveIntensity = 2 + chevUrg * 1.5;
           chev.material.color.setHex(it.telColors?.core ?? COLORS.telegraph);
-          chev.position.set(LANES[it.lane], 0.08, chevZ);
-          const s = 0.9 + chevUrg * 0.45;
+          chev.material.emissive.setHex(it.telColors?.core ?? COLORS.telegraph);
+          chev.position.set(laneX, 0.1, chevZ);
+          const s = 1.05 + chevUrg * 0.55;
           chev.scale.set(s, s, 1);
         }
       }

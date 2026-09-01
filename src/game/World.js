@@ -34,7 +34,7 @@ export class World {
       roughness: 0.45,
     });
     this.sidewalkMat = new THREE.MeshStandardMaterial({
-      color: 0x1e1e2a,
+      color: 0x2e2e3c,
       roughness: 0.82,
       metalness: 0.08,
     });
@@ -109,8 +109,8 @@ export class World {
       side: THREE.BackSide,
       depthWrite: false,
       uniforms: {
-        uTop: { value: new THREE.Color(0x02040c) },
-        uHorizon: { value: new THREE.Color(0x0a1840) },
+        uTop: { value: new THREE.Color(0x0a1838) },
+        uHorizon: { value: new THREE.Color(0x1a3870) },
         uGlow: { value: new THREE.Color(COLORS.pepsiBlue) },
         uScroll: { value: 0 },
       },
@@ -135,36 +135,37 @@ export class World {
       `,
     });
     this.sky = new THREE.Mesh(skyGeo, skyMat);
+    this.sky.frustumCulled = false;
     this.scene.add(this.sky);
 
-    const hemi = new THREE.HemisphereLight(0x8899cc, 0x4a3858, 2.05);
+    const hemi = new THREE.HemisphereLight(0xaabbee, 0x6a5878, 2.85);
     this.scene.add(hemi);
     this.hemi = hemi;
 
-    const ambient = new THREE.AmbientLight(0x556688, 1.22);
+    const ambient = new THREE.AmbientLight(0x7788aa, 1.65);
     this.scene.add(ambient);
     this.ambient = ambient;
 
-    const sun = new THREE.DirectionalLight(0xfff0e8, 2.1);
+    const sun = new THREE.DirectionalLight(0xfff4ee, 2.85);
     sun.position.set(-8, 24, 12);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
     sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 85;
-    sun.shadow.camera.left = -32;
-    sun.shadow.camera.right = 32;
-    sun.shadow.camera.top = 32;
-    sun.shadow.camera.bottom = -32;
+    sun.shadow.camera.far = 120;
+    sun.shadow.camera.left = -42;
+    sun.shadow.camera.right = 42;
+    sun.shadow.camera.top = 42;
+    sun.shadow.camera.bottom = -42;
     sun.shadow.bias = -0.00025;
     this.scene.add(sun);
     this.sun = sun;
 
-    const fill = new THREE.PointLight(COLORS.pepsiBlue, 1.75, 70);
+    const fill = new THREE.PointLight(COLORS.pepsiBlue, 2.35, 90);
     fill.position.set(0, 7, 6);
     this.scene.add(fill);
     this.fill = fill;
 
-    const rim = new THREE.PointLight(COLORS.pepsiRed, 1.05, 50);
+    const rim = new THREE.PointLight(COLORS.pepsiRed, 1.55, 65);
     rim.position.set(5, 5, -3);
     this.scene.add(rim);
     this.rim = rim;
@@ -223,6 +224,12 @@ export class World {
     g.add(circle);
 
     return g;
+  }
+
+  _disableFrustumCull(root) {
+    root.traverse((obj) => {
+      obj.frustumCulled = false;
+    });
   }
 
   _decorateSegment(g, seed) {
@@ -320,6 +327,8 @@ export class World {
         g.add(bulb);
       }
     }
+
+    this._disableFrustumCull(g);
   }
 
   _buildPool() {
@@ -340,7 +349,7 @@ export class World {
       seg.frustumCulled = false;
     }
     this._decorateSegment(seg, (z * 0.017 + this.active.length * 31) | 0);
-    seg.position.z = z;
+    seg.position.set(0, 0, z);
     seg.visible = true;
     if (!seg.parent) this.scene.add(seg);
     this.active.push(seg);
@@ -355,7 +364,7 @@ export class World {
   }
 
   _ensureSegmentCoverage(playerZ) {
-    const minActive = WORLD.segmentsBehind + 3;
+    const minActive = WORLD.segmentsBehind + WORLD.segmentsAhead + 1;
     while (this.active.length < minActive) {
       const backZ =
         this.active.length > 0
@@ -363,7 +372,20 @@ export class World {
           : playerZ - WORLD.segmentLength * WORLD.segmentsBehind;
       this._acquireSegment(backZ);
     }
+    const frontZ = playerZ + WORLD.segmentLength * (WORLD.segmentsAhead + 1);
+    while (
+      this.active.length < POOL &&
+      (this.active.length === 0 || this.active[this.active.length - 1].position.z < frontZ)
+    ) {
+      const aheadZ =
+        this.active.length > 0
+          ? this.active[this.active.length - 1].position.z + WORLD.segmentLength
+          : playerZ;
+      this._acquireSegment(aheadZ);
+    }
     for (const seg of this.active) {
+      seg.position.x = 0;
+      seg.position.y = 0;
       seg.visible = true;
       if (!seg.parent) this.scene.add(seg);
     }
@@ -394,25 +416,28 @@ export class World {
     this._ensureSegmentCoverage(playerZ);
 
     if (this.fill) {
-      this.fill.position.z = playerZ + 8;
-      this.fill.intensity = 1.55 + this.speedNorm * 0.55;
+      this.fill.position.set(0, 7, playerZ + 8);
+      this.fill.intensity = 2.05 + this.speedNorm * 0.45;
     }
     if (this.rim) {
-      this.rim.position.z = playerZ - 4;
-      this.rim.intensity = 0.92 + this.speedNorm * 0.35;
+      this.rim.position.set(0, 5, playerZ - 4);
+      this.rim.intensity = 1.35 + this.speedNorm * 0.3;
     }
     if (this.ambient) {
-      this.ambient.intensity = 1.12 + this.speedNorm * 0.18;
+      this.ambient.intensity = 1.52 + this.speedNorm * 0.15;
     }
     if (this.hemi) {
-      this.hemi.intensity = 1.92 + this.speedNorm * 0.12;
+      this.hemi.intensity = 2.65 + this.speedNorm * 0.12;
     }
-    if (this.sun) this.sun.position.z = playerZ + 12;
+    if (this.sun) {
+      this.sun.position.set(-8, 24, playerZ + 12);
+      this.sun.intensity = 2.75 + this.speedNorm * 0.2;
+    }
 
     if (this.scene.fog) {
       const fog = this.scene.fog;
-      fog.near = WORLD.fogNear - this.speedNorm * 4;
-      fog.far = WORLD.fogFar - this.speedNorm * 18;
+      fog.near = WORLD.fogNear;
+      fog.far = WORLD.fogFar - this.speedNorm * 8;
     }
     if (this.sky?.material?.uniforms) {
       this.sky.material.uniforms.uScroll.value = this.scrollT;
