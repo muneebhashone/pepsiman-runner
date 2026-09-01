@@ -137,10 +137,14 @@ export class World {
     this.sky = new THREE.Mesh(skyGeo, skyMat);
     this.scene.add(this.sky);
 
-    const hemi = new THREE.HemisphereLight(0x5577bb, 0x1a0a20, 0.5);
+    const hemi = new THREE.HemisphereLight(0x6688bb, 0x2a1838, 0.82);
     this.scene.add(hemi);
 
-    const sun = new THREE.DirectionalLight(0xfff0e8, 1.2);
+    const ambient = new THREE.AmbientLight(0x334466, 0.48);
+    this.scene.add(ambient);
+    this.ambient = ambient;
+
+    const sun = new THREE.DirectionalLight(0xfff0e8, 1.45);
     sun.position.set(-8, 24, 12);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -154,12 +158,12 @@ export class World {
     this.scene.add(sun);
     this.sun = sun;
 
-    const fill = new THREE.PointLight(COLORS.pepsiBlue, 0.75, 70);
+    const fill = new THREE.PointLight(COLORS.pepsiBlue, 0.95, 70);
     fill.position.set(0, 7, 6);
     this.scene.add(fill);
     this.fill = fill;
 
-    const rim = new THREE.PointLight(COLORS.pepsiRed, 0.45, 50);
+    const rim = new THREE.PointLight(COLORS.pepsiRed, 0.58, 50);
     rim.position.set(5, 5, -3);
     this.scene.add(rim);
     this.rim = rim;
@@ -370,11 +374,14 @@ export class World {
 
     if (this.fill) {
       this.fill.position.z = playerZ + 8;
-      this.fill.intensity = 0.65 + this.speedNorm * 0.35;
+      this.fill.intensity = 0.85 + this.speedNorm * 0.4;
     }
     if (this.rim) {
       this.rim.position.z = playerZ - 4;
-      this.rim.intensity = 0.35 + this.speedNorm * 0.25;
+      this.rim.intensity = 0.48 + this.speedNorm * 0.28;
+    }
+    if (this.ambient) {
+      this.ambient.intensity = 0.44 + this.speedNorm * 0.12;
     }
     if (this.sun) this.sun.position.z = playerZ + 12;
 

@@ -272,7 +272,8 @@ export class Game {
       playing ? stats.speedNorm : 0,
       this.player.lean,
       this.player.jumping,
-      this.player.y
+      this.player.y,
+      this.player.isLaneSwitching()
     );
 
     this.ui.update(this._stats(), dt);

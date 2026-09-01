@@ -86,9 +86,13 @@ export const SPAWN = {
   chainLength: 5,
   /** Seconds of runway warning at current speed */
   telegraphLead: 1.5,
+  /** Extra spawn margin beyond leadDist so warnings are fully readable */
+  telegraphReactionMargin: 8,
   telegraphStripLength: 6,
   telegraphAhead: 14,
-  telegraphChevronCount: 6,
+  telegraphChevronCount: 8,
+  /** Minimum telegraph opacity at far edge of warn zone */
+  telegraphMinAlpha: 0.32,
   patternLookahead: 3,
   doubleChanceBase: 0.05,
   doubleChanceMax: 0.35,
@@ -118,6 +122,15 @@ export const CAMERA = {
   /** Exponential lag — lower = snappier, higher = floatier */
   lag: 0.1,
   lagY: 0.14,
+  /** Snappier X follow during lane switch (lower = faster) */
+  lagLaneSwitch: 0.045,
+  /** Hard clamp: camera X stays within playerX ± this */
+  maxLateralOff: 1.2,
+  /** Vertical bounds relative to player */
+  minYOffset: 6.8,
+  maxYOffset: 10.2,
+  /** Damp lean-driven lateral lead (0 = none) */
+  lateralLeadScale: 0.18,
   fovBase: 58,
   fovSpeedBoost: 6,
   fovPunch: 6,
