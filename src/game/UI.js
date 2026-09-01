@@ -13,6 +13,7 @@ export class UI {
     this.hitFlash = document.getElementById('hit-flash');
     this.pickupFlash = document.getElementById('pickup-flash');
     this.floatLayer = document.getElementById('float-layer');
+    this.tutorialHint = document.getElementById('tutorial-hint');
     this.finalScore = document.getElementById('final-score');
     this.finalSub = document.getElementById('final-sub');
     this.btnStart = document.getElementById('btn-start');
@@ -184,6 +185,21 @@ export class UI {
     }, 120);
   }
 
+  flashTutorialHint(action) {
+    if (!this.tutorialHint) return;
+    const isSlide = action === 'slide';
+    const label = isSlide ? 'SLIDE' : 'JUMP';
+    const arrow = isSlide ? '↓' : '↑';
+    this.tutorialHint.textContent = `${arrow} ${label}`;
+    this.tutorialHint.classList.remove('hidden', 'slide', 'jump');
+    this.tutorialHint.classList.add(isSlide ? 'slide' : 'jump', 'flash');
+    clearTimeout(this._tutorialHintTimer);
+    this._tutorialHintTimer = setTimeout(() => {
+      this.tutorialHint?.classList.add('hidden');
+      this.tutorialHint?.classList.remove('flash', 'slide', 'jump');
+    }, 800);
+  }
+
   popCombo() {
     this.comboWrap?.classList.remove('pop');
     void this.comboWrap?.offsetWidth;
@@ -224,5 +240,8 @@ export class UI {
     this._comboPopTimer = 0;
     this.comboWrap?.classList.remove('pop', 'hot');
     this.scoreEl?.classList.remove('pulse');
+    this.tutorialHint?.classList.add('hidden');
+    this.tutorialHint?.classList.remove('flash', 'slide', 'jump');
+    clearTimeout(this._tutorialHintTimer);
   }
 }
