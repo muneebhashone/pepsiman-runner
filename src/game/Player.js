@@ -248,7 +248,7 @@ export class Player {
     this.laneToX = LANES[next];
     this.laneT = 0;
     this.laneDir = delta;
-    this.lean = delta > 0 ? -1 : 1;
+    this.lean = delta > 0 ? 1 : -1;
     return true;
   }
 

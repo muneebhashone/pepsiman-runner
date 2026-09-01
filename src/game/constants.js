@@ -91,7 +91,7 @@ export const SPAWN = {
   obstacleTutorialWideGapCount: 3,
   warmupPatternCount: 2,
   /** First N post-warmup patterns alternate forced slide/jump obstacles in center lane */
-  postWarmupTutorialPatterns: 8,
+  postWarmupTutorialPatterns: 0,
   /** Max hazards visible ahead of player at once */
   maxConcurrentBlockers: 4,
   /** Rolling window (seconds) — must include jump + slide threats */

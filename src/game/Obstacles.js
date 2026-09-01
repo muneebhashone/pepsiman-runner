@@ -1012,6 +1012,9 @@ export class Obstacles {
       const laneX = LANES[it.lane];
       const colors = it.telColors;
 
+      // Keep mesh locked to lane X every frame (guards against stuck x=0)
+      it.mesh.position.set(laneX, 0, it.z);
+
       if (dist > 0 && speed > 0.1) {
         const ttc = dist / speed;
         if (it.isFirstTutorialRail) this._updateFirstTutorialHint('rail', ttc);

@@ -328,7 +328,8 @@ export class Game {
         this.player.z,
         this.player.x,
         this.player.y,
-        this.player.speed
+        this.player.speed,
+        this.player.lane
       );
 
       const box = this.player.getHitBox();
@@ -347,7 +348,7 @@ export class Game {
         if (nearBonus > 0) this._nearMiss(nearBonus);
       }
 
-      const got = this.collectibles.collect(box);
+      const got = this.collectibles.collect(box, this.player.lane);
       if (got.length) {
         const chainBonus = this.collectibles.chainBonus(got);
         if (chainBonus > 0) this.score += chainBonus;

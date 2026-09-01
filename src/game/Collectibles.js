@@ -4,13 +4,19 @@ import { COLORS, LANES, SPAWN, WORLD, PLAYER } from './constants.js';
 const POOL_SIZE = 64;
 const CAN_SCALE = 1.05;
 const CAN_FLOAT_Y = 1.4;
-const SUCK_COLLECT_DIST = 2.5;
-const SUCK_HIDE_DIST = 2.5;
+/** Half lane spacing is 1.1 — stay well inside one lane for pickup */
+const LANE_PICKUP_DX = 0.95;
+const SUCK_COLLECT_DIST = 1.2;
+const SUCK_HIDE_DIST = 1.2;
 const MAX_SUCKING_VISUALS = 2;
 const POP_DURATION = 0.16;
 
 function speedNorm(speed) {
   return Math.min(1, (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase));
+}
+
+function sameLane(playerLane, canLane, dx) {
+  return playerLane === canLane && dx < LANE_PICKUP_DX;
 }
 
 export class Collectibles {
@@ -22,8 +28,8 @@ export class Collectibles {
     this.nextZ = 14;
     this.bobT = 0;
     this._laneCursor = 0;
-    this.magnetRange = 2.8;
-    this.magnetRangeMax = 4.2;
+    this.magnetRange = 1.2;
+    this.magnetRangeMax = 1.6;
 
     this.canGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.52, 14);
     this.canMat = new THREE.MeshStandardMaterial({
@@ -223,12 +229,12 @@ export class Collectibles {
     this._setCanOpacity(item.mesh, hideMesh ? 0 : 1);
   }
 
-  update(dt, playerZ, playerX, playerY, speed) {
+  update(dt, playerZ, playerX, playerY, speed, playerLane) {
     this.bobT += dt;
     const diff = speedNorm(speed);
     const inWarmup = playerZ < SPAWN.collectibleWarmupZ;
     const magnet =
-      (inWarmup ? 3.6 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
+      (inWarmup ? 1.4 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
 
     while (this.nextZ < horizon) {
@@ -256,18 +262,21 @@ export class Collectibles {
       }
 
       const mesh = it.mesh;
+      const laneX = LANES[it.lane];
       const bob = Math.sin(this.bobT * 3.2 + it.bobPhase) * 0.14;
       if (!it.sucking) {
-        mesh.position.y = CAN_FLOAT_Y + bob;
+        mesh.position.set(laneX, CAN_FLOAT_Y + bob, it.z);
       }
       mesh.rotation.y += dt * it.spin;
 
-      const dx = playerX - mesh.position.x;
-      const dz = playerZ - mesh.position.z;
+      const dx = Math.abs(playerX - laneX);
+      const dz = Math.abs(playerZ - mesh.position.z);
       const dist = Math.hypot(dx, dz);
-      const pullStrength = inWarmup ? 0.38 : 0.24 + diff * 0.16;
+      const inLane = sameLane(playerLane, it.lane, dx);
+      const pullStrength = inWarmup ? 0.32 : 0.2 + diff * 0.12;
 
-      if (dist < magnet && dist > 0.01) {
+      // Magnet only affects cans in the player's current lane
+      if (inLane && dist < magnet && dist > 0.01) {
         if (dist <= SUCK_HIDE_DIST) {
           this._beginPop(it, true);
           continue;
@@ -283,8 +292,9 @@ export class Collectibles {
         it.suckT += dt;
         const pull = ((magnet - dist) / magnet) ** 1.15;
         const step = pull * pullStrength * dt * 60;
-        mesh.position.x += dx * step * 0.22;
-        mesh.position.z += dz * step * 0.22;
+        // Stay in lane — only pull along Z and Y toward the player
+        mesh.position.x = laneX;
+        mesh.position.z += (playerZ - mesh.position.z) * step * 0.22;
         const targetY = playerY + 1.35;
         mesh.position.y += (targetY - mesh.position.y) * step * 0.14;
         mesh.rotation.y += dt * 12;
@@ -302,6 +312,7 @@ export class Collectibles {
         it.sucking = false;
         it.suckT = 0;
         mesh.scale.set(CAN_SCALE, CAN_SCALE, CAN_SCALE);
+        mesh.position.set(laneX, CAN_FLOAT_Y + bob, it.z);
         this._setCanOpacity(mesh, 1);
       }
 
@@ -319,28 +330,33 @@ export class Collectibles {
     });
   }
 
-  collect(playerBox) {
+  collect(playerBox, playerLane) {
     const got = [];
     for (const it of this.items) {
       if (!it.alive || it.collected) continue;
       if (it.popping && !it.readyCollect) continue;
 
-      const mx = it.mesh.position.x;
+      const mx = LANES[it.lane];
       const mz = it.mesh.position.z;
       const my = it.mesh.position.y;
       const dx = Math.abs(playerBox.x - mx);
       const dz = Math.abs(playerBox.z - mz);
       const dy = Math.abs(playerBox.y + 0.5 - my);
-      const laneReach = dx < 1.35;
+      const inLane = sameLane(playerLane, it.lane, dx);
       const trackReach = dz < 1.45;
       const heightReach = dy < 1.5;
-      const sweptThrough = dz < 1.0 && dx < 2.4;
       const dist2d = Math.hypot(dx, dz);
-      const suckedIn = it.sucking && dist2d < SUCK_COLLECT_DIST;
-      const poppedNear = it.popping && it.readyCollect && dist2d < SUCK_COLLECT_DIST + 0.5;
-      const instant = it.popping && it.instantCollect;
+      const suckedIn = it.sucking && inLane && dist2d < SUCK_COLLECT_DIST;
+      const poppedNear =
+        it.popping && it.readyCollect && inLane && dist2d < SUCK_COLLECT_DIST + 0.35;
+      const instant = it.popping && it.instantCollect && inLane;
 
-      if ((laneReach && trackReach && heightReach) || sweptThrough || suckedIn || poppedNear || instant) {
+      if (
+        (inLane && trackReach && heightReach) ||
+        suckedIn ||
+        poppedNear ||
+        instant
+      ) {
         if (!it.popping) this._beginPop(it, true);
         it.collected = true;
         got.push(it);
