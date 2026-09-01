@@ -2,7 +2,7 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.m
 import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
 import { LANES, PLAYER, COLORS } from './constants.js';
 
-const HERO_SCALE = 0.82;
+const HERO_SCALE = 0.88;
 
 function suitMat(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
@@ -10,7 +10,7 @@ function suitMat(color, opts = {}) {
     metalness: opts.metalness ?? 0.18,
     roughness: opts.roughness ?? 0.42,
     emissive: opts.emissive ?? color,
-    emissiveIntensity: opts.emissiveIntensity ?? 0.06,
+    emissiveIntensity: opts.emissiveIntensity ?? 0.12,
   });
 }
 
@@ -20,7 +20,7 @@ function accentMat(color, opts = {}) {
     metalness: opts.metalness ?? 0.35,
     roughness: opts.roughness ?? 0.32,
     emissive: opts.emissive ?? color,
-    emissiveIntensity: opts.emissiveIntensity ?? 0.12,
+    emissiveIntensity: opts.emissiveIntensity ?? 0.2,
   });
 }
 
@@ -64,10 +64,10 @@ export class Player {
     const root = new THREE.Group();
     this.root = root;
 
-    const white = suitMat(COLORS.pepsiWhite, { emissiveIntensity: 0.1 });
-    const silver = suitMat(0xd4dae6, { metalness: 0.28, roughness: 0.38, emissiveIntensity: 0.05 });
-    const blue = accentMat(COLORS.pepsiBlue, { emissiveIntensity: 0.18 });
-    const red = accentMat(COLORS.pepsiRed, { emissiveIntensity: 0.16 });
+    const white = suitMat(COLORS.pepsiWhite, { emissiveIntensity: 0.18 });
+    const silver = suitMat(0xd4dae6, { metalness: 0.28, roughness: 0.38, emissiveIntensity: 0.1 });
+    const blue = accentMat(COLORS.pepsiBlue, { emissiveIntensity: 0.28 });
+    const red = accentMat(COLORS.pepsiRed, { emissiveIntensity: 0.24 });
     const dark = accentMat(0x111122, { emissiveIntensity: 0 });
 
     // Pelvis — compact block, not a cylinder silhouette
@@ -355,56 +355,58 @@ export class Player {
     }
 
     const speedFactor = 1 + this.speed * 0.012;
-    this.runPhase += dt * (10.5 + this.speed * 0.2) * speedFactor;
+    this.runPhase += dt * (13.5 + this.speed * 0.28) * speedFactor;
     const runActive = !this.jumping && !this.sliding;
-    const bobAmp = runActive ? 0.11 : this.sliding ? 0.02 : 0.04;
+    const bobAmp = runActive ? 0.17 : this.sliding ? 0.03 : 0.05;
     const bob = Math.sin(this.runPhase) * bobAmp;
-    const headBob = Math.sin(this.runPhase * 2) * (runActive ? 0.06 : 0.015);
+    const headBob = Math.sin(this.runPhase * 2) * (runActive ? 0.1 : 0.02);
     const jumpPhase = this.jumping ? Math.min(1, this.jumpT) : 0;
-    const armAmp = this.sliding ? 0.2 : this.jumping ? 0.55 : 1.15;
-    const legAmp = this.sliding ? 0.1 : this.jumping ? 0.35 : 1.05;
+    const armAmp = this.sliding ? 0.32 : this.jumping ? 0.72 : 1.62;
+    const legAmp = this.sliding ? 0.18 : this.jumping ? 0.48 : 1.52;
     const armSwing = Math.sin(this.runPhase) * armAmp;
     const legSwing = Math.sin(this.runPhase) * legAmp;
+    const runLean = runActive ? Math.sin(this.runPhase) * 0.1 : 0;
 
     if (this.sliding) {
-      this.armL.rotation.x = 1.05;
-      this.armR.rotation.x = 1.05;
-      this.armL.rotation.z = -0.35;
-      this.armR.rotation.z = 0.35;
-      this.legL.rotation.x = -0.55;
-      this.legR.rotation.x = 0.55;
-      this.head.rotation.x = 0.28;
+      this.armL.rotation.x = 1.22;
+      this.armR.rotation.x = 1.22;
+      this.armL.rotation.z = -0.48;
+      this.armR.rotation.z = 0.48;
+      this.legL.rotation.x = -0.72;
+      this.legR.rotation.x = 0.72;
+      this.head.rotation.x = 0.38;
     } else if (this.jumping) {
       const tuck = Math.sin(jumpPhase * Math.PI);
-      this.armL.rotation.x = -0.85 - tuck * 0.4;
-      this.armR.rotation.x = -0.85 - tuck * 0.4;
-      this.armL.rotation.z = -0.2;
-      this.armR.rotation.z = 0.2;
-      this.legL.rotation.x = 0.45 + tuck * 0.5;
-      this.legR.rotation.x = 0.45 + tuck * 0.5;
-      this.head.rotation.x = -0.18;
+      this.armL.rotation.x = -1.05 - tuck * 0.55;
+      this.armR.rotation.x = -1.05 - tuck * 0.55;
+      this.armL.rotation.z = -0.32;
+      this.armR.rotation.z = 0.32;
+      this.legL.rotation.x = 0.62 + tuck * 0.65;
+      this.legR.rotation.x = 0.62 + tuck * 0.65;
+      this.head.rotation.x = -0.28;
     } else {
       this.armL.rotation.x = armSwing;
       this.armR.rotation.x = -armSwing;
-      this.armL.rotation.z = this.lean * 0.22;
-      this.armR.rotation.z = -this.lean * 0.22;
+      this.armL.rotation.z = this.lean * 0.34 - legSwing * 0.08;
+      this.armR.rotation.z = -this.lean * 0.34 + legSwing * 0.08;
       this.legL.rotation.x = -legSwing;
       this.legR.rotation.x = legSwing;
-      this.head.rotation.x = headBob;
+      this.head.rotation.x = headBob + runLean * 0.35;
     }
 
-    this.head.rotation.z = this.lean * 0.2;
+    this.head.rotation.z = this.lean * 0.28;
 
-    const bank = this.lean * PLAYER.laneLeanMax;
-    this.torso.rotation.z = bank * 0.55;
+    const bank = this.lean * PLAYER.laneLeanMax * 1.12;
+    this.torso.rotation.z = bank * 0.68;
+    this.torso.rotation.x = runActive ? runLean * 0.45 : this.sliding ? 0.15 : 0;
 
     if (this.flap) {
-      this.flap.rotation.x = 0.22 + Math.sin(this.runPhase * 0.6) * 0.12 + this.speed * 0.004;
+      this.flap.rotation.x = 0.22 + Math.sin(this.runPhase * 0.6) * 0.16 + this.speed * 0.004;
     }
 
     this.group.position.set(this.x, this.y + bob, this.z);
     this.root.rotation.z = bank;
-    this.root.rotation.x = this.sliding ? 0.68 : this.jumping ? -0.22 : Math.sin(this.runPhase) * 0.05;
+    this.root.rotation.x = this.sliding ? 0.78 : this.jumping ? -0.32 : 0.09 + runLean;
   }
 
   reset() {

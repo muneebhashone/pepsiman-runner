@@ -26,27 +26,29 @@ export class Collectibles {
     this.canGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.72, 16);
     this.canMat = new THREE.MeshStandardMaterial({
       color: COLORS.canBody,
-      metalness: 0.82,
-      roughness: 0.2,
-      emissive: COLORS.pepsiRed,
-      emissiveIntensity: 0.22,
+      metalness: 0.72,
+      roughness: 0.16,
+      emissive: COLORS.canBody,
+      emissiveIntensity: 0.48,
     });
     this.topMat = new THREE.MeshStandardMaterial({
       color: COLORS.canTop,
       metalness: 0.94,
-      roughness: 0.1,
+      roughness: 0.08,
+      emissive: COLORS.canTop,
+      emissiveIntensity: 0.22,
     });
     this.bandMat = new THREE.MeshStandardMaterial({
       color: COLORS.pepsiBlue,
       emissive: COLORS.pepsiBlue,
-      emissiveIntensity: 0.45,
+      emissiveIntensity: 0.72,
       metalness: 0.5,
-      roughness: 0.3,
+      roughness: 0.25,
     });
     this.logoMat = new THREE.MeshStandardMaterial({
       color: COLORS.pepsiWhite,
       emissive: COLORS.pepsiWhite,
-      emissiveIntensity: 0.25,
+      emissiveIntensity: 0.55,
     });
     this.topGeo = new THREE.CylinderGeometry(0.31, 0.31, 0.08, 16);
     this.bandGeo = new THREE.CylinderGeometry(0.345, 0.345, 0.14, 16, 1, true);
@@ -122,7 +124,7 @@ export class Collectibles {
     if (!mesh) return null;
     mesh.visible = true;
     mesh.scale.set(CAN_SCALE, CAN_SCALE, CAN_SCALE);
-    mesh.position.set(LANES[lane], 1.05, z);
+    mesh.position.set(LANES[lane], 1.18, z);
     mesh.rotation.set(0, 0, 0);
     this._setCanOpacity(mesh, 1);
 
@@ -236,9 +238,9 @@ export class Collectibles {
       }
 
       const mesh = it.mesh;
-      const bob = Math.sin(this.bobT * 3.5 + it.bobPhase) * 0.14;
+      const bob = Math.sin(this.bobT * 3.8 + it.bobPhase) * 0.22;
       if (!it.sucking) {
-        mesh.position.y = 1.05 + bob;
+        mesh.position.y = 1.18 + bob;
       }
       mesh.rotation.y += dt * it.spin;
 
