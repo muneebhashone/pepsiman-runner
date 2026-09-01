@@ -49,6 +49,7 @@ export class Game {
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
     this.obstacles.setTutorialHintCallback((action) => this.ui.flashTutorialHint(action));
+    this.obstacles.setTutorialGraceCallback((action) => this._tutorialGrace(action));
     this.collectibles = new Collectibles(this.scene);
     this.collectibles.setObstacles(this.obstacles);
     this.fx = new FX(this.scene);
@@ -205,6 +206,13 @@ export class Game {
     this.fx.nearMissSpark(this.player.group.position.clone());
     this.rig.punchFov(1.8);
     this.ui.floatNearMiss(bonus);
+  }
+
+  _tutorialGrace(action) {
+    this.combo = 1;
+    this.comboTimer = 0;
+    this.rig.punchFov(2.2);
+    this.ui.floatNiceTry();
   }
 
   _loop() {
