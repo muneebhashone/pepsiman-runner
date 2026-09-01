@@ -2,15 +2,25 @@ import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.m
 import gsap from 'https://cdn.jsdelivr.net/npm/gsap@3.12.5/+esm';
 import { LANES, PLAYER, COLORS } from './constants.js';
 
-const HERO_SCALE = 0.62;
+const HERO_SCALE = 0.82;
 
-function gloss(color, opts = {}) {
+function suitMat(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
     color,
-    metalness: opts.metalness ?? 0.55,
-    roughness: opts.roughness ?? 0.28,
-    emissive: opts.emissive ?? 0x000000,
-    emissiveIntensity: opts.emissiveIntensity ?? 0,
+    metalness: opts.metalness ?? 0.18,
+    roughness: opts.roughness ?? 0.42,
+    emissive: opts.emissive ?? color,
+    emissiveIntensity: opts.emissiveIntensity ?? 0.06,
+  });
+}
+
+function accentMat(color, opts = {}) {
+  return new THREE.MeshStandardMaterial({
+    color,
+    metalness: opts.metalness ?? 0.35,
+    roughness: opts.roughness ?? 0.32,
+    emissive: opts.emissive ?? color,
+    emissiveIntensity: opts.emissiveIntensity ?? 0.12,
   });
 }
 
@@ -54,30 +64,30 @@ export class Player {
     const root = new THREE.Group();
     this.root = root;
 
-    const silver = gloss(0xd8dde8, { metalness: 0.72, roughness: 0.22 });
-    const white = gloss(COLORS.pepsiWhite, { metalness: 0.35, roughness: 0.32 });
-    const blue = gloss(COLORS.pepsiBlue, { metalness: 0.68, roughness: 0.2 });
-    const red = gloss(COLORS.pepsiRed, { metalness: 0.45, roughness: 0.32 });
-    const dark = gloss(0x111122, { metalness: 0.3, roughness: 0.5 });
+    const white = suitMat(COLORS.pepsiWhite, { emissiveIntensity: 0.1 });
+    const silver = suitMat(0xd4dae6, { metalness: 0.28, roughness: 0.38, emissiveIntensity: 0.05 });
+    const blue = accentMat(COLORS.pepsiBlue, { emissiveIntensity: 0.18 });
+    const red = accentMat(COLORS.pepsiRed, { emissiveIntensity: 0.16 });
+    const dark = accentMat(0x111122, { emissiveIntensity: 0 });
 
-    // Pelvis / hips
-    const hips = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.28, 0.34), silver);
-    hips.position.y = 0.72;
+    // Pelvis — compact block, not a cylinder silhouette
+    const hips = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.26, 0.36), silver);
+    hips.position.y = 0.68;
     hips.castShadow = true;
     root.add(hips);
 
-    // White suit torso with blue chest panel
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.72, 0.38), white);
-    torso.position.y = 1.18;
+    // Wide torso — clearly wider-than-tall mascot block
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.58, 0.42), white);
+    torso.position.y = 1.12;
     torso.castShadow = true;
     root.add(torso);
     this.torso = torso;
 
-    const chestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.52, 0.08), blue);
-    chestPanel.position.set(0, 0.04, 0.2);
+    // Front blue chest panel + swirl (face-forward only)
+    const chestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.52, 0.46, 0.07), blue);
+    chestPanel.position.set(0, 0.06, 0.22);
     torso.add(chestPanel);
 
-    // Swirl emblem on chest
     const emblem = new THREE.Group();
     const disc = new THREE.Mesh(new THREE.CircleGeometry(0.2, 24), white);
     disc.position.z = 0.05;
@@ -97,63 +107,90 @@ export class Player {
     emblem.position.set(0, 0.02, 0);
     chestPanel.add(emblem);
 
-    // Red belt stripe
-    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.64, 0.1, 0.4), red);
-    belt.position.y = -0.28;
+    const belt = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.44), red);
+    belt.position.y = -0.22;
     torso.add(belt);
 
-    // Oversized mascot head
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.36, 22, 18), white);
-    head.position.y = 1.72;
+    // Back panel — white/silver, red accent (no blue stripe from behind)
+    const backPanel = new THREE.Mesh(new THREE.BoxGeometry(0.62, 0.42, 0.06), silver);
+    backPanel.position.set(0, 0.04, -0.22);
+    torso.add(backPanel);
+    const backV = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.32, 0.04), red);
+    backV.position.set(0, 0.02, -0.26);
+    torso.add(backV);
+
+    // Shoulder blocks — read as human shoulders from chase cam
+    const shoulderL = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.18, 0.34), white);
+    shoulderL.position.set(-0.46, 0.28, 0);
+    shoulderL.castShadow = true;
+    torso.add(shoulderL);
+    const shoulderR = shoulderL.clone();
+    shoulderR.position.x = 0.46;
+    torso.add(shoulderR);
+
+    // Short thick neck
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.14, 0.22), silver);
+    neck.position.y = 1.48;
+    neck.castShadow = true;
+    root.add(neck);
+
+    // Oversized round mascot head — matte sphere, no chrome dome
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.44, 24, 20), white);
+    head.position.y = 1.82;
     head.castShadow = true;
     root.add(head);
     this.head = head;
 
-    const faceMask = new THREE.Mesh(new THREE.SphereGeometry(0.34, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55), blue);
-    faceMask.position.set(0, -0.02, 0.08);
+    const faceMask = new THREE.Mesh(
+      new THREE.SphereGeometry(0.41, 20, 16, 0, Math.PI * 2, 0, Math.PI * 0.55),
+      blue
+    );
+    faceMask.position.set(0, -0.02, 0.1);
     faceMask.rotation.x = 0.15;
     head.add(faceMask);
 
-    const eyeGeo = new THREE.SphereGeometry(0.1, 12, 10);
+    const eyeGeo = new THREE.SphereGeometry(0.11, 12, 10);
     const eyeL = new THREE.Mesh(eyeGeo, white);
-    eyeL.position.set(-0.13, 0.08, 0.28);
+    eyeL.position.set(-0.15, 0.09, 0.32);
     const eyeR = eyeL.clone();
-    eyeR.position.x = 0.13;
-    const pL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), dark);
-    pL.position.set(-0.13, 0.08, 0.35);
+    eyeR.position.x = 0.15;
+    const pL = new THREE.Mesh(new THREE.SphereGeometry(0.048, 8, 8), dark);
+    pL.position.set(-0.15, 0.09, 0.39);
     const pR = pL.clone();
-    pR.position.x = 0.13;
+    pR.position.x = 0.15;
     head.add(eyeL, eyeR, pL, pR);
 
     const smile = new THREE.Mesh(
-      new THREE.TorusGeometry(0.12, 0.022, 8, 18, Math.PI * 0.88),
+      new THREE.TorusGeometry(0.13, 0.024, 8, 18, Math.PI * 0.88),
       red
     );
-    smile.position.set(0, -0.1, 0.3);
+    smile.position.set(0, -0.11, 0.34);
     smile.rotation.x = Math.PI;
     smile.rotation.z = Math.PI;
     head.add(smile);
 
-    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.44), red);
-    crest.position.set(0, 0.32, 0);
+    // Crest visible from behind — breaks round head into mascot silhouette
+    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.16, 0.48), red);
+    crest.position.set(0, 0.36, 0);
     head.add(crest);
 
-    // Arms — white upper, blue forearm, red glove
+    // Thick arms — white upper, blue forearm, red glove
     this.armL = this._makeArm(white, blue, red);
     this.armR = this._makeArm(white, blue, red);
-    this.armL.position.set(-0.42, 1.38, 0);
-    this.armR.position.set(0.42, 1.38, 0);
+    this.armL.position.set(-0.5, 1.32, 0);
+    this.armR.position.set(0.5, 1.32, 0);
     root.add(this.armL, this.armR);
 
-    // Legs — silver thighs, blue shins, red boots
+    // Thick legs — silver thighs, blue shins, red boots
     this.legL = this._makeLeg(silver, blue, red);
     this.legR = this._makeLeg(silver, blue, red);
-    this.legL.position.set(-0.17, 0.72, 0);
-    this.legR.position.set(0.17, 0.72, 0);
+    this.legL.position.set(-0.2, 0.68, 0);
+    this.legR.position.set(0.2, 0.68, 0);
     root.add(this.legL, this.legR);
 
-    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.34, 0.06), red);
-    flap.position.set(0, 1.05, -0.36);
+    // Red cape flap — prominent from chase cam behind
+    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.76, 0.38, 0.08), red);
+    flap.position.set(0, 1.02, -0.4);
     root.add(flap);
     this.flap = flap;
 
@@ -163,32 +200,32 @@ export class Player {
 
   _makeArm(upperMat, lowerMat, gloveMat) {
     const g = new THREE.Group();
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.28, 5, 10), upperMat);
-    upper.position.y = -0.2;
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.15, 0.32, 6, 12), upperMat);
+    upper.position.y = -0.22;
     upper.castShadow = true;
     g.add(upper);
-    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.26, 5, 10), lowerMat);
-    lower.position.y = -0.52;
+    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.3, 6, 12), lowerMat);
+    lower.position.y = -0.58;
     lower.castShadow = true;
     g.add(lower);
-    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), gloveMat);
-    glove.position.y = -0.78;
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), gloveMat);
+    glove.position.y = -0.86;
     g.add(glove);
     return g;
   }
 
   _makeLeg(upperMat, lowerMat, bootMat) {
     const g = new THREE.Group();
-    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.13, 0.28, 5, 10), upperMat);
-    upper.position.y = -0.22;
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.17, 0.3, 6, 12), upperMat);
+    upper.position.y = -0.24;
     upper.castShadow = true;
     g.add(upper);
-    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.26, 5, 10), lowerMat);
-    lower.position.y = -0.54;
+    const lower = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.28, 6, 12), lowerMat);
+    lower.position.y = -0.58;
     lower.castShadow = true;
     g.add(lower);
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.14, 0.28), bootMat);
-    boot.position.set(0, -0.76, 0.04);
+    const boot = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.16, 0.32), bootMat);
+    boot.position.set(0, -0.82, 0.05);
     boot.castShadow = true;
     g.add(boot);
     return g;
@@ -324,8 +361,8 @@ export class Player {
     const bob = Math.sin(this.runPhase) * bobAmp;
     const headBob = Math.sin(this.runPhase * 2) * (runActive ? 0.06 : 0.015);
     const jumpPhase = this.jumping ? Math.min(1, this.jumpT) : 0;
-    const armAmp = this.sliding ? 0.2 : this.jumping ? 0.55 : 1.05;
-    const legAmp = this.sliding ? 0.1 : this.jumping ? 0.35 : 0.95;
+    const armAmp = this.sliding ? 0.2 : this.jumping ? 0.55 : 1.15;
+    const legAmp = this.sliding ? 0.1 : this.jumping ? 0.35 : 1.05;
     const armSwing = Math.sin(this.runPhase) * armAmp;
     const legSwing = Math.sin(this.runPhase) * legAmp;
 
@@ -349,8 +386,8 @@ export class Player {
     } else {
       this.armL.rotation.x = armSwing;
       this.armR.rotation.x = -armSwing;
-      this.armL.rotation.z = this.lean * 0.18;
-      this.armR.rotation.z = -this.lean * 0.18;
+      this.armL.rotation.z = this.lean * 0.22;
+      this.armR.rotation.z = -this.lean * 0.22;
       this.legL.rotation.x = -legSwing;
       this.legR.rotation.x = legSwing;
       this.head.rotation.x = headBob;

@@ -125,12 +125,14 @@ export const CAMERA = {
   /** Snappier X follow during lane switch (lower = faster) */
   lagLaneSwitch: 0.045,
   /** Hard clamp: camera X stays within playerX ± this */
-  maxLateralOff: 1.2,
+  maxLateralOff: 0.82,
+  /** Tighter clamp during fast lane switches */
+  maxLateralOffLaneSwitch: 0.62,
   /** Vertical bounds relative to player */
   minYOffset: 6.8,
   maxYOffset: 10.2,
   /** Damp lean-driven lateral lead (0 = none) */
-  lateralLeadScale: 0.18,
+  lateralLeadScale: 0.12,
   fovBase: 58,
   fovSpeedBoost: 6,
   fovPunch: 6,

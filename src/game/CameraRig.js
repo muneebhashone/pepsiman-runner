@@ -50,11 +50,13 @@ export class CameraRig {
     const lateralLead = playerLean * CAMERA.lateralLeadScale;
     const pullZ = this.offset.z - this._jumpBlend * CAMERA.jumpPullback;
     const liftY = this.offset.y + this._jumpBlend * 0.85;
+    const lateralClamp = laneSwitching ? CAMERA.maxLateralOffLaneSwitch : CAMERA.maxLateralOff;
+    const lateralFollow = laneSwitching ? 0.18 : 0.28;
 
     const targetX = THREE.MathUtils.clamp(
-      playerPos.x * 0.28 + lateralLead,
-      playerPos.x - CAMERA.maxLateralOff,
-      playerPos.x + CAMERA.maxLateralOff
+      playerPos.x * lateralFollow + lateralLead,
+      playerPos.x - lateralClamp,
+      playerPos.x + lateralClamp
     );
     const targetY = THREE.MathUtils.clamp(
       playerPos.y + liftY,
@@ -71,8 +73,8 @@ export class CameraRig {
 
     this._pos.x = THREE.MathUtils.clamp(
       this._pos.x,
-      playerPos.x - CAMERA.maxLateralOff,
-      playerPos.x + CAMERA.maxLateralOff
+      playerPos.x - lateralClamp,
+      playerPos.x + lateralClamp
     );
     this._pos.y = THREE.MathUtils.clamp(
       this._pos.y,
@@ -100,8 +102,8 @@ export class CameraRig {
       this.camera.position.y += Math.sin(t * 23.7 + 1.2) * this.shakeAmp * damp * 0.55;
       this.camera.position.x = THREE.MathUtils.clamp(
         this.camera.position.x,
-        playerPos.x - CAMERA.maxLateralOff,
-        playerPos.x + CAMERA.maxLateralOff
+        playerPos.x - lateralClamp,
+        playerPos.x + lateralClamp
       );
       if (this.shakeTime <= 0) this.shakeAmp = 0;
     }
