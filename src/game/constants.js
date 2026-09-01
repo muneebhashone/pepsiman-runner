@@ -7,19 +7,20 @@ export const COLORS = {
   pepsiRed: 0xe32934,
   pepsiWhite: 0xffffff,
   pepsiDark: 0x003a80,
-  asphalt: 0x2a2a36,
-  asphaltLine: 0xffdd44,
+  asphalt: 0x484858,
+  asphaltLine: 0xffff88,
   neonCyan: 0x00e5ff,
   neonMagenta: 0xff2d95,
   neonYellow: 0xffe566,
-  buildingA: 0x2a3450,
-  buildingB: 0x382848,
-  buildingC: 0x243048,
-  fog: 0x0a0e1a,
-  sky: 0x050810,
+  buildingA: 0x4a5880,
+  buildingB: 0x584868,
+  buildingC: 0x445878,
+  fog: 0x2a3868,
+  sky: 0x142040,
   canBody: 0xe32934,
   canTop: 0xc0c0c0,
-  telegraph: 0xff4466,
+  telegraph: 0xff2244,
+  telegraphGlow: 0xff0033,
   truckCab: 0x2255aa,
   truckTrailer: 0xe32934,
   barrier: 0xffaa00,
@@ -60,13 +61,13 @@ export const INPUT = {
 
 export const WORLD = {
   segmentLength: 40,
-  segmentsAhead: 8,
+  segmentsAhead: 10,
   segmentsBehind: 2,
   buildingRows: 2,
-  fogNear: 22,
-  fogFar: 110,
+  fogNear: 42,
+  fogFar: 175,
   roadWidth: 8.5,
-  poolSize: 10,
+  poolSize: 14,
 };
 
 export const SPAWN = {
@@ -88,11 +89,12 @@ export const SPAWN = {
   telegraphLead: 1.5,
   /** Extra spawn margin beyond leadDist so warnings are fully readable */
   telegraphReactionMargin: 8,
-  telegraphStripLength: 6,
+  telegraphStripLength: 8,
+  telegraphStripWidth: 2.05,
   telegraphAhead: 14,
-  telegraphChevronCount: 8,
+  telegraphChevronCount: 10,
   /** Minimum telegraph opacity at far edge of warn zone */
-  telegraphMinAlpha: 0.58,
+  telegraphMinAlpha: 0.72,
   patternLookahead: 3,
   doubleChanceBase: 0.05,
   doubleChanceMax: 0.35,
@@ -125,14 +127,14 @@ export const CAMERA = {
   /** Snappier X follow during lane switch (lower = faster) */
   lagLaneSwitch: 0.045,
   /** Hard clamp: camera X stays within playerX ± this */
-  maxLateralOff: 0.82,
-  /** Tighter clamp during fast lane switches */
-  maxLateralOffLaneSwitch: 0.62,
+  maxLateralOff: 0.72,
+  /** Tighter clamp during fast lane switches — stay nearer road center */
+  maxLateralOffLaneSwitch: 0.48,
   /** Vertical bounds relative to player */
   minYOffset: 6.8,
   maxYOffset: 10.2,
   /** Damp lean-driven lateral lead (0 = none) */
-  lateralLeadScale: 0.12,
+  lateralLeadScale: 0.08,
   fovBase: 58,
   fovSpeedBoost: 6,
   fovPunch: 6,

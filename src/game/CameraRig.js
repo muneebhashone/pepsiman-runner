@@ -51,7 +51,7 @@ export class CameraRig {
     const pullZ = this.offset.z - this._jumpBlend * CAMERA.jumpPullback;
     const liftY = this.offset.y + this._jumpBlend * 0.85;
     const lateralClamp = laneSwitching ? CAMERA.maxLateralOffLaneSwitch : CAMERA.maxLateralOff;
-    const lateralFollow = laneSwitching ? 0.18 : 0.28;
+    const lateralFollow = laneSwitching ? 0.1 : 0.22;
 
     const targetX = THREE.MathUtils.clamp(
       playerPos.x * lateralFollow + lateralLead,
@@ -85,11 +85,10 @@ export class CameraRig {
     this.camera.position.copy(this._pos);
 
     const lookY = playerPos.y + CAMERA.lookHeight + Math.max(0, playerY) * 0.08;
-    this._look.set(
-      playerPos.x * 0.12 + lateralLead * 0.25,
-      lookY,
-      playerPos.z + lookAhead
-    );
+    const lookX = laneSwitching
+      ? playerPos.x * 0.06
+      : playerPos.x * 0.1 + lateralLead * 0.2;
+    this._look.set(lookX, lookY, playerPos.z + lookAhead);
     this.camera.lookAt(this._look);
     this.camera.up.set(0, 1, 0);
 
