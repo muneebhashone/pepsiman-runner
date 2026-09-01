@@ -69,6 +69,7 @@ export class CameraRig {
     const pullZ = this.offset.z - this._jumpBlend * CAMERA.jumpPullback;
     const liftY = this.offset.y + this._jumpBlend * 0.35;
     const lateralClamp = CAMERA.maxLateralOff;
+    const settleAmp = Math.abs(this._laneSettle);
 
     this._laneSettle = THREE.MathUtils.damp(
       this._laneSettle,
@@ -77,12 +78,13 @@ export class CameraRig {
       dt
     );
 
-    // Tiny follow of player X — camera stays near track center
-    const targetX = THREE.MathUtils.clamp(
-      playerPos.x * CAMERA.lateralFollow + this._laneSettle,
+    // Base follow stays clamped; settle nudges after clamp so outer lanes still read.
+    const baseX = THREE.MathUtils.clamp(
+      playerPos.x * CAMERA.lateralFollow,
       playerPos.x - lateralClamp,
       playerPos.x + lateralClamp
     );
+    const targetX = baseX + this._laneSettle;
     const targetY = THREE.MathUtils.clamp(
       playerPos.y + liftY,
       playerPos.y + CAMERA.minYOffset,
@@ -97,8 +99,8 @@ export class CameraRig {
 
     this._pos.x = THREE.MathUtils.clamp(
       this._pos.x,
-      playerPos.x - lateralClamp,
-      playerPos.x + lateralClamp
+      playerPos.x - lateralClamp - settleAmp,
+      playerPos.x + lateralClamp + settleAmp
     );
     this._pos.y = THREE.MathUtils.clamp(
       this._pos.y,

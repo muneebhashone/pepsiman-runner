@@ -164,6 +164,7 @@ export class Obstacles {
     this._graceRetryTimer = null;
     this._lastPlayerZ = 0;
     this._lastSpeed = 0;
+    this._wasInWarmup = true;
     this._onTutorialHint = null;
     this._onTutorialGrace = null;
     this._cueGate = null;
@@ -1312,16 +1313,46 @@ export class Obstacles {
     return Math.max(SPAWN.minSpawnAhead + diff * 12, leadDist + reaction);
   }
 
+  /** Spawn fill horizon — contact-time band, not WORLD.segmentsAhead (360m).
+   *  At speed 19: horizon ≈120m → first rotation truck ~110m ahead at warmup end (z≈105)
+   *  → contact t≈11s; ramp (5th entry, ~43m gaps) contact t≈20s. */
+  _spawnHorizon(speed) {
+    const diff = speedNorm(speed);
+    const segmentLead = WORLD.segmentLength * SPAWN.patternLookahead;
+    return THREE.MathUtils.clamp(
+      segmentLead + diff * 8,
+      SPAWN.obstacleSpawnAheadMin,
+      SPAWN.obstacleSpawnAheadMax
+    );
+  }
+
+  /** Target lead for first post-warmup rotation entry when warmup ends. */
+  _spawnAheadLead(speed) {
+    const diff = speedNorm(speed);
+    // Lower band (~85–100m) so 3rd–4th rotation entries land by t≈15s at speed 19.
+    return THREE.MathUtils.clamp(
+      SPAWN.obstacleSpawnAheadMin + 5 + diff * 12,
+      SPAWN.obstacleSpawnAheadMin,
+      SPAWN.obstacleSpawnAheadMax
+    );
+  }
+
   update(dt, playerZ, speed) {
     this._lastPlayerZ = playerZ;
     this._lastSpeed = speed;
     this._pulseT += dt;
     if (this._nearMissCooldown > 0) this._nearMissCooldown -= dt;
     const diff = speedNorm(speed);
-    const horizonDist = WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
-    const horizon = playerZ + horizonDist;
+    const horizonDist = this._spawnHorizon(speed);
     const minAhead = this._minAhead(speed);
     const runwayZ = SPAWN.runwayZ;
+    const inWarmup = this._inWarmup(playerZ);
+
+    // Pull spawn cursor into contact-time band when rotation phase begins.
+    if (this._wasInWarmup && !inWarmup) {
+      this.nextZ = playerZ + this._spawnAheadLead(speed);
+    }
+    this._wasInWarmup = inWarmup;
 
     // Keep runway empty until near its end, but always allow pre-seeding
     // obstacles from runwayZ onward into the horizon so threats exist on arrival.
@@ -1331,7 +1362,7 @@ export class Obstacles {
       this.nextZ = Math.max(this.nextZ, Math.max(runwayZ, playerZ + minAhead));
     }
 
-    // Always fill horizon (pre-seed from runwayZ while still on runway)
+    // Fill only the contact-time horizon (~80–140m), not the full world pool (~360m).
     while (this.nextZ < playerZ + horizonDist) {
       if (this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers + 1) {
         break;
@@ -1660,6 +1691,7 @@ export class Obstacles {
     this._pendingGraceRetry = null;
     clearTimeout(this._graceRetryTimer);
     this._graceRetryTimer = null;
+    this._wasInWarmup = true;
     this._onTutorialHint?.(null);
   }
 }
