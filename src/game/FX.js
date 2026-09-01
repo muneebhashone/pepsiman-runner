@@ -181,9 +181,10 @@ export class FX {
     }
   }
 
-  crashBurst(pos) {
-    this.hitFlashT = 0.35;
-    for (let i = 0; i < 28; i++) {
+  crashBurst(pos, heavy = false) {
+    this.hitFlashT = heavy ? 0.42 : 0.35;
+    const count = heavy ? 38 : 28;
+    for (let i = 0; i < count; i++) {
       const mat = new THREE.MeshBasicMaterial({
         color: i % 3 === 0 ? COLORS.pepsiRed : i % 3 === 1 ? COLORS.pepsiBlue : 0xffffff,
         transparent: true,
@@ -194,12 +195,46 @@ export class FX {
       const m = new THREE.Mesh(i % 2 ? this.sparkGeo : this.burstGeo, mat);
       m.position.copy(pos);
       m.position.y += 0.6 + Math.random() * 0.5;
+      const spread = heavy ? 12 : 10;
       const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * 10,
-        1.5 + Math.random() * 6,
-        (Math.random() - 0.5) * 10
+        (Math.random() - 0.5) * spread,
+        1.5 + Math.random() * (heavy ? 7.5 : 6),
+        (Math.random() - 0.5) * spread
       );
-      this._spawnParticle(m, vel, 0.75 + Math.random() * 0.2, 11, 6, 1);
+      this._spawnParticle(m, vel, 0.75 + Math.random() * 0.25, 11, 6, 1);
+    }
+    if (heavy) {
+      const ringMat = new THREE.MeshBasicMaterial({
+        color: COLORS.pepsiRed,
+        transparent: true,
+        opacity: 0.55,
+        blending: THREE.AdditiveBlending,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.55, 16), ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(pos.x, 0.12, pos.z);
+      ring.userData.expand = true;
+      this._spawnParticle(ring, new THREE.Vector3(0, 0.2, 0), 0.35, 0, 0, 0.55);
+    }
+  }
+
+  nearMissSpark(pos) {
+    for (let i = 0; i < 5; i++) {
+      const mat = this._makeSparkMat(i % 2 ? COLORS.neonCyan : 0xffffff, 0.5);
+      const m = new THREE.Mesh(this.sparkGeo, mat);
+      m.position.set(
+        pos.x + (Math.random() - 0.5) * 0.5,
+        0.5 + Math.random() * 0.8,
+        pos.z - 0.4
+      );
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 3,
+        0.8 + Math.random() * 1.2,
+        -2 - Math.random() * 2
+      );
+      this._spawnParticle(m, vel, 0.18 + Math.random() * 0.08, 4, 5, 0.55);
     }
   }
 

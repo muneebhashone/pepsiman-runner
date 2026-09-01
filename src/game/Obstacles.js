@@ -1,9 +1,15 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { COLORS, LANES, SPAWN, WORLD, PLAYER } from './constants.js';
+import { COLORS, LANES, SPAWN, WORLD, PLAYER, NEAR_MISS } from './constants.js';
 
 const TYPES = ['barrier', 'rail', 'sign', 'truck'];
 const WARMUP_TYPES = ['rail', 'sign'];
 const POOL_SIZE = 48;
+
+function actionMode(type) {
+  if (type === 'rail') return 'slide';
+  if (type === 'truck') return 'block';
+  return 'jump';
+}
 
 function speedNorm(speed) {
   return Math.min(1, (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase));
@@ -105,15 +111,17 @@ export class Obstacles {
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
     this.postWarmupPatterns = 0;
+    this.spawnHistory = [];
+    this._nearMissCooldown = 0;
     this._pulseT = 0;
     this._rng = Math.random;
 
     this._geo = {
-      barrier: new THREE.BoxGeometry(1.6, 1.1, 0.5),
-      rail: new THREE.BoxGeometry(1.85, 0.35, 1.0),
-      sign: new THREE.BoxGeometry(1.7, 0.9, 0.45),
-      truckCab: new THREE.BoxGeometry(1.8, 1.6, 1.4),
-      truckBody: new THREE.BoxGeometry(1.9, 2.0, 3.2),
+      barrier: new THREE.BoxGeometry(1.75, 1.25, 0.55),
+      rail: new THREE.BoxGeometry(2.1, 0.28, 1.15),
+      sign: new THREE.BoxGeometry(1.85, 1.05, 0.5),
+      truckCab: new THREE.BoxGeometry(2.05, 1.75, 1.55),
+      truckBody: new THREE.BoxGeometry(2.15, 2.25, 3.6),
       tel: new THREE.PlaneGeometry(SPAWN.telegraphStripWidth, SPAWN.telegraphStripLength),
       telOuter: new THREE.PlaneGeometry(SPAWN.telegraphStripWidth * 1.55, SPAWN.telegraphStripLength * 1.4),
       shadow: new THREE.PlaneGeometry(1.3, 1.8),
@@ -154,10 +162,20 @@ export class Obstacles {
         roughness: 0.35,
       }),
       stripe: new THREE.MeshStandardMaterial({ color: 0x111111 }),
+      railStripe: new THREE.MeshStandardMaterial({
+        color: 0xffcc00,
+        emissive: 0xffaa00,
+        emissiveIntensity: 0.5,
+      }),
       signTop: new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.25,
+        emissiveIntensity: 0.35,
+      }),
+      signPole: new THREE.MeshStandardMaterial({
+        color: 0x556677,
+        metalness: 0.6,
+        roughness: 0.35,
       }),
       telegraph: makeTelegraphMat(COLORS.telegraph),
       telegraphOuter: makeTelegraphGlowMat(COLORS.telegraphGlow),
@@ -216,6 +234,43 @@ export class Obstacles {
       playerZ < SPAWN.runwayZ ||
       this.patternsSpawned < SPAWN.warmupPatternCount
     );
+  }
+
+  _pruneSpawnHistory(playerZ, speed) {
+    const windowZ = speed * SPAWN.varietyWindowSec;
+    const cutoff = playerZ - windowZ * 0.25;
+    this.spawnHistory = this.spawnHistory.filter((h) => h.z > cutoff);
+    while (this.spawnHistory.length > SPAWN.varietyHistorySize) {
+      this.spawnHistory.shift();
+    }
+  }
+
+  _recentModes() {
+    const modes = new Set();
+    for (const h of this.spawnHistory) modes.add(h.mode);
+    return modes;
+  }
+
+  _recordSpawn(z, type) {
+    this.spawnHistory.push({ z, type, mode: actionMode(type) });
+    while (this.spawnHistory.length > SPAWN.varietyHistorySize) {
+      this.spawnHistory.shift();
+    }
+  }
+
+  /** Force jump/slide variety within rolling window */
+  _varietyType(rng, playerZ, speed) {
+    const modes = this._recentModes();
+    const needSlide = !modes.has('slide');
+    const needJump = !modes.has('jump');
+    if (needSlide && needJump) return rng() < 0.5 ? 'rail' : rng() < 0.6 ? 'sign' : 'barrier';
+    if (needSlide) return 'rail';
+    if (needJump) return rng() < 0.55 ? 'sign' : 'barrier';
+    const roll = rng();
+    if (roll < 0.28) return 'rail';
+    if (roll < 0.52) return 'sign';
+    if (roll < 0.72) return 'barrier';
+    return 'truck';
   }
 
   /** Lanes without an obstacle near z (for collectible placement). */
@@ -308,44 +363,78 @@ export class Obstacles {
     let hit = { w: 1.0, h: 0.95, d: 0.45, y: 0.55, mode: 'block' };
 
     if (type === 'barrier') {
+      // Solid mid-height lane block — jump over
+      const base = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.35, 0.58), this._mats.stripe);
+      base.position.y = 0.18;
+      g.add(base);
       const m = new THREE.Mesh(this._geo.barrier, this._mats.barrier);
-      m.position.y = 0.55;
+      m.position.y = 0.95;
       m.castShadow = true;
       g.add(m);
-      const s = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.2, 0.52), this._mats.stripe);
-      s.position.y = 0.7;
+      const s = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.22, 0.6), this._mats.stripe);
+      s.position.y = 1.15;
       g.add(s);
-      hit = { w: 1.1, h: 0.95, d: 0.42, y: 0.55, mode: 'jump' };
+      const s2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.14, 0.6), this._mats.railStripe);
+      s2.position.y = 0.72;
+      g.add(s2);
+      hit = { w: 1.2, h: 1.05, d: 0.48, y: 0.95, mode: 'jump' };
     } else if (type === 'rail') {
-      const postL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.12), this._mats.rail);
-      postL.position.set(-0.85, 0.75, 0);
+      // Low overhead rail — slide under; tall posts + thin bar read as "duck"
+      const postL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.15, 0.14), this._mats.rail);
+      postL.position.set(-0.95, 1.08, 0);
       const postR = postL.clone();
-      postR.position.x = 0.85;
+      postR.position.x = 0.95;
       g.add(postL, postR);
       const m = new THREE.Mesh(this._geo.rail, this._mats.rail);
-      m.position.y = 1.35;
+      m.position.y = 2.05;
       m.castShadow = true;
       g.add(m);
-      hit = { w: 1.3, h: 0.38, d: 0.8, y: 1.35, mode: 'slide' };
+      const warn = new THREE.Mesh(new THREE.BoxGeometry(2.15, 0.12, 0.18), this._mats.railStripe);
+      warn.position.y = 2.18;
+      g.add(warn);
+      hit = { w: 1.45, h: 0.32, d: 0.9, y: 2.05, mode: 'slide' };
     } else if (type === 'sign') {
+      // High overhead sign — jump; tall pole + elevated board
+      const pole = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.35, 0.16), this._mats.signPole);
+      pole.position.y = 1.18;
+      g.add(pole);
       const m = new THREE.Mesh(this._geo.sign, this._mats.sign);
-      m.position.y = 0.5;
+      m.position.y = 2.15;
       m.castShadow = true;
       g.add(m);
-      const top = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.15, 0.5), this._mats.signTop);
-      top.position.y = 1.0;
+      const top = new THREE.Mesh(new THREE.BoxGeometry(2.05, 0.18, 0.55), this._mats.signTop);
+      top.position.y = 2.72;
       g.add(top);
-      hit = { w: 1.35, h: 0.95, d: 0.42, y: 0.55, mode: 'jump' };
+      const legL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.55, 0.12), this._mats.signPole);
+      legL.position.set(-0.55, 0.28, 0);
+      const legR = legL.clone();
+      legR.position.x = 0.55;
+      g.add(legL, legR);
+      hit = { w: 1.45, h: 1.05, d: 0.45, y: 2.15, mode: 'jump' };
     } else {
+      // Big truck — lane change only
       const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
-      cab.position.set(0, 1.0, 1.4);
+      cab.position.set(0, 1.15, 1.55);
       cab.castShadow = true;
       g.add(cab);
       const body = new THREE.Mesh(this._geo.truckBody, this._mats.truckBody);
-      body.position.set(0, 1.2, -0.6);
+      body.position.set(0, 1.35, -0.55);
       body.castShadow = true;
       g.add(body);
-      hit = { w: 1.45, h: 1.75, d: 2.1, y: 1.05, mode: 'block' };
+      const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 10);
+      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+      for (const [wx, wz] of [
+        [-0.85, 1.2],
+        [0.85, 1.2],
+        [-0.85, -1.4],
+        [0.85, -1.4],
+      ]) {
+        const w = new THREE.Mesh(wheelGeo, wheelMat);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(wx, 0.32, wz);
+        g.add(w);
+      }
+      hit = { w: 1.65, h: 1.95, d: 2.35, y: 1.15, mode: 'block' };
     }
     g.userData.hit = hit;
     return g;
@@ -466,9 +555,10 @@ export class Obstacles {
     }
   }
 
-  _spawnPattern(z, diff, playerZ) {
+  _spawnPattern(z, diff, playerZ, speed) {
     const rng = this._rng;
     const warmup = this._inWarmup(playerZ);
+    this._pruneSpawnHistory(playerZ, speed);
     const doubleChance = warmup
       ? 0
       : SPAWN.doubleChanceBase + (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
@@ -485,12 +575,14 @@ export class Obstacles {
         if (bi > 0 && placedTypes.includes(type) && (type === 'rail' || type === 'sign')) {
           type = type === 'rail' ? 'sign' : 'rail';
         }
+      } else if (!warmup && bi === 0) {
+        type = this._varietyType(rng, playerZ, speed);
       } else {
         type = typeForLane(lane, open, rng, warmup, this.patternsSpawned);
       }
       if (!warmup && count === 2 && blocked.length === 2) {
         const other = blocked.find((l) => l !== lane);
-        const otherType = typeForLane(other, open, rng, false);
+        const otherType = placedTypes[0] ?? typeForLane(other, open, rng, false);
         if (otherType === 'barrier' && type === 'barrier') {
           type = rng() > 0.5 ? 'sign' : 'rail';
         }
@@ -500,11 +592,16 @@ export class Obstacles {
         if (otherType === 'rail' && type === 'rail') {
           type = rng() > 0.5 ? 'barrier' : 'sign';
         }
+        if (otherType === 'sign' && type === 'sign') {
+          type = rng() > 0.5 ? 'rail' : 'barrier';
+        }
       }
       const zOff = !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
       const placed = this._acquire(type, lane, z + zOff);
       if (!placed) continue;
+      placed.nearMissed = false;
       placedTypes.push(type);
+      this._recordSpawn(z + zOff, type);
     }
     if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
       this.postWarmupPatterns += 1;
@@ -520,9 +617,9 @@ export class Obstacles {
         this._rng() * (SPAWN.obstacleWarmupGapMax - SPAWN.obstacleWarmupGapMin)
       );
     }
-    const min = SPAWN.obstacleMinGap - diff * SPAWN.obstacleGapTighten * 10;
-    const max = SPAWN.obstacleMaxGap - diff * SPAWN.obstacleGapTighten * 8;
-    return min + this._rng() * Math.max(10, max - min);
+    const min = SPAWN.obstacleMinGap - diff * SPAWN.obstacleGapTighten * 12;
+    const max = SPAWN.obstacleMaxGap - diff * SPAWN.obstacleGapTighten * 10;
+    return min + this._rng() * Math.max(6, max - min);
   }
 
   _minAhead(speed) {
@@ -534,6 +631,7 @@ export class Obstacles {
 
   update(dt, playerZ, speed) {
     this._pulseT += dt;
+    if (this._nearMissCooldown > 0) this._nearMissCooldown -= dt;
     const diff = speedNorm(speed);
     const horizonDist = WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
     const horizon = playerZ + horizonDist;
@@ -555,7 +653,7 @@ export class Obstacles {
         if (this.nextZ >= playerZ + horizonDist) break;
       }
       try {
-        this._spawnPattern(this.nextZ, diff, playerZ);
+        this._spawnPattern(this.nextZ, diff, playerZ, speed);
         this.nextZ += this._gapForSpeed(speed, playerZ);
       } catch (e) {
         console.error(e);
@@ -670,7 +768,7 @@ export class Obstacles {
       if (dx >= (pw + hw) * 0.5 || dz >= (pd + hd) * 0.5) continue;
 
       if (it.hit.mode === 'slide' && sliding) continue;
-      if (it.hit.mode === 'jump' && jumping && playerBox.y > 0.9) continue;
+      if (it.hit.mode === 'jump' && jumping && playerBox.y > (it.type === 'sign' ? 1.2 : 0.85)) continue;
 
       const dy = Math.abs(playerBox.y - hy);
       if (dy < (ph + hh) * 0.5) return it;
@@ -678,11 +776,50 @@ export class Obstacles {
     return null;
   }
 
+  /**
+   * Detect narrow avoids — player used correct action in same lane, just cleared obstacle.
+   * Returns bonus points or 0.
+   */
+  checkNearMiss(playerBox, jumping, sliding, playerZ, playerLane) {
+    if (this._nearMissCooldown > 0) return 0;
+    const shrink = SPAWN.hitboxShrink;
+    const pw = playerBox.w * shrink;
+    const pd = playerBox.d * shrink;
+
+    for (const it of this.items) {
+      if (!it.alive || it.nearMissed) continue;
+      const dz = playerZ - it.z;
+      if (dz < 0.3 || dz > NEAR_MISS.proximityZ) continue;
+
+      const hx = it.mesh.position.x;
+      const dx = Math.abs(playerBox.x - hx);
+      if (dx > NEAR_MISS.proximityX) continue;
+      if (it.lane !== playerLane) continue;
+
+      const avoided =
+        (it.hit.mode === 'slide' && sliding) ||
+        (it.hit.mode === 'jump' && jumping && playerBox.y > (it.type === 'sign' ? 1.2 : 0.85)) ||
+        (it.hit.mode === 'block' && it.lane !== playerLane);
+      if (!avoided) continue;
+
+      const hw = it.hit.w * shrink;
+      const hd = it.hit.d * shrink;
+      if (dx >= (pw + hw) * 0.42 || dz > (pd + hd) * 0.55) continue;
+
+      it.nearMissed = true;
+      this._nearMissCooldown = NEAR_MISS.cooldown;
+      return NEAR_MISS.scoreBonus;
+    }
+    return 0;
+  }
+
   reset() {
     while (this.items.length) this._release(this.items.shift());
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
     this.postWarmupPatterns = 0;
+    this.spawnHistory = [];
+    this._nearMissCooldown = 0;
     this._pulseT = 0;
     this._rng = Math.random;
   }

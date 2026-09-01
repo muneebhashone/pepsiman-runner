@@ -426,6 +426,12 @@ export class Player {
     this.wasGrounded = true;
     gsap.killTweensOf(this.root.scale);
     gsap.killTweensOf(this.root.rotation);
+    gsap.killTweensOf(this.group.position);
+    gsap.killTweensOf(this.armL.rotation);
+    gsap.killTweensOf(this.armR.rotation);
+    gsap.killTweensOf(this.legL.rotation);
+    gsap.killTweensOf(this.legR.rotation);
+    gsap.killTweensOf(this.head.rotation);
     this.root.scale.set(HERO_SCALE, HERO_SCALE, HERO_SCALE);
     this.root.rotation.set(0, 0, 0);
     this.head.rotation.set(0, 0, 0);
@@ -435,9 +441,35 @@ export class Player {
 
   kill() {
     this.alive = false;
+    this.jumping = false;
+    this.sliding = false;
     gsap.killTweensOf(this.root.rotation);
+    gsap.killTweensOf(this.root.scale);
     gsap.killTweensOf(this.group.position);
-    gsap.to(this.root.rotation, { x: -1.3, z: 0.9, duration: 0.42, ease: 'power2.in' });
-    gsap.to(this.group.position, { y: 0.25, duration: 0.32 });
+    gsap.to(this.root.rotation, {
+      x: -1.55,
+      z: 1.35,
+      y: (Math.random() - 0.5) * 0.6,
+      duration: 0.38,
+      ease: 'power3.in',
+    });
+    gsap.to(this.root.scale, {
+      x: HERO_SCALE * 0.92,
+      y: HERO_SCALE * 0.88,
+      z: HERO_SCALE * 1.05,
+      duration: 0.28,
+      ease: 'power2.out',
+    });
+    gsap.to(this.group.position, {
+      y: 0.35,
+      z: this.z + 1.8,
+      duration: 0.42,
+      ease: 'power2.out',
+    });
+    gsap.to(this.armL.rotation, { x: 2.1, z: -0.9, duration: 0.3, ease: 'power2.out' });
+    gsap.to(this.armR.rotation, { x: 1.8, z: 0.75, duration: 0.3, ease: 'power2.out' });
+    gsap.to(this.legL.rotation, { x: -1.4, duration: 0.28, ease: 'power2.out' });
+    gsap.to(this.legR.rotation, { x: 0.9, duration: 0.28, ease: 'power2.out' });
+    gsap.to(this.head.rotation, { x: 0.65, z: 0.4, duration: 0.25, ease: 'power2.out' });
   }
 }
