@@ -48,6 +48,7 @@ export class Game {
     this.player = new Player(this.scene);
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
+    this.obstacles.setTutorialHintCallback((action) => this.ui.flashTutorialHint(action));
     this.collectibles = new Collectibles(this.scene);
     this.collectibles.setObstacles(this.obstacles);
     this.fx = new FX(this.scene);

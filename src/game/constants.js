@@ -101,14 +101,16 @@ export const SPAWN = {
   telegraphLead: 0.8,
   /** Extra spawn margin beyond leadDist so warnings are fully readable */
   telegraphReactionMargin: 8,
-  telegraphStripLength: 8,
+  telegraphStripLength: 4,
   telegraphStripWidth: 2.1,
   /** World-Z gap between strip end and obstacle front */
   telegraphObstacleGap: 1.5,
   telegraphAhead: 14,
-  telegraphChevronCount: 6,
+  telegraphChevronCount: 4,
   /** Minimum telegraph opacity at far edge of warn zone */
-  telegraphMinAlpha: 0.82,
+  telegraphMinAlpha: 0.42,
+  /** Opacity ramps to full only in the last N seconds before hazard */
+  telegraphRampSec: 0.35,
   /** Bias spawn toward jump/slide obstacles after warmup */
   verticalObstacleBias: 0.82,
   patternLookahead: 3,
