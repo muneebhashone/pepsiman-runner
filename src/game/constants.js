@@ -85,8 +85,8 @@ export const SPAWN = {
   obstacleWarmupGapMin: 32,
   obstacleWarmupGapMax: 42,
   /** Wider Z gap between first forced tutorial obstacles so lesson 2 isn't stacked on lesson 1 */
-  obstacleTutorialGapMin: 55,
-  obstacleTutorialGapMax: 60,
+  obstacleTutorialGapMin: 65,
+  obstacleTutorialGapMax: 75,
   /** How many initial tutorial patterns use the wider gap */
   obstacleTutorialWideGapCount: 3,
   warmupPatternCount: 2,
@@ -117,15 +117,15 @@ export const SPAWN = {
   /** Opacity ramps to full only in the last N seconds before hazard */
   telegraphRampSec: 0.35,
   /** Tutorial DOM hint: fire when obstacle enters this travel-time window (seconds) */
-  tutorialHintApproachSec: 2.7,
+  tutorialHintApproachSec: 3.6,
   /** Optional pre-warn for first forced tutorial threats (seconds before contact) */
-  tutorialHintPreWarnSec:  3.3,
-  /** Total DOM hint visible duration (ms) — plateau ~1.1s inside 1.6s animation */
-  tutorialHintVisibleMs: 1600,
+  tutorialHintPreWarnSec: 4.4,
+  /** Total DOM hint visible duration (ms) — matches 2s CSS animation */
+  tutorialHintVisibleMs: 2000,
   /** Shorter flash for GET READY pre-warn (ms) */
   tutorialHintReadyMs: 900,
   /** Chain JUMP this many ms after GET READY for the first tutorial sign */
-  tutorialHintJumpChainMs: 500,
+  tutorialHintJumpChainMs: 300,
   /** Bias spawn toward jump/slide obstacles after warmup */
   verticalObstacleBias: 0.82,
   patternLookahead: 3,

@@ -126,6 +126,7 @@ export class Obstacles {
     this._graceSlideUsed = false;
     this._graceJumpUsed = false;
     this._onTutorialHint = null;
+    this._onTutorialGrace = null;
 
     this._geo = {
       barrier: new THREE.BoxGeometry(1.75, 1.25, 0.55),
@@ -273,6 +274,10 @@ export class Obstacles {
     this._onTutorialHint = fn;
   }
 
+  setTutorialGraceCallback(fn) {
+    this._onTutorialGrace = fn;
+  }
+
   _fireSlideHint() {
     if (this._hintSlideShown) return;
     this._hintSlideShown = true;
@@ -284,6 +289,15 @@ export class Obstacles {
     this._hintJumpShown = true;
     clearTimeout(this._jumpChainTimer);
     this._jumpChainTimer = null;
+    this._onTutorialHint?.('jump');
+  }
+
+  /** Re-flash verb hint after tutorial grace (bypasses one-shot shown guard). */
+  _reflashSlideHint() {
+    this._onTutorialHint?.('slide');
+  }
+
+  _reflashJumpHint() {
     this._onTutorialHint?.('jump');
   }
 
@@ -604,6 +618,7 @@ export class Obstacles {
       mesh,
       hit,
       alive: true,
+      collisionDisabled: false,
       tel,
       telOuter,
       shadow,
@@ -910,7 +925,7 @@ export class Obstacles {
     const pyMax = playerBox.y + ph * 0.5;
 
     for (const it of this.items) {
-      if (!it.alive) continue;
+      if (!it.alive || it.collisionDisabled) continue;
       const hx = it.mesh.position.x;
       const hz = it.z;
       const hy = it.hit.y;
@@ -925,7 +940,9 @@ export class Obstacles {
         if (sliding) continue;
         if (it.isFirstTutorialRail && !this._graceSlideUsed) {
           this._graceSlideUsed = true;
-          this._fireSlideHint();
+          it.collisionDisabled = true;
+          this._reflashSlideHint();
+          this._onTutorialGrace?.('slide');
           continue;
         }
         return it;
@@ -936,7 +953,9 @@ export class Obstacles {
         if (jumping && playerBox.y > clearY) continue;
         if (it.isFirstTutorialSign && !this._graceJumpUsed) {
           this._graceJumpUsed = true;
-          this._fireJumpHint();
+          it.collisionDisabled = true;
+          this._reflashJumpHint();
+          this._onTutorialGrace?.('jump');
           continue;
         }
         return it;

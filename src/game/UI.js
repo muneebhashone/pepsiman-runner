@@ -176,6 +176,22 @@ export class UI {
     setTimeout(() => wrap.remove(), 750);
   }
 
+  floatNiceTry() {
+    if (!this.floatLayer) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'float-pickup near-miss';
+    wrap.classList.add('left');
+
+    const label = document.createElement('div');
+    label.className = 'float-can-label';
+    label.textContent = 'NICE TRY';
+
+    wrap.appendChild(label);
+    this.floatLayer.appendChild(wrap);
+    requestAnimationFrame(() => wrap.classList.add('rise'));
+    setTimeout(() => wrap.remove(), 900);
+  }
+
   flashHit(intensity = 1) {
     if (!this.hitFlash) return;
     this.hitFlash.style.opacity = String(0.35 + intensity * 0.45);
