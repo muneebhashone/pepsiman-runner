@@ -19,8 +19,10 @@ export const COLORS = {
   sky: 0x142040,
   canBody: 0xe32934,
   canTop: 0xc0c0c0,
-  telegraph: 0xff2244,
-  telegraphGlow: 0xff0033,
+  telegraph: 0xe32934,
+  telegraphGlow: 0xff3344,
+  telegraphSlide: 0x00e5ff,
+  telegraphSlideGlow: 0x66f0ff,
   truckCab: 0x2255aa,
   truckTrailer: 0xe32934,
   barrier: 0xffaa00,
@@ -90,11 +92,13 @@ export const SPAWN = {
   /** Extra spawn margin beyond leadDist so warnings are fully readable */
   telegraphReactionMargin: 8,
   telegraphStripLength: 8,
-  telegraphStripWidth: 2.05,
+  telegraphStripWidth: 2.1,
   telegraphAhead: 14,
   telegraphChevronCount: 10,
   /** Minimum telegraph opacity at far edge of warn zone */
-  telegraphMinAlpha: 0.72,
+  telegraphMinAlpha: 0.82,
+  /** Bias spawn toward jump/slide obstacles after warmup */
+  verticalObstacleBias: 0.58,
   patternLookahead: 3,
   doubleChanceBase: 0.05,
   doubleChanceMax: 0.35,
