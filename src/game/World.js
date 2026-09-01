@@ -128,8 +128,8 @@ export class World {
         void main() {
           float h = normalize(vPos).y * 0.5 + 0.5;
           vec3 col = mix(uHorizon, uTop, pow(h, 1.4));
-          float streak = sin(vPos.z * 0.05 + uScroll) * 0.5 + 0.5;
-          col += uGlow * streak * 0.015 * smoothstep(0.55, 0.0, h);
+          float streak = sin(vPos.z * 0.02 + uScroll * 0.35) * 0.5 + 0.5;
+          col += uGlow * streak * 0.004 * smoothstep(0.42, 0.0, h);
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -270,9 +270,9 @@ export class World {
 
           const stripCount = 1 + ((rand() * 2) | 0);
           for (let si = 0; si < stripCount; si++) {
-            const stripY = Math.min(9.5, 2.5 + rand() * Math.min(6, h - 3));
+            const stripY = Math.min(5.5, 2 + rand() * Math.min(3.5, h * 0.28));
             const neon = new THREE.Mesh(
-              new THREE.BoxGeometry(w * 0.7, 0.08, 0.08),
+              new THREE.BoxGeometry(w * 0.55, 0.06, 0.06),
               this._neonMats[(rand() * 4) | 0]
             );
             neon.position.set(b.position.x, stripY, b.position.z + side * d * 0.51);

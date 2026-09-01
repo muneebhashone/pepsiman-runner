@@ -19,6 +19,7 @@ export class Game {
     this.combo = 1;
     this.bestCombo = 1;
     this.comboTimer = 0;
+    this.lastPickupAt = -99;
     this.distance = 0;
     this.clock = new THREE.Clock(false);
     this._raf = 0;
@@ -38,7 +39,7 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 200);
 
     this.input = new Input(window);
     this.input.attach();
@@ -116,6 +117,7 @@ export class Game {
     this.combo = 1;
     this.bestCombo = 1;
     this.comboTimer = 0;
+    this.lastPickupAt = -99;
     this.distance = 0;
     this.player.reset();
     this.world.reset();
@@ -149,8 +151,15 @@ export class Game {
 
   _collectPickup(c) {
     const pos = c.mesh.position.clone();
+    const now = performance.now() * 0.001;
+    const spaced = now - this.lastPickupAt >= SCORE.comboSpacing;
+    this.lastPickupAt = now;
     this.comboTimer = SCORE.comboDecay;
-    this.combo = Math.min(SCORE.comboMax, this.combo + 1);
+    if (spaced) {
+      this.combo = Math.min(SCORE.comboMax, this.combo + 1);
+    } else if (this.combo > 1) {
+      this.combo = Math.max(1, this.combo - 1);
+    }
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     const pts = SCORE.canBase * this.combo * (1 + SCORE.comboMultStep * (this.combo - 1));
     this.score += pts;
@@ -158,7 +167,7 @@ export class Game {
 
     this.audio.pickup(this.combo);
     this.fx.canPop(pos, this.combo, this.camera);
-    this.rig.punchFov(3 + this.combo * 0.25);
+    this.rig.punchFov(2 + this.combo * 0.2);
     this.ui.flashPickup(this.combo);
     this.ui.popCan();
     this.ui.pulseScore();
@@ -213,7 +222,7 @@ export class Game {
       );
       this.player.z += this.player.speed * dt;
       this.distance += this.player.speed * dt;
-      this.score += this.player.speed * dt * SCORE.perMeter * (1 + (this.combo - 1) * 0.05);
+      this.score += this.player.speed * dt * SCORE.perMeter * (1 + (this.combo - 1) * 0.03);
 
       this.player.update(dt);
       if (this.player.justLanded) {
@@ -261,7 +270,9 @@ export class Game {
       dt,
       this.player.group.position,
       playing ? stats.speedNorm : 0,
-      this.player.lean
+      this.player.lean,
+      this.player.jumping,
+      this.player.y
     );
 
     this.ui.update(this._stats(), dt);

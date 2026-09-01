@@ -16,8 +16,8 @@ export class Collectibles {
     this.obstacles = null;
     this.nextZ = 14;
     this.bobT = 0;
-    this.magnetRange = 4.8;
-    this.magnetRangeMax = 6.2;
+    this.magnetRange = 2.6;
+    this.magnetRangeMax = 3.8;
 
     this.canGeo = new THREE.CylinderGeometry(0.34, 0.34, 0.72, 16);
     this.canMat = new THREE.MeshStandardMaterial({
@@ -166,7 +166,7 @@ export class Collectibles {
     const diff = speedNorm(speed);
     const inWarmup = playerZ < SPAWN.collectibleWarmupZ;
     const magnet =
-      (inWarmup ? 6.2 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
+      (inWarmup ? 3.4 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
 
     while (this.nextZ < horizon) {
@@ -199,7 +199,7 @@ export class Collectibles {
       const dx = playerX - mesh.position.x;
       const dz = playerZ - mesh.position.z;
       const dist = Math.hypot(dx, dz);
-      const pullStrength = inWarmup ? 0.65 : 0.45 + diff * 0.25;
+      const pullStrength = inWarmup ? 0.42 : 0.28 + diff * 0.18;
       if (dist < magnet && dist > 0.01) {
         it.sucking = true;
         const pull = ((magnet - dist) / magnet) ** 1.25;
