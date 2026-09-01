@@ -166,7 +166,10 @@ export class Game {
     this.coins += 1;
 
     this.audio.pickup(this.combo);
-    this.fx.canPop(pos, this.combo);
+    this.fx.canPop(
+      new THREE.Vector3(this.player.x, 0.12, this.player.z),
+      this.combo
+    );
     this.rig.punchFov(2 + this.combo * 0.2);
     this.ui.flashPickup(this.combo);
     this.ui.popCan();

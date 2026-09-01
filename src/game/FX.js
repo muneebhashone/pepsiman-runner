@@ -59,13 +59,24 @@ export class FX {
     return Math.min(maxY, Math.max(0.05, y));
   }
 
-  _countNearPickupParticles(pos) {
+  _countNearPickupParticles(x, z) {
     let n = 0;
     for (const p of this.particles) {
       if (!p.pickup) continue;
-      if (p.mesh.position.distanceToSquared(pos) < NEAR_PICKUP_RADIUS_SQ) n++;
+      const dx = p.mesh.position.x - x;
+      const dz = p.mesh.position.z - z;
+      if (dx * dx + dz * dz < NEAR_PICKUP_RADIUS_SQ) n++;
     }
     return n;
+  }
+
+  /** Pickup burst anchor — always at asphalt, never torso/can height */
+  _groundPopPos(pos) {
+    return new THREE.Vector3(
+      pos.x,
+      0.1 + Math.random() * 0.05,
+      pos.z
+    );
   }
 
   runTrail(pos, speedNorm) {
@@ -116,30 +127,31 @@ export class FX {
   }
 
   canPop(pos, combo = 1) {
-    const burstPos = pos.clone();
-    burstPos.y = this._clampGroundY(burstPos.y, 1.4);
-
-    const budget = MAX_NEAR_PICKUP_PARTICLES - this._countNearPickupParticles(burstPos);
+    const budget = MAX_NEAR_PICKUP_PARTICLES - this._countNearPickupParticles(pos.x, pos.z);
     if (budget <= 0) return;
 
-    const count = Math.min(budget, 3 + Math.min(combo, 3));
+    const count = Math.min(budget, 2 + Math.min(combo, 4));
     for (let i = 0; i < count; i++) {
       const mat = this._makeSparkMat(
         i % 3 === 0 ? COLORS.pepsiRed : i % 3 === 1 ? COLORS.pepsiBlue : 0xffffff,
-        0.75
+        0.65
       );
-      const m = new THREE.Mesh(this.burstGeo, mat);
-      m.position.copy(burstPos);
-      m.position.y += 0.35 + Math.random() * 0.25;
+      const m = new THREE.Mesh(this.sparkGeo, mat);
 
-      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.35;
-      const speed = 5 + combo * 0.35 + Math.random() * 2;
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const spawn = this._groundPopPos(pos);
+      spawn.x += Math.cos(angle) * 0.06;
+      spawn.z += Math.sin(angle) * 0.06;
+      m.position.copy(spawn);
+      m.rotation.set(-Math.PI / 2 + 0.2, angle, 0);
+
+      const speed = 6.5 + combo * 0.25 + Math.random() * 1.5;
       const vel = new THREE.Vector3(
         Math.cos(angle) * speed,
-        0.5 + Math.random() * 1.1,
+        0.12 + Math.random() * 0.18,
         Math.sin(angle) * speed
       );
-      this._spawnParticle(m, vel, 0.12 + Math.random() * 0.06, 9, 7, 0.75, true);
+      this._spawnParticle(m, vel, 0.09 + Math.random() * 0.05, 14, 9, 0.65, true);
     }
   }
 
