@@ -114,6 +114,7 @@ export class Obstacles {
     this.postWarmupPatterns = 0;
     this._pulseT = 0;
     this._rng = Math.random;
+    this._beforeRunway = true;
 
     this._geo = {
       barrier: new THREE.BoxGeometry(1.6, 1.1, 0.5),
@@ -242,28 +243,68 @@ export class Obstacles {
   _ensureTelMesh(pool, geo, color, renderOrder, glow = false) {
     let mesh = pool.pop();
     if (!mesh) {
-      mesh = new THREE.Mesh(geo, makeTelegraphMat(color));
-      layFlatOnRoad(mesh);
-      mesh.frustumCulled = false;
-      mesh.renderOrder = renderOrder;
-      this.scene.add(mesh);
+      try {
+        mesh = new THREE.Mesh(geo, glow ? makeTelegraphGlowMat(color) : makeTelegraphMat(color));
+        layFlatOnRoad(mesh);
+        mesh.frustumCulled = false;
+        mesh.renderOrder = renderOrder;
+        this.scene.add(mesh);
+      } catch (err) {
+        console.warn('[Obstacles] tel mesh create failed', err);
+        mesh = new THREE.Mesh(
+          geo,
+          new THREE.MeshBasicMaterial({ color, side: THREE.DoubleSide, toneMapped: false })
+        );
+        layFlatOnRoad(mesh);
+        mesh.frustumCulled = false;
+        mesh.renderOrder = renderOrder;
+        this.scene.add(mesh);
+      }
     }
-    setTelMaterial(mesh, color, glow);
-    layFlatOnRoad(mesh);
+    try {
+      setTelMaterial(mesh, color, glow);
+      layFlatOnRoad(mesh);
+    } catch (err) {
+      console.warn('[Obstacles] tel material failed', err);
+      mesh.material = glow ? makeTelegraphGlowMat(color) : makeTelegraphMat(color);
+      layFlatOnRoad(mesh);
+    }
     return mesh;
   }
 
   _ensureChevron(coreColor) {
     let chev = this.chevronPool.pop();
     if (!chev) {
-      chev = new THREE.Mesh(this._geo.chevron, makeTelegraphMat(coreColor));
-      layFlatOnRoad(chev);
-      chev.frustumCulled = false;
-      chev.renderOrder = 49;
-      this.scene.add(chev);
+      try {
+        chev = new THREE.Mesh(this._geo.chevron, makeTelegraphMat(coreColor));
+        layFlatOnRoad(chev);
+        chev.frustumCulled = false;
+        chev.renderOrder = 49;
+        this.scene.add(chev);
+      } catch (err) {
+        console.warn('[Obstacles] chevron create failed', err);
+        chev = new THREE.Mesh(
+          this._geo.chevron,
+          new THREE.MeshBasicMaterial({
+            color: coreColor,
+            side: THREE.DoubleSide,
+            toneMapped: false,
+          })
+        );
+        layFlatOnRoad(chev);
+        chev.frustumCulled = false;
+        chev.renderOrder = 49;
+        this.scene.add(chev);
+      }
     }
-    setTelMaterial(chev, coreColor, false);
-    layFlatOnRoad(chev);
+    try {
+      setTelMaterial(chev, coreColor, false);
+      layFlatOnRoad(chev);
+    } catch (err) {
+      console.warn('[Obstacles] chevron material failed', err);
+      chev.material = makeTelegraphMat(coreColor);
+      layFlatOnRoad(chev);
+    }
     return chev;
   }
 
@@ -301,13 +342,28 @@ export class Obstacles {
   }
 
   _applyTelColors(mesh, colors) {
+    if (!mesh?.material) return;
     mesh.material.color.setHex(colors.core);
     mesh.material.opacity = 0;
   }
 
   _applyTelOuterColors(mesh, colors) {
+    if (!mesh?.material) return;
     mesh.material.color.setHex(colors.glow);
     mesh.material.opacity = 0;
+  }
+
+  _aliveCount() {
+    let n = 0;
+    for (const it of this.items) {
+      if (it.alive) n += 1;
+    }
+    return n;
+  }
+
+  _firstSpawnZ(playerZ, speed) {
+    const minAhead = this._minAhead(speed);
+    return Math.max(SPAWN.runwayZ + 12, playerZ + Math.min(minAhead, 28));
   }
 
   _safeAcquire(type, lane, z) {
@@ -579,25 +635,58 @@ export class Obstacles {
     return Math.max(SPAWN.minSpawnAhead + diff * 12, leadDist + reaction);
   }
 
-  update(dt, playerZ, speed) {
+  update(dt, playerZ, speed, playing = true) {
     this._pulseT += dt;
     const diff = speedNorm(speed);
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
     const minAhead = this._minAhead(speed);
+    const spawnLead = Math.min(minAhead, 28);
 
     if (playerZ < SPAWN.runwayZ) {
-      this.nextZ = Math.max(this.nextZ, SPAWN.runwayZ);
+      this._beforeRunway = true;
+      this.nextZ = Math.max(this.nextZ, this._firstSpawnZ(playerZ, speed));
     } else {
-      const spawnFloor = playerZ + Math.min(minAhead, 28);
+      if (this._beforeRunway) {
+        this._beforeRunway = false;
+        this.nextZ = Math.max(this.nextZ, playerZ + spawnLead);
+        try {
+          if (!this._safeSpawnPattern(this.nextZ, diff, playerZ)) {
+            this.nextZ += 24;
+          } else {
+            this.nextZ += this._gapForSpeed(speed, playerZ);
+          }
+        } catch (err) {
+          console.warn('[Obstacles] runway-cross spawn failed', err);
+          this.nextZ += 24;
+        }
+      }
+
+      const spawnFloor = playerZ + spawnLead;
       this.nextZ = Math.max(this.nextZ, spawnFloor);
       let guard = 0;
       while (this.nextZ < horizon && guard < 96) {
         guard += 1;
-        if (!this._safeSpawnPattern(this.nextZ, diff, playerZ)) {
+        try {
+          if (!this._safeSpawnPattern(this.nextZ, diff, playerZ)) {
+            this.nextZ += 24;
+            continue;
+          }
+          this.nextZ += this._gapForSpeed(speed, playerZ);
+        } catch (err) {
+          console.warn('[Obstacles] spawn loop failed at z=', this.nextZ, err);
           this.nextZ += 24;
-          continue;
         }
-        this.nextZ += this._gapForSpeed(speed, playerZ);
+      }
+    }
+
+    if (playing && playerZ > SPAWN.runwayZ + 20 && this._aliveCount() === 0) {
+      console.warn('[Obstacles] assert: no hazards after runway — forcing center barrier');
+      const forceZ = playerZ + spawnLead;
+      try {
+        this._safeAcquire('barrier', CENTER_LANE, forceZ);
+        this.nextZ = Math.max(this.nextZ, forceZ + this._gapForSpeed(speed, playerZ));
+      } catch (err) {
+        console.warn('[Obstacles] force-spawn failed', err);
       }
     }
 
@@ -629,19 +718,23 @@ export class Obstacles {
         ? Math.min(1, (minAlpha + (1 - minAlpha) * urgency ** 0.55) * blink)
         : 0;
 
-      layFlatOnRoad(it.tel);
-      it.tel.visible = showStrip;
-      it.tel.material.opacity = alpha;
-      it.tel.material.color.setHex(colors.core);
-      it.tel.position.set(laneX, 0.08, stripCenterZ);
-      it.tel.scale.set(widthScale, lengthScale, 1);
+      if (it.tel) {
+        layFlatOnRoad(it.tel);
+        it.tel.visible = showStrip;
+        it.tel.material.opacity = alpha;
+        it.tel.material.color.setHex(colors.core);
+        it.tel.position.set(laneX, 0.08, stripCenterZ);
+        it.tel.scale.set(widthScale, lengthScale, 1);
+      }
 
-      layFlatOnRoad(it.telOuter);
-      it.telOuter.visible = showStrip;
-      it.telOuter.material.opacity = showStrip ? Math.min(1, alpha * 0.65 * pulse) : 0;
-      it.telOuter.material.color.setHex(colors.glow);
-      it.telOuter.position.set(laneX, 0.07, stripCenterZ);
-      it.telOuter.scale.set(widthScale * 1.06, lengthScale * 1.04, 1);
+      if (it.telOuter) {
+        layFlatOnRoad(it.telOuter);
+        it.telOuter.visible = showStrip;
+        it.telOuter.material.opacity = showStrip ? Math.min(1, alpha * 0.65 * pulse) : 0;
+        it.telOuter.material.color.setHex(colors.glow);
+        it.telOuter.position.set(laneX, 0.07, stripCenterZ);
+        it.telOuter.scale.set(widthScale * 1.06, lengthScale * 1.04, 1);
+      }
 
       if (it.shadow) {
         layFlatOnRoad(it.shadow);
@@ -650,7 +743,8 @@ export class Obstacles {
         it.shadow.position.set(laneX, 0.06, stripStartZ + stripLen * 0.72);
       }
 
-      for (let ci = 0; ci < it.chevrons.length; ci++) {
+      if (it.chevrons?.length) {
+        for (let ci = 0; ci < it.chevrons.length; ci++) {
         const chev = it.chevrons[ci];
         layFlatOnRoad(chev);
         const t = (ci + 0.55) / it.chevrons.length;
@@ -666,6 +760,7 @@ export class Obstacles {
         chev.position.set(laneX, 0.09, chevZ);
         const s = 1 + Math.max(0, chevUrg) * 0.75;
         chev.scale.set(s, s, 1);
+        }
       }
     }
 
@@ -708,5 +803,6 @@ export class Obstacles {
     this.postWarmupPatterns = 0;
     this._pulseT = 0;
     this._rng = Math.random;
+    this._beforeRunway = true;
   }
 }

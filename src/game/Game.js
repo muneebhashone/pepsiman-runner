@@ -235,7 +235,7 @@ export class Game {
       }
 
       this.world.update(this.player.z, this.player.speed);
-      this.obstacles.update(dt, this.player.z, this.player.speed);
+      this.obstacles.update(dt, this.player.z, this.player.speed, true);
       this.collectibles.update(
         dt,
         this.player.z,
