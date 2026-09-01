@@ -116,16 +116,15 @@ export const SPAWN = {
   telegraphMinAlpha: 0.42,
   /** Opacity ramps to full only in the last N seconds before hazard */
   telegraphRampSec: 0.35,
-  /** Tutorial DOM hint: fire when obstacle enters this travel-time window (seconds) */
-  tutorialHintApproachSec: 3.6,
-  /** Optional pre-warn for first forced tutorial threats (seconds before contact) */
-  tutorialHintPreWarnSec: 4.4,
-  /** Total DOM hint visible duration (ms) — matches 2s CSS animation */
-  tutorialHintVisibleMs: 2000,
-  /** Shorter flash for GET READY pre-warn (ms) */
-  tutorialHintReadyMs: 900,
-  /** Chain JUMP this many ms after GET READY for the first tutorial sign */
-  tutorialHintJumpChainMs: 300,
+  /** Tutorial verb at full opacity while time-to-contact is in [tail, lead] (seconds) */
+  tutorialHintVerbLeadSec: 2.0,
+  tutorialHintVerbTailSec: 0.4,
+  /** GET READY real-time hold before verb replaces it (seconds) */
+  tutorialHintReadyBeforeVerbSec: 0.9,
+  /** Start GET READY when ttc <= verbLead + readyBeforeVerb (seconds) */
+  tutorialHintReadyStartSec: 2.9,
+  /** Min spawn lead so first tutorial threats enter teaching range with full dwell */
+  tutorialHintMinSpawnTtcSec: 3.2,
   /** Bias spawn toward jump/slide obstacles after warmup */
   verticalObstacleBias: 0.82,
   patternLookahead: 3,

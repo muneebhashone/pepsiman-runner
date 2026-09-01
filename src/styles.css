@@ -121,9 +121,14 @@ body {
     0 4px 0 rgba(0, 26, 58, 0.9);
 }
 
-#tutorial-hint.flash {
+#tutorial-hint.hold {
   visibility: visible;
-  animation: tutorial-hint-pop 2s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  opacity: 1;
+  transform: translateX(-50%) scale(1) translateY(0);
+}
+
+#tutorial-hint.hold.pop {
+  animation: tutorial-hint-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 #tutorial-hint.hidden {
@@ -131,22 +136,14 @@ body {
   opacity: 0;
 }
 
-@keyframes tutorial-hint-pop {
+@keyframes tutorial-hint-in {
   0% {
     opacity: 0;
-    transform: translateX(-50%) scale(0.5) translateY(16px);
-  }
-  8% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1.1) translateY(0);
-  }
-  83% {
-    opacity: 1;
-    transform: translateX(-50%) scale(1) translateY(0);
+    transform: translateX(-50%) scale(0.55) translateY(14px);
   }
   100% {
-    opacity: 0;
-    transform: translateX(-50%) scale(0.95) translateY(-6px);
+    opacity: 1;
+    transform: translateX(-50%) scale(1) translateY(0);
   }
 }
 
