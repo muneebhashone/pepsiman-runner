@@ -8,13 +8,13 @@ const POOL_SIZE = 48;
 
 /** Forced post-tutorial rotation — every colliding verb appears before weights matter */
 const ROTATION_TABLE = [
+  { kind: 'single', type: 'truck' },
+  { kind: 'barrelChain' },
+  { kind: 'single', type: 'mover' },
+  { kind: 'pepsiWide' },
   { kind: 'single', type: 'barrier' },
   { kind: 'single', type: 'rail' },
   { kind: 'single', type: 'sign' },
-  { kind: 'single', type: 'truck' },
-  { kind: 'barrelChain' },
-  { kind: 'pepsiWide' },
-  { kind: 'single', type: 'mover' },
   { kind: 'single', type: 'ramp' },
   { kind: 'combo', types: ['rail', 'barrier'], gap: 0.25 },
   { kind: 'single', type: 'barrier' },
@@ -551,11 +551,7 @@ export class Obstacles {
   }
 
   _inWarmup(playerZ) {
-    return (
-      playerZ < SPAWN.runwayZ ||
-      playerZ < SPAWN.obstacleWarmupZ ||
-      this.patternsSpawned < SPAWN.warmupPatternCount
-    );
+    return playerZ < SPAWN.runwayZ || playerZ < SPAWN.obstacleWarmupZ;
   }
 
   _pruneSpawnHistory(playerZ, speed) {
@@ -763,6 +759,102 @@ export class Obstacles {
         this._applyTelColors(chev, colors);
         it.chevrons.push(chev);
       }
+    }
+  }
+
+  _ensureMoverDestTelegraphs(it) {
+    if (it.type !== 'mover') return;
+    const colors = it.telColors ?? telegraphColorsFor(it.type);
+    const endLane = it.moverEndLane ?? it.lane;
+    const destX = LANES[endLane];
+
+    if (!it.destTel) {
+      it.destTel = this._ensureTelMesh(this.telPool, this._geo.tel, colors.core, 48, false);
+      it.destTel.visible = false;
+      this._applyTelColors(it.destTel, colors);
+    }
+    if (!it.destTelOuter) {
+      it.destTelOuter = this._ensureTelMesh(
+        this.telOuterPool,
+        this._geo.telOuter,
+        colors.glow,
+        47,
+        true
+      );
+      it.destTelOuter.visible = false;
+      this._applyTelOuterColors(it.destTelOuter, colors);
+    }
+    if (!it.destChevrons?.length) {
+      it.destChevrons = [];
+      for (let ci = 0; ci < SPAWN.telegraphChevronCount; ci++) {
+        const chev = this._ensureChevron(colors.core);
+        chev.visible = false;
+        chev.position.set(destX, 0.09, it.z);
+        this._applyTelColors(chev, colors);
+        it.destChevrons.push(chev);
+      }
+    }
+  }
+
+  _layoutTelegraphStrip(it, laneX, tel, telOuter, chevrons, dist, showStrip, alpha, colors, pulse, rampDist, minAlpha, stripLen, gap) {
+    const stripEndZ = it.z - gap;
+    const stripStartZ = stripEndZ - stripLen;
+    const stripCenterZ = stripStartZ + stripLen * 0.5;
+
+    layFlatOnRoad(tel);
+    tel.visible = showStrip && alpha > 0.02;
+    tel.material.opacity = alpha;
+    tel.material.color.setHex(colors.core);
+    tel.position.set(laneX, 0.08, stripCenterZ);
+    tel.scale.set(1, 1, 1);
+
+    layFlatOnRoad(telOuter);
+    telOuter.visible = showStrip && alpha > 0.02;
+    telOuter.material.opacity = showStrip ? Math.min(1, alpha * 0.32 * pulse) : 0;
+    telOuter.material.color.setHex(colors.glow);
+    telOuter.position.set(laneX, 0.07, stripCenterZ);
+    telOuter.scale.set(1.02, 1.02, 1);
+
+    for (let ci = 0; ci < chevrons.length; ci++) {
+      const chev = chevrons[ci];
+      layFlatOnRoad(chev);
+      const t = (ci + 0.5) / chevrons.length;
+      const chevZ = stripStartZ + stripLen * t;
+      const chevDist = it.z - chevZ;
+      const chevRamp = chevDist <= rampDist ? 1 - chevDist / rampDist : 0;
+      const chevPulse = 0.75 + Math.sin(this._pulseT * 13 + ci * 0.85) * 0.25;
+      const chevVisible = showStrip && chevZ >= stripStartZ && chevZ <= stripEndZ;
+      chev.visible = chevVisible && alpha > 0.02;
+      chev.material.opacity = chevVisible
+        ? Math.min(1, (minAlpha + (1 - minAlpha) * chevRamp ** 0.5) * chevPulse)
+        : 0;
+      chev.material.color.setHex(colors.core);
+      chev.position.set(laneX, 0.09, chevZ);
+      const s = 0.85 + Math.max(0, chevRamp) * 0.45;
+      chev.scale.set(s, s, 1);
+    }
+  }
+
+  _releaseMoverDestTelegraphs(item) {
+    if (item.destTel) {
+      item.destTel.visible = false;
+      item.destTel.scale.set(1, 1, 1);
+      this.telPool.push(item.destTel);
+      item.destTel = null;
+    }
+    if (item.destTelOuter) {
+      item.destTelOuter.visible = false;
+      item.destTelOuter.scale.set(1, 1, 1);
+      this.telOuterPool.push(item.destTelOuter);
+      item.destTelOuter = null;
+    }
+    if (item.destChevrons) {
+      for (const chev of item.destChevrons) {
+        chev.visible = false;
+        chev.scale.set(1, 1, 1);
+        this.chevronPool.push(chev);
+      }
+      item.destChevrons = [];
     }
   }
 
@@ -1054,6 +1146,7 @@ export class Obstacles {
       }
       item.chevrons = [];
     }
+    this._releaseMoverDestTelegraphs(item);
   }
 
   _spawnPattern(z, diff, playerZ, speed) {
@@ -1327,9 +1420,6 @@ export class Obstacles {
         }
       }
 
-      const stripEndZ = it.z - gap;
-      const stripStartZ = stripEndZ - stripLen;
-      const stripCenterZ = stripStartZ + stripLen * 0.5;
       const showStrip = inWarn;
 
       let alpha = 0;
@@ -1343,19 +1433,23 @@ export class Obstacles {
         alpha = Math.min(1, alpha * blink);
       }
 
-      layFlatOnRoad(it.tel);
-      it.tel.visible = showStrip && alpha > 0.02;
-      it.tel.material.opacity = alpha;
-      it.tel.material.color.setHex(colors.core);
-      it.tel.position.set(laneX, 0.08, stripCenterZ);
-      it.tel.scale.set(1, 1, 1);
-
-      layFlatOnRoad(it.telOuter);
-      it.telOuter.visible = showStrip && alpha > 0.02;
-      it.telOuter.material.opacity = showStrip ? Math.min(1, alpha * 0.32 * pulse) : 0;
-      it.telOuter.material.color.setHex(colors.glow);
-      it.telOuter.position.set(laneX, 0.07, stripCenterZ);
-      it.telOuter.scale.set(1.02, 1.02, 1);
+      const stripEndZ = it.z - gap;
+      this._layoutTelegraphStrip(
+        it,
+        laneX,
+        it.tel,
+        it.telOuter,
+        it.chevrons,
+        dist,
+        showStrip,
+        alpha,
+        colors,
+        pulse,
+        rampDist,
+        minAlpha,
+        stripLen,
+        gap
+      );
 
       if (it.shadow) {
         layFlatOnRoad(it.shadow);
@@ -1365,23 +1459,29 @@ export class Obstacles {
         it.shadow.position.set(laneX, 0.06, stripEndZ - stripLen * 0.12);
       }
 
-      for (let ci = 0; ci < it.chevrons.length; ci++) {
-        const chev = it.chevrons[ci];
-        layFlatOnRoad(chev);
-        const t = (ci + 0.5) / it.chevrons.length;
-        const chevZ = stripStartZ + stripLen * t;
-        const chevDist = it.z - chevZ;
-        const chevRamp = chevDist <= rampDist ? 1 - chevDist / rampDist : 0;
-        const chevPulse = 0.75 + Math.sin(this._pulseT * 13 + ci * 0.85) * 0.25;
-        const chevVisible = showStrip && chevZ >= stripStartZ && chevZ <= stripEndZ;
-        chev.visible = chevVisible && alpha > 0.02;
-        chev.material.opacity = chevVisible
-          ? Math.min(1, (minAlpha + (1 - minAlpha) * chevRamp ** 0.5) * chevPulse)
-          : 0;
-        chev.material.color.setHex(colors.core);
-        chev.position.set(laneX, 0.09, chevZ);
-        const s = 0.85 + Math.max(0, chevRamp) * 0.45;
-        chev.scale.set(s, s, 1);
+      if (it.type === 'mover') {
+        const start = it.moverStartLane ?? it.lane;
+        const end = it.moverEndLane ?? (start === 0 ? 2 : 0);
+        if (start !== end) {
+          this._ensureMoverDestTelegraphs(it);
+          const destAlpha = Math.min(1, alpha * 0.88);
+          this._layoutTelegraphStrip(
+            it,
+            LANES[end],
+            it.destTel,
+            it.destTelOuter,
+            it.destChevrons,
+            dist,
+            showStrip,
+            destAlpha,
+            colors,
+            pulse,
+            rampDist,
+            minAlpha,
+            stripLen,
+            gap
+          );
+        }
       }
     }
 
