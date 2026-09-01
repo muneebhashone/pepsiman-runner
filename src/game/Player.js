@@ -7,17 +7,45 @@ function gloss(color, opts = {}) {
     color,
     metalness: opts.metalness ?? 0.55,
     roughness: opts.roughness ?? 0.28,
-    emissive: opts.emissive ?? 0x000000,
-    emissiveIntensity: opts.emissiveIntensity ?? 0,
+    emissive: opts.emissive ?? color,
+    emissiveIntensity: opts.emissiveIntensity ?? 0.06,
   });
 }
 
-/** Elastic overshoot ease — peaks past 1 then settles */
 function laneEase(t, overshoot = PLAYER.laneOvershoot) {
   if (t >= 1) return 1;
   const smooth = t * t * (3 - 2 * t);
   const bounce = 1 + overshoot * Math.sin(t * Math.PI);
   return smooth * bounce;
+}
+
+/** Pepsi swirl emblem — readable from chase cam (chest or back) */
+function makeEmblem(materials, flipZ = false) {
+  const g = new THREE.Group();
+  const z = flipZ ? -0.44 : 0.44;
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(0.26, 28), materials.white);
+  disc.position.z = z;
+  if (flipZ) disc.rotation.y = Math.PI;
+  g.add(disc);
+  const swirlR = new THREE.Mesh(
+    new THREE.RingGeometry(0.08, 0.22, 28, 1, 0, Math.PI * 0.85),
+    materials.red
+  );
+  swirlR.position.z = flipZ ? z - 0.01 : z + 0.01;
+  if (flipZ) swirlR.rotation.y = Math.PI;
+  g.add(swirlR);
+  const swirlB = new THREE.Mesh(
+    new THREE.RingGeometry(0.08, 0.22, 28, 1, Math.PI * 0.85, Math.PI * 0.85),
+    materials.blue
+  );
+  swirlB.position.z = flipZ ? z - 0.01 : z + 0.01;
+  if (flipZ) swirlB.rotation.y = Math.PI;
+  g.add(swirlB);
+  const dot = new THREE.Mesh(new THREE.CircleGeometry(0.06, 16), materials.white);
+  dot.position.z = flipZ ? z - 0.02 : z + 0.02;
+  if (flipZ) dot.rotation.y = Math.PI;
+  g.add(dot);
+  return g;
 }
 
 export class Player {
@@ -46,142 +74,151 @@ export class Player {
     this.group = new THREE.Group();
     this._buildMesh();
     scene.add(this.group);
-    this.hitbox = { w: 0.7, h: 1.7, d: 0.6 };
+    this.bounds = { ...PLAYER.meshBounds };
   }
 
   _buildMesh() {
     const root = new THREE.Group();
     this.root = root;
 
-    const blue = gloss(COLORS.pepsiBlue, { metalness: 0.68, roughness: 0.2 });
-    const red = gloss(COLORS.pepsiRed, { metalness: 0.45, roughness: 0.32 });
-    const white = gloss(COLORS.pepsiWhite, { metalness: 0.25, roughness: 0.38 });
-    const dark = gloss(0x111122, { metalness: 0.3, roughness: 0.5 });
+    const mats = {
+      suit: gloss(COLORS.pepsiWhite, { metalness: 0.35, roughness: 0.22, emissiveIntensity: 0.14 }),
+      silver: gloss(COLORS.pepsiSilver, { metalness: 0.72, roughness: 0.18, emissiveIntensity: 0.1 }),
+      blue: gloss(COLORS.pepsiBlue, { metalness: 0.6, roughness: 0.2, emissiveIntensity: 0.18 }),
+      red: gloss(COLORS.pepsiRed, { metalness: 0.4, roughness: 0.3, emissiveIntensity: 0.2 }),
+      white: gloss(COLORS.pepsiWhite, { metalness: 0.2, roughness: 0.35, emissiveIntensity: 0.22 }),
+      dark: gloss(0x1a1a2a, { metalness: 0.2, roughness: 0.5, emissiveIntensity: 0 }),
+    };
 
-    // Torso — slightly tapered capsule for mascot bulk
-    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.4, 0.58, 8, 14), blue);
-    torso.position.y = 1.05;
+    // ── White/silver suit torso (bright from chase cam) ──
+    const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 0.6, 8, 14), mats.suit);
+    torso.position.y = 1.02;
     torso.castShadow = true;
     root.add(torso);
     this.torso = torso;
 
-    // Chest Pepsi swirl emblem
-    const emblem = new THREE.Group();
-    const disc = new THREE.Mesh(new THREE.CircleGeometry(0.24, 28), white);
-    disc.position.z = 0.41;
-    emblem.add(disc);
-    const swirlR = new THREE.Mesh(
-      new THREE.RingGeometry(0.07, 0.2, 28, 1, 0, Math.PI * 0.85),
-      red
-    );
-    swirlR.position.z = 0.42;
-    emblem.add(swirlR);
-    const swirlB = new THREE.Mesh(
-      new THREE.RingGeometry(0.07, 0.2, 28, 1, Math.PI * 0.85, Math.PI * 0.85),
-      blue
-    );
-    swirlB.position.z = 0.42;
-    emblem.add(swirlB);
-    const centerDot = new THREE.Mesh(new THREE.CircleGeometry(0.055, 16), white);
-    centerDot.position.z = 0.43;
-    emblem.add(centerDot);
-    emblem.position.set(0, 1.18, 0);
-    torso.add(emblem);
+    // Silver shoulder pads — break up silhouette, read from behind
+    const shoulderL = new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 8), mats.silver);
+    shoulderL.position.set(-0.42, 1.32, 0);
+    const shoulderR = shoulderL.clone();
+    shoulderR.position.x = 0.42;
+    root.add(shoulderL, shoulderR);
 
-    // Head — oversized for mascot read
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.34, 22, 18), blue);
-    head.position.y = 1.78;
+    // Chest emblem (front)
+    const chestEmblem = makeEmblem(mats, false);
+    chestEmblem.position.set(0, 1.12, 0);
+    torso.add(chestEmblem);
+
+    // Back emblem — critical for chase-cam readability
+    const backEmblem = makeEmblem(mats, true);
+    backEmblem.position.set(0, 1.1, 0);
+    torso.add(backEmblem);
+
+    // Bold red back cape — pops against dark highway
+    const cape = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.55, 0.07), mats.red);
+    cape.position.set(0, 1.05, -0.4);
+    root.add(cape);
+    this.cape = cape;
+
+    // Red waist stripe
+    const waist = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.1, 0.42), mats.red);
+    waist.position.set(0, 0.78, 0);
+    root.add(waist);
+
+    // ── Blue helmet head (iconic Pepsiman) ──
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.33, 22, 18), mats.blue);
+    head.position.y = 1.74;
     head.castShadow = true;
     root.add(head);
     this.head = head;
 
-    // Eyes — wide, manic
-    const eyeGeo = new THREE.SphereGeometry(0.09, 12, 10);
-    const eyeL = new THREE.Mesh(eyeGeo, white);
-    eyeL.position.set(-0.12, 0.06, 0.27);
-    const eyeR = eyeL.clone();
-    eyeR.position.x = 0.12;
-    const pL = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), dark);
-    pL.position.set(-0.12, 0.06, 0.34);
-    const pR = pL.clone();
-    pR.position.x = 0.12;
-    head.add(eyeL, eyeR, pL, pR);
-
-    // Grin
-    const smile = new THREE.Mesh(
-      new THREE.TorusGeometry(0.11, 0.02, 8, 18, Math.PI * 0.9),
-      white
-    );
-    smile.position.set(0, -0.09, 0.29);
-    smile.rotation.x = Math.PI;
-    smile.rotation.z = Math.PI;
-    head.add(smile);
-
-    // Red helmet crest
-    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.12, 0.42), red);
-    crest.position.set(0, 0.3, 0);
+    // Red helmet crest — visible silhouette from behind
+    const crest = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.14, 0.48), mats.red);
+    crest.position.set(0, 0.28, -0.02);
     head.add(crest);
 
-    // Arms — pumpable
-    this.armL = this._makeLimb(blue, red);
-    this.armR = this._makeLimb(blue, red);
-    this.armL.position.set(-0.5, 1.28, 0);
-    this.armR.position.set(0.5, 1.28, 0);
+    // Face (front only) — manic eyes + grin
+    const eyeGeo = new THREE.SphereGeometry(0.085, 12, 10);
+    const eyeL = new THREE.Mesh(eyeGeo, mats.white);
+    eyeL.position.set(-0.11, 0.05, 0.26);
+    const eyeR = eyeL.clone();
+    eyeR.position.x = 0.11;
+    const pL = new THREE.Mesh(new THREE.SphereGeometry(0.038, 8, 8), mats.dark);
+    pL.position.set(-0.11, 0.05, 0.32);
+    const pR = pL.clone();
+    pR.position.x = 0.11;
+    const smile = new THREE.Mesh(
+      new THREE.TorusGeometry(0.1, 0.018, 8, 16, Math.PI * 0.9),
+      mats.white
+    );
+    smile.position.set(0, -0.08, 0.28);
+    smile.rotation.x = Math.PI;
+    smile.rotation.z = Math.PI;
+    head.add(eyeL, eyeR, pL, pR, smile);
+
+    // ── Arms: white suit + red cuffs + big white gloves ──
+    this.armL = this._makeArm(mats);
+    this.armR = this._makeArm(mats);
+    this.armL.position.set(-0.48, 1.3, 0);
+    this.armR.position.set(0.48, 1.3, 0);
     root.add(this.armL, this.armR);
 
-    // Legs
-    this.legL = this._makeLimb(blue, dark, true);
-    this.legR = this._makeLimb(blue, dark, true);
-    this.legL.position.set(-0.19, 0.55, 0);
-    this.legR.position.set(0.19, 0.55, 0);
+    // ── Legs: white suit + blue boots + red stripe ──
+    this.legL = this._makeLeg(mats);
+    this.legR = this._makeLeg(mats);
+    this.legL.position.set(-0.17, 0.52, 0);
+    this.legR.position.set(0.17, 0.52, 0);
     root.add(this.legL, this.legR);
-
-    // Red cape flaps
-    const flap = new THREE.Mesh(new THREE.BoxGeometry(0.75, 0.38, 0.06), red);
-    flap.position.set(0, 1.02, -0.38);
-    root.add(flap);
-    this.flap = flap;
-
-    // White gloves (accent spheres)
-    const gloveGeo = new THREE.SphereGeometry(0.1, 10, 8);
-    this.gloveL = new THREE.Mesh(gloveGeo, white);
-    this.gloveL.position.set(0, -0.78, 0);
-    this.armL.add(this.gloveL);
-    this.gloveR = new THREE.Mesh(gloveGeo, white);
-    this.gloveR.position.set(0, -0.78, 0);
-    this.armR.add(this.gloveR);
 
     this.group.add(root);
     this.root.scale.set(1, 1, 1);
   }
 
-  _makeLimb(mat, accent, isLeg = false) {
+  _makeArm(mats) {
     const g = new THREE.Group();
-    const upper = new THREE.Mesh(
-      new THREE.CapsuleGeometry(isLeg ? 0.12 : 0.1, isLeg ? 0.3 : 0.34, 5, 10),
-      mat
-    );
-    upper.position.y = isLeg ? -0.22 : -0.24;
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.1, 0.32, 5, 10), mats.suit);
+    upper.position.y = -0.22;
     upper.castShadow = true;
     g.add(upper);
-    const lower = new THREE.Mesh(
-      new THREE.CapsuleGeometry(isLeg ? 0.1 : 0.08, isLeg ? 0.24 : 0.28, 5, 10),
-      accent
-    );
-    lower.position.y = isLeg ? -0.58 : -0.58;
-    lower.castShadow = true;
-    g.add(lower);
+    const cuff = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.12, 4, 8), mats.red);
+    cuff.position.y = -0.52;
+    g.add(cuff);
+    const glove = new THREE.Mesh(new THREE.SphereGeometry(0.12, 10, 8), mats.white);
+    glove.position.y = -0.72;
+    glove.castShadow = true;
+    g.add(glove);
     return g;
   }
 
-  /** True when a lane switch tween is still running */
+  _makeLeg(mats) {
+    const g = new THREE.Group();
+    const upper = new THREE.Mesh(new THREE.CapsuleGeometry(0.12, 0.28, 5, 10), mats.suit);
+    upper.position.y = -0.2;
+    upper.castShadow = true;
+    g.add(upper);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.08, 0.14), mats.red);
+    stripe.position.y = -0.42;
+    g.add(stripe);
+    const boot = new THREE.Mesh(new THREE.CapsuleGeometry(0.11, 0.18, 4, 8), mats.blue);
+    boot.position.y = -0.6;
+    boot.castShadow = true;
+    g.add(boot);
+    return g;
+  }
+
   isLaneSwitching() {
     return this.laneT < 1;
   }
 
-  /** True when buffered lane input can be consumed */
   canQueueLane() {
-    return !this.isLaneSwitching() || this.laneT > 0.35;
+    return !this.isLaneSwitching() || this.laneT > 0.2;
+  }
+
+  _collisionX() {
+    if (this.laneT >= 1) return this.x;
+    const t = Math.min(1, this.laneT);
+    const smooth = t * t * (3 - 2 * t);
+    return this.laneFromX + (this.laneToX - this.laneFromX) * smooth;
   }
 
   tryLane(delta) {
@@ -207,7 +244,7 @@ export class Player {
     gsap.killTweensOf(this.root.scale);
     gsap.fromTo(
       this.root.scale,
-      { x: 1.18, y: 0.82, z: 1.18 },
+      { x: 1.16, y: 0.84, z: 1.16 },
       { x: 1, y: 1, z: 1, duration: 0.14, ease: 'power2.out' }
     );
     return true;
@@ -223,24 +260,62 @@ export class Player {
     this.sliding = true;
     this.slideT = 0;
     gsap.killTweensOf(this.root.scale);
-    gsap.to(this.root.scale, { x: 1.25, y: 0.55, z: 1.15, duration: 0.1, ease: 'power2.out' });
+    gsap.to(this.root.scale, { x: 1.22, y: 0.55, z: 1.12, duration: 0.1, ease: 'power2.out' });
     return true;
   }
 
+  /** Hitbox tightly matches visible white-suit silhouette */
   getHitBox() {
-    const h = this.sliding ? PLAYER.slideHeight + 0.35 : this.jumping ? 1.5 : this.hitbox.h;
-    const y = this.y + (this.sliding ? 0.35 : h * 0.5);
+    const cx = this._collisionX();
+    const feet = this.y + this.bounds.feetOffset;
+    const scaleY = this.root.scale.y;
+
+    if (this.sliding) {
+      const hb = PLAYER.hitboxSlide;
+      const h = hb.h * scaleY;
+      return {
+        x: cx,
+        y: feet + h * 0.5,
+        z: this.z,
+        w: hb.w * this.root.scale.x,
+        h,
+        d: hb.d * this.root.scale.z,
+        mode: 'slide',
+        feetY: feet,
+      };
+    }
+
+    if (this.jumping) {
+      const hb = PLAYER.hitboxJump;
+      const rise = Math.min(1, this.y / PLAYER.jumpHeight);
+      const h = hb.h * (1 - rise * 0.08) * scaleY;
+      return {
+        x: cx,
+        y: feet + h * 0.5,
+        z: this.z,
+        w: hb.w * this.root.scale.x,
+        h,
+        d: hb.d * this.root.scale.z,
+        mode: 'jump',
+        feetY: feet,
+        apexY: this.y,
+      };
+    }
+
+    const hb = PLAYER.hitbox;
+    const h = hb.h * scaleY;
     return {
-      x: this.x,
-      y,
+      x: cx,
+      y: feet + h * 0.5,
       z: this.z,
-      w: this.hitbox.w,
-      h: this.sliding ? 0.7 : h,
-      d: this.hitbox.d,
+      w: hb.w * this.root.scale.x,
+      h,
+      d: hb.d * this.root.scale.z,
+      mode: 'run',
+      feetY: feet,
     };
   }
 
-  /** Normalized lane switch progress 0–1 */
   getLaneProgress() {
     return this.laneT;
   }
@@ -253,8 +328,6 @@ export class Player {
     }
 
     const grounded = !this.jumping && this.y <= 0.01;
-
-    // Coyote timer — brief jump window after leaving ground
     if (grounded) {
       this.coyoteT = PLAYER.coyoteTime;
     } else if (this.coyoteT > 0) {
@@ -262,7 +335,6 @@ export class Player {
     }
     this.wasGrounded = grounded;
 
-    // Lane tween with elastic overshoot
     if (this.laneT < 1) {
       this.laneT = Math.min(1, this.laneT + dt / PLAYER.laneSwitchDuration);
       const eased = laneEase(this.laneT);
@@ -273,10 +345,8 @@ export class Player {
       }
     }
 
-    // Lean damp back to upright
     this.lean = THREE.MathUtils.damp(this.lean, 0, PLAYER.laneLeanDamp, dt);
 
-    // Jump sin arc
     if (this.jumping) {
       this.jumpT += dt / PLAYER.jumpDuration;
       const t = Math.min(1, this.jumpT);
@@ -288,13 +358,12 @@ export class Player {
         gsap.killTweensOf(this.root.scale);
         gsap.fromTo(
           this.root.scale,
-          { x: 1.28, y: 0.72, z: 1.28 },
+          { x: 1.26, y: 0.74, z: 1.26 },
           { x: 1, y: 1, z: 1, duration: 0.18, ease: 'back.out(2.2)' }
         );
       }
     }
 
-    // Slide
     if (this.sliding) {
       this.slideT += dt / PLAYER.slideDuration;
       this.y = 0;
@@ -305,51 +374,51 @@ export class Player {
       }
     }
 
-    // Run cycle — chaotic mascot energy
-    const speedFactor = 1 + this.speed * 0.012;
-    this.runPhase += dt * (9.5 + this.speed * 0.18) * speedFactor;
+    // Exaggerated run cycle — readable from chase cam behind
+    const speedFactor = 1 + this.speed * 0.014;
+    this.runPhase += dt * (10 + this.speed * 0.2) * speedFactor;
     const runActive = !this.jumping && !this.sliding;
-    const bobAmp = runActive ? 0.085 : this.sliding ? 0.015 : 0.03;
+    const bobAmp = runActive ? 0.1 : this.sliding ? 0.02 : 0.04;
     const bob = Math.sin(this.runPhase) * bobAmp;
-    const headBob = Math.sin(this.runPhase * 2) * (runActive ? 0.04 : 0.01);
-    const armAmp = this.sliding ? 0.15 : this.jumping ? 0.35 : 0.85;
-    const legAmp = this.sliding ? 0.08 : this.jumping ? 0.2 : 0.72;
+    const headBob = Math.sin(this.runPhase * 2) * (runActive ? 0.06 : 0.015);
+    const armAmp = this.sliding ? 0.2 : this.jumping ? 0.4 : 1.05;
+    const legAmp = this.sliding ? 0.12 : this.jumping ? 0.25 : 0.9;
     const armSwing = Math.sin(this.runPhase) * armAmp;
     const legSwing = Math.sin(this.runPhase) * legAmp;
+    const hipSway = Math.sin(this.runPhase) * (runActive ? 0.08 : 0.02);
 
-    // Arm pump + slide pose
     if (this.sliding) {
-      this.armL.rotation.x = 0.9;
-      this.armR.rotation.x = 0.9;
-      this.armL.rotation.z = -0.25;
-      this.armR.rotation.z = 0.25;
-      this.legL.rotation.x = -0.35;
-      this.legR.rotation.x = 0.35;
+      this.armL.rotation.x = 0.95;
+      this.armR.rotation.x = 0.95;
+      this.armL.rotation.z = -0.3;
+      this.armR.rotation.z = 0.3;
+      this.legL.rotation.x = -0.4;
+      this.legR.rotation.x = 0.4;
     } else {
       this.armL.rotation.x = armSwing;
       this.armR.rotation.x = -armSwing;
-      this.armL.rotation.z = this.lean * 0.15;
-      this.armR.rotation.z = -this.lean * 0.15;
+      this.armL.rotation.z = this.lean * 0.2 - 0.05;
+      this.armR.rotation.z = -this.lean * 0.2 + 0.05;
       this.legL.rotation.x = -legSwing;
       this.legR.rotation.x = legSwing;
     }
 
-    // Head bob + lean into lane switch
-    this.head.rotation.x = headBob + (this.jumping ? -0.12 : this.sliding ? 0.2 : 0);
-    this.head.rotation.z = this.lean * 0.18;
+    this.head.rotation.x = headBob + (this.jumping ? -0.14 : this.sliding ? 0.22 : 0);
+    this.head.rotation.z = this.lean * 0.2;
 
-    // Torso bank
     const bank = this.lean * PLAYER.laneLeanMax;
-    this.torso.rotation.z = bank * 0.6;
+    this.torso.rotation.z = bank * 0.65;
 
-    // Cape flutter
-    if (this.flap) {
-      this.flap.rotation.x = 0.18 + Math.sin(this.runPhase * 0.6) * 0.1 + this.speed * 0.004;
+    // Cape + hip sway — big motion from behind
+    if (this.cape) {
+      this.cape.rotation.x = 0.22 + Math.sin(this.runPhase * 0.7) * 0.14 + this.speed * 0.005;
+      this.cape.rotation.z = Math.sin(this.runPhase * 0.5) * 0.06;
     }
+    this.root.rotation.y = hipSway;
 
     this.group.position.set(this.x, this.y + bob, this.z);
     this.root.rotation.z = bank;
-    this.root.rotation.x = this.sliding ? 0.62 : this.jumping ? -0.18 : Math.sin(this.runPhase) * 0.04;
+    this.root.rotation.x = this.sliding ? 0.65 : this.jumping ? -0.2 : Math.sin(this.runPhase) * 0.05;
   }
 
   reset() {

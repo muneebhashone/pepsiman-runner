@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { PLAYER, SCORE, RENDER } from './constants.js';
+import { PLAYER, SCORE, RENDER, CAMERA } from './constants.js';
 import { Input } from './Input.js';
 import { CameraRig } from './CameraRig.js';
 import { Player } from './Player.js';
@@ -38,7 +38,7 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(CAMERA.fovBase, window.innerWidth / window.innerHeight, 0.1, 200);
 
     this.input = new Input(window);
     this.input.attach();
