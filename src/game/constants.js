@@ -80,6 +80,9 @@ export const WORLD = {
 export const SPAWN = {
   runwayZ: 55,
   minSpawnAhead: 55,
+  /** Contact-time spawn band — first rotation entries ~80–140m ahead, not full world pool */
+  obstacleSpawnAheadMin: 80,
+  obstacleSpawnAheadMax: 140,
   /** Z gap between patterns — ~1.8–2.5s at base speed, tightens slowly with velocity */
   obstacleMinGap: 38,
   obstacleMaxGap: 48,
@@ -145,6 +148,7 @@ export const SPAWN = {
   tutorialHintMinSpawnTtcSec: 3.2,
   /** Bias spawn toward jump/slide obstacles after warmup */
   verticalObstacleBias: 0.82,
+  /** Obstacle fill horizon in segment lengths (~120m) — decoupled from WORLD.segmentsAhead */
   patternLookahead: 3,
   doubleChanceBase: 0.03,
   doubleChanceMax: 0.16,
@@ -223,8 +227,8 @@ export const CAMERA = {
   lateralFollow: 0.06,
   /** Brief lateral settle toward new lane on commit (world units) */
   laneSettleAmp: 0.12,
-  /** Damp settle back to center — <0.25s feel */
-  laneSettleDecay: 0.14,
+  /** Damp settle back to center — lambda for THREE.MathUtils.damp, <0.25s feel */
+  laneSettleDecay: 16,
   /** Exponential lag — lower = snappier */
   lag: 0.08,
   lagY: 0.12,
