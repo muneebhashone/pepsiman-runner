@@ -240,6 +240,7 @@ export class World {
     const road = new THREE.Mesh(this._sharedGeo.road, this.roadMat);
     road.position.y = -0.075;
     road.receiveShadow = true;
+    road.frustumCulled = false;
     g.add(road);
 
     for (let i = 0; i < 2; i++) {
@@ -436,8 +437,9 @@ export class World {
 
     if (this.scene.fog) {
       const fog = this.scene.fog;
-      fog.near = WORLD.fogNear;
-      fog.far = WORLD.fogFar - this.speedNorm * 8;
+      // Push fog OUT at speed — never shrink look-ahead as player accelerates
+      fog.near = WORLD.fogNear + this.speedNorm * 6;
+      fog.far = WORLD.fogFar + this.speedNorm * 35;
     }
     if (this.sky?.material?.uniforms) {
       this.sky.material.uniforms.uScroll.value = this.scrollT;
