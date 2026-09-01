@@ -30,8 +30,8 @@ export class World {
     this.lineMat = new THREE.MeshStandardMaterial({
       color: COLORS.asphaltLine,
       emissive: COLORS.asphaltLine,
-      emissiveIntensity: 0.45,
-      roughness: 0.35,
+      emissiveIntensity: 0.22,
+      roughness: 0.45,
     });
     this.sidewalkMat = new THREE.MeshStandardMaterial({
       color: 0x1e1e2a,
@@ -128,8 +128,8 @@ export class World {
         void main() {
           float h = normalize(vPos).y * 0.5 + 0.5;
           vec3 col = mix(uHorizon, uTop, pow(h, 1.4));
-          float streak = sin(vPos.z * 0.08 + uScroll) * 0.5 + 0.5;
-          col += uGlow * streak * 0.04 * (1.0 - h);
+          float streak = sin(vPos.z * 0.05 + uScroll) * 0.5 + 0.5;
+          col += uGlow * streak * 0.015 * smoothstep(0.55, 0.0, h);
           gl_FragColor = vec4(col, 1.0);
         }
       `,
@@ -168,50 +168,55 @@ export class World {
   _makeBillboard() {
     const g = new THREE.Group();
     const pole = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.08, 0.1, 5, 8),
+      new THREE.CylinderGeometry(0.07, 0.09, 4.2, 8),
       new THREE.MeshStandardMaterial({ color: 0x2a2a3a, metalness: 0.65, roughness: 0.35 })
     );
-    pole.position.y = 2.5;
+    pole.position.y = 2.1;
     g.add(pole);
+
+    const frame = new THREE.Mesh(
+      new THREE.BoxGeometry(2.6, 1.55, 0.1),
+      new THREE.MeshStandardMaterial({ color: 0x111122, metalness: 0.8, roughness: 0.2 })
+    );
+    frame.position.y = 4.35;
+    g.add(frame);
+
     const panel = new THREE.Mesh(
-      new THREE.BoxGeometry(3.4, 2.0, 0.12),
+      new THREE.BoxGeometry(2.45, 1.4, 0.06),
       new THREE.MeshStandardMaterial({
         color: COLORS.pepsiBlue,
         emissive: COLORS.pepsiBlue,
-        emissiveIntensity: 0.45,
+        emissiveIntensity: 0.35,
         metalness: 0.35,
         roughness: 0.35,
       })
     );
-    panel.position.y = 5.4;
+    panel.position.set(0, 4.35, 0.04);
     g.add(panel);
+
     const stripe = new THREE.Mesh(
-      new THREE.BoxGeometry(3.2, 0.5, 0.13),
+      new THREE.BoxGeometry(2.2, 0.32, 0.07),
       new THREE.MeshStandardMaterial({
         color: COLORS.pepsiRed,
         emissive: COLORS.pepsiRed,
-        emissiveIntensity: 0.65,
+        emissiveIntensity: 0.45,
       })
     );
-    stripe.position.y = 5.15;
+    stripe.position.set(0, 4.15, 0.05);
     g.add(stripe);
+
     const circle = new THREE.Mesh(
-      new THREE.CircleGeometry(0.42, 24),
+      new THREE.CircleGeometry(0.28, 20),
       new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.55,
+        emissiveIntensity: 0.4,
+        side: THREE.DoubleSide,
       })
     );
-    circle.position.set(0, 5.4, 0.08);
+    circle.position.set(0, 4.45, 0.08);
     g.add(circle);
-    const frame = new THREE.Mesh(
-      new THREE.BoxGeometry(3.55, 2.15, 0.08),
-      new THREE.MeshStandardMaterial({ color: 0x111122, metalness: 0.8, roughness: 0.2 })
-    );
-    frame.position.y = 5.4;
-    frame.position.z = -0.04;
-    g.add(frame);
+
     return g;
   }
 
@@ -263,13 +268,14 @@ export class World {
           b.receiveShadow = true;
           g.add(b);
 
-          const stripCount = 1 + ((rand() * 3) | 0);
+          const stripCount = 1 + ((rand() * 2) | 0);
           for (let si = 0; si < stripCount; si++) {
+            const stripY = Math.min(9.5, 2.5 + rand() * Math.min(6, h - 3));
             const neon = new THREE.Mesh(
-              new THREE.BoxGeometry(w * 0.85, 0.12, 0.1),
+              new THREE.BoxGeometry(w * 0.7, 0.08, 0.08),
               this._neonMats[(rand() * 4) | 0]
             );
-            neon.position.set(b.position.x, 2.5 + rand() * (h - 4), b.position.z + side * d * 0.51);
+            neon.position.set(b.position.x, stripY, b.position.z + side * d * 0.51);
             g.add(neon);
           }
           zz += d + 1.2 + rand() * 2.5;
@@ -277,11 +283,11 @@ export class World {
       }
     }
 
-    if (rand() > 0.35) {
+    if (rand() > 0.4) {
       const side = rand() > 0.5 ? 1 : -1;
       const board = this._makeBillboard();
-      board.position.set(side * (WORLD.roadWidth / 2 + 2.4), 0, (rand() - 0.5) * 14);
-      board.rotation.y = side > 0 ? -0.45 : 0.45;
+      board.position.set(side * (WORLD.roadWidth / 2 + 2.6), 0, (rand() - 0.5) * 12);
+      board.rotation.y = side > 0 ? -0.55 : 0.55;
       g.add(board);
     }
 

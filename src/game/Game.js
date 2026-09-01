@@ -46,6 +46,7 @@ export class Game {
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
     this.collectibles = new Collectibles(this.scene);
+    this.collectibles.setObstacles(this.obstacles);
     this.fx = new FX(this.scene);
     this.audio = new AudioSys();
     this.ui = new UI();
