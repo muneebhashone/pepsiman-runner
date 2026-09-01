@@ -142,7 +142,7 @@ export class World {
     this.scene.add(hemi);
     this.hemi = hemi;
 
-    const ambient = new THREE.AmbientLight(0x7788aa, 1.65);
+    const ambient = new THREE.AmbientLight(0x8899bb, 1.95);
     this.scene.add(ambient);
     this.ambient = ambient;
 
@@ -425,10 +425,10 @@ export class World {
       this.rim.intensity = 1.35 + this.speedNorm * 0.3;
     }
     if (this.ambient) {
-      this.ambient.intensity = 1.52 + this.speedNorm * 0.15;
+      this.ambient.intensity = 1.82 + this.speedNorm * 0.18;
     }
     if (this.hemi) {
-      this.hemi.intensity = 2.65 + this.speedNorm * 0.12;
+      this.hemi.intensity = 2.75 + this.speedNorm * 0.14;
     }
     if (this.sun) {
       this.sun.position.set(-8, 24, playerZ + 12);

@@ -85,10 +85,13 @@ export class CameraRig {
     this.camera.position.copy(this._pos);
 
     const lookY = playerPos.y + CAMERA.lookHeight + Math.max(0, playerY) * 0.08;
-    const lookX = laneSwitching
-      ? playerPos.x * 0.06
-      : playerPos.x * 0.1 + lateralLead * 0.2;
-    this._look.set(lookX, lookY, playerPos.z + lookAhead);
+    const lookZ = playerPos.z + lookAhead;
+    if (laneSwitching) {
+      this._look.set(0, lookY, lookZ);
+    } else {
+      const lookX = playerPos.x * 0.1 + lateralLead * 0.2;
+      this._look.set(lookX, lookY, lookZ);
+    }
     this.camera.lookAt(this._look);
     this.camera.up.set(0, 1, 0);
 
