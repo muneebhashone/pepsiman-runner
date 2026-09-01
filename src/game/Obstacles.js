@@ -165,6 +165,7 @@ export class Obstacles {
     this._lastPlayerZ = 0;
     this._lastSpeed = 0;
     this._wasInWarmup = true;
+    this._rotationBandPack = false;
     this._onTutorialHint = null;
     this._onTutorialGrace = null;
     this._cueGate = null;
@@ -553,6 +554,40 @@ export class Obstacles {
 
   _inWarmup(playerZ) {
     return playerZ < SPAWN.runwayZ || playerZ < SPAWN.obstacleWarmupZ;
+  }
+
+  _inRotation(playerZ) {
+    return !this._inWarmup(playerZ) && !this._inTutorial(playerZ);
+  }
+
+  /** Drop leftover warmup rail/sign so rotation kit can pack the contact band. */
+  _recycleWarmupBand(playerZ) {
+    const recycleZ = playerZ + SPAWN.warmupRecycleAhead;
+    let nearestTeach = null;
+    let nearestLead = Infinity;
+    for (const it of this.items) {
+      if (!it.alive) continue;
+      if (it.isFirstTutorialRail || it.isFirstTutorialSign) continue;
+      if (it.type !== 'rail' && it.type !== 'sign') continue;
+      if (it.z <= playerZ) continue;
+      const lead = it.z - playerZ;
+      if (lead < nearestLead) {
+        nearestLead = lead;
+        nearestTeach = it;
+      }
+    }
+    for (let i = this.items.length - 1; i >= 0; i--) {
+      const it = this.items[i];
+      if (!it.alive) continue;
+      if (it.isFirstTutorialRail || it.isFirstTutorialSign) continue;
+      if (it.type !== 'rail' && it.type !== 'sign') continue;
+      if (it.z <= playerZ) continue;
+      if (it === nearestTeach && it.z <= recycleZ) continue;
+      if (it.z > recycleZ) {
+        this._release(it);
+        this.items.splice(i, 1);
+      }
+    }
   }
 
   _pruneSpawnHistory(playerZ, speed) {
@@ -1290,6 +1325,20 @@ export class Obstacles {
         this._rng() * (SPAWN.obstacleWarmupGapMax - SPAWN.obstacleWarmupGapMin)
       );
     }
+    if (
+      this._rotationBandPack &&
+      this._inRotation(playerZ) &&
+      this.rotationIndex > 0 &&
+      this.rotationIndex < SPAWN.rotationPackCount
+    ) {
+      if (this.rotationIndex === 4) {
+        return (
+          SPAWN.rotationRampGapMin +
+          this._rng() * (SPAWN.rotationRampGapMax - SPAWN.rotationRampGapMin)
+        );
+      }
+      return SPAWN.rotationGapMin + this._rng() * (SPAWN.rotationGapMax - SPAWN.rotationGapMin);
+    }
     const wideCutoff = SPAWN.warmupPatternCount + SPAWN.postWarmupWideGapCount;
     if (
       this._inTutorial(playerZ) &&
@@ -1329,11 +1378,11 @@ export class Obstacles {
   /** Target lead for first post-warmup rotation entry when warmup ends. */
   _spawnAheadLead(speed) {
     const diff = speedNorm(speed);
-    // Lower band (~85–100m) so 3rd–4th rotation entries land by t≈15s at speed 19.
+    // ~55–70m so truck+mover+barrel fit inside the ~120m contact horizon.
     return THREE.MathUtils.clamp(
-      SPAWN.obstacleSpawnAheadMin + 5 + diff * 12,
+      SPAWN.obstacleSpawnAheadMin + diff * 10,
       SPAWN.obstacleSpawnAheadMin,
-      SPAWN.obstacleSpawnAheadMax
+      70
     );
   }
 
@@ -1350,13 +1399,24 @@ export class Obstacles {
 
     // Pull spawn cursor into contact-time band when rotation phase begins.
     if (this._wasInWarmup && !inWarmup) {
+      this._recycleWarmupBand(playerZ);
       this.nextZ = playerZ + this._spawnAheadLead(speed);
+      this._rotationBandPack = true;
     }
     this._wasInWarmup = inWarmup;
+
+    if (
+      this._rotationBandPack &&
+      this.rotationIndex >= SPAWN.rotationPackCount
+    ) {
+      this._rotationBandPack = false;
+    }
 
     // Keep runway empty until near its end, but always allow pre-seeding
     // obstacles from runwayZ onward into the horizon so threats exist on arrival.
     if (playerZ < runwayZ - 5) {
+      this.nextZ = Math.max(this.nextZ, runwayZ);
+    } else if (this._rotationBandPack && this.rotationIndex < SPAWN.rotationPackCount) {
       this.nextZ = Math.max(this.nextZ, runwayZ);
     } else {
       this.nextZ = Math.max(this.nextZ, Math.max(runwayZ, playerZ + minAhead));
@@ -1692,6 +1752,7 @@ export class Obstacles {
     clearTimeout(this._graceRetryTimer);
     this._graceRetryTimer = null;
     this._wasInWarmup = true;
+    this._rotationBandPack = false;
     this._onTutorialHint?.(null);
   }
 }

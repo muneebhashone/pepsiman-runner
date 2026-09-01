@@ -80,9 +80,18 @@ export const WORLD = {
 export const SPAWN = {
   runwayZ: 55,
   minSpawnAhead: 55,
-  /** Contact-time spawn band — first rotation entries ~80–140m ahead, not full world pool */
-  obstacleSpawnAheadMin: 80,
+  /** Contact-time spawn band — first rotation entries ~55–140m ahead, not full world pool */
+  obstacleSpawnAheadMin: 55,
   obstacleSpawnAheadMax: 140,
+  /** Recycle non-tutorial warmup rail/sign beyond this lead when rotation begins */
+  warmupRecycleAhead: 50,
+  /** First N rotation entries use tight pack gaps (~32–38m) */
+  rotationPackCount: 5,
+  rotationGapMin: 32,
+  rotationGapMax: 38,
+  /** Wider gap before ramp (5th pack entry) so ramp contact ~18–22s */
+  rotationRampGapMin: 72,
+  rotationRampGapMax: 88,
   /** Z gap between patterns — ~1.8–2.5s at base speed, tightens slowly with velocity */
   obstacleMinGap: 38,
   obstacleMaxGap: 48,
@@ -95,8 +104,8 @@ export const SPAWN = {
   obstacleTutorialGapMax: 82,
   /** How many initial tutorial patterns use the wider gap */
   obstacleTutorialWideGapCount: 4,
-  /** Post-warmup patterns that keep wide gaps before density ramps */
-  postWarmupWideGapCount: 5,
+  /** Post-warmup patterns that keep wide gaps before density ramps (0 = pack kit immediately) */
+  postWarmupWideGapCount: 0,
   /** No double-lane blocks until after this many patterns (post-warmup) */
   earlyNoDoublePatterns: 8,
   warmupPatternCount: 4,
