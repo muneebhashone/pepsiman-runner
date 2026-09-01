@@ -6,6 +6,7 @@ export const COLORS = {
   pepsiBlue: 0x0055bf,
   pepsiRed: 0xe32934,
   pepsiWhite: 0xffffff,
+  pepsiSilver: 0xd8dde8,
   pepsiDark: 0x003a80,
   asphalt: 0x1a1a22,
   asphaltLine: 0xffcc33,
@@ -31,30 +32,29 @@ export const PLAYER = {
   runSpeedBase: 18,
   runSpeedMax: 42,
   accelPerSec: 0.35,
-  /** Lane switch: 0.18–0.22s with overshoot settle */
-  laneSwitchDuration: 0.2,
-  laneOvershoot: 0.14,
+  laneSwitchDuration: 0.18,
+  laneOvershoot: 0.08,
   laneLeanMax: 0.42,
-  laneLeanDamp: 10,
-  /** Jump: ~0.45s sin arc apex */
+  laneLeanDamp: 12,
   jumpDuration: 0.45,
   jumpHeight: 2.4,
-  /** Coyote-ish forgiveness after leaving ground */
   coyoteTime: 0.1,
-  /** Slide: ~0.5s flat squash */
   slideDuration: 0.5,
   slideHeight: 0.55,
   invulnAfterHit: 0,
   radius: 0.55,
   height: 1.8,
+  /** Tight hitboxes matched to visible white-suit silhouette */
+  hitbox: { w: 0.62, h: 1.72, d: 0.48 },
+  hitboxSlide: { w: 0.56, h: 0.52, d: 0.42 },
+  hitboxJump: { w: 0.58, h: 1.08, d: 0.44 },
+  /** Visual mesh bounds — hitbox derives from these */
+  meshBounds: { w: 0.64, h: 1.78, d: 0.5, feetOffset: 0 },
 };
 
 export const INPUT = {
-  /** Buffer one queued lane change during active switch */
   laneBufferMax: 1,
-  /** Touch swipe minimum distance (px) */
   swipeMin: 24,
-  /** Touch swipe max time (ms) before ignored */
   swipeMaxMs: 280,
 };
 
@@ -103,19 +103,21 @@ export const SCORE = {
   comboDecay: 2.5,
 };
 
+/** Subway Surfers-style elevated chase — high, pulled back, wide FOV for telegraph */
 export const CAMERA = {
-  offset: { x: 0, y: 5.4, z: -9.8 },
-  lookAhead: 14,
-  lookAheadSpeedBoost: 6,
-  /** Exponential lag — lower = snappier, higher = floatier */
-  lag: 0.1,
-  lagY: 0.14,
-  fovBase: 55,
-  fovSpeedBoost: 7,
-  fovPunch: 8,
+  offset: { x: 0, y: 8.2, z: -16.5 },
+  lookAhead: 24,
+  lookAheadSpeedBoost: 8,
+  lookHeight: 1.65,
+  lateralFollow: 0.3,
+  lag: 0.09,
+  lagY: 0.12,
+  fovBase: 60,
+  fovSpeedBoost: 5,
+  fovPunch: 7,
   fovPunchDecay: 16,
-  landShake: 0.16,
-  landShakeDuration: 0.24,
+  landShake: 0.14,
+  landShakeDuration: 0.22,
 };
 
 export const RENDER = {
