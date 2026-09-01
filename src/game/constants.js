@@ -20,7 +20,7 @@ export const COLORS = {
   canBody: 0xe32934,
   canTop: 0xc0c0c0,
   telegraph: 0xe32934,
-  telegraphGlow: 0xff3344,
+  telegraphGlow: 0xf25560,
   telegraphSlide: 0x00e5ff,
   telegraphSlideGlow: 0x66f0ff,
   truckCab: 0x2255aa,
