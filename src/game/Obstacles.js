@@ -122,7 +122,10 @@ export class Obstacles {
     this._getReadySignShown = false;
     this._spawnedFirstTutorialRail = false;
     this._spawnedFirstTutorialSign = false;
-    this._jumpChainTimer = null;
+    this._railHintState = 'idle';
+    this._signHintState = 'idle';
+    this._railReadyStartMs = 0;
+    this._signReadyStartMs = 0;
     this._graceSlideUsed = false;
     this._graceJumpUsed = false;
     this._onTutorialHint = null;
@@ -278,32 +281,82 @@ export class Obstacles {
     this._onTutorialGrace = fn;
   }
 
+  _emitTutorialHint(action) {
+    this._onTutorialHint?.(action);
+  }
+
   _fireSlideHint() {
     if (this._hintSlideShown) return;
     this._hintSlideShown = true;
-    this._onTutorialHint?.('slide');
+    this._emitTutorialHint('slide');
   }
 
   _fireJumpHint() {
     if (this._hintJumpShown) return;
     this._hintJumpShown = true;
-    clearTimeout(this._jumpChainTimer);
-    this._jumpChainTimer = null;
-    this._onTutorialHint?.('jump');
+    this._emitTutorialHint('jump');
   }
 
   /** Re-flash verb hint after tutorial grace (bypasses one-shot shown guard). */
   _reflashSlideHint() {
-    this._onTutorialHint?.('slide');
+    this._emitTutorialHint('slide');
   }
 
   _reflashJumpHint() {
-    this._onTutorialHint?.('jump');
+    this._emitTutorialHint('jump');
   }
 
-  _scheduleJumpHint() {
-    clearTimeout(this._jumpChainTimer);
-    this._jumpChainTimer = setTimeout(() => this._fireJumpHint(), SPAWN.tutorialHintJumpChainMs);
+  _tutorialHintStartTtc() {
+    return SPAWN.tutorialHintReadyStartSec + 0.35;
+  }
+
+  /** TTC-driven GET READY → verb sequence for first tutorial rail/sign. */
+  _updateFirstTutorialHint(kind, ttc) {
+    const isRail = kind === 'rail';
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const readyMsKey = isRail ? '_railReadyStartMs' : '_signReadyStartMs';
+    const verb = isRail ? 'slide' : 'jump';
+    const verbTail = SPAWN.tutorialHintVerbTailSec;
+    const readyHold = SPAWN.tutorialHintReadyBeforeVerbSec;
+    let state = this[stateKey];
+
+    if (state === 'done') return;
+
+    if (state === 'idle') {
+      if (ttc > this._tutorialHintStartTtc()) return;
+      this[stateKey] = 'ready';
+      this[readyMsKey] = performance.now();
+      if (isRail) this._getReadyRailShown = true;
+      else this._getReadySignShown = true;
+      this._emitTutorialHint('ready');
+      state = 'ready';
+    }
+
+    if (state === 'ready') {
+      const elapsed = (performance.now() - this[readyMsKey]) / 1000;
+      if (elapsed >= readyHold) {
+        this[stateKey] = 'verb';
+        if (isRail) this._fireSlideHint();
+        else this._fireJumpHint();
+      } else {
+        this._emitTutorialHint('ready');
+      }
+      return;
+    }
+
+    if (state === 'verb') {
+      if (ttc > verbTail) {
+        if (isRail) this._emitTutorialHint('slide');
+        else this._emitTutorialHint('jump');
+      } else {
+        this[stateKey] = 'done';
+        this._emitTutorialHint(null);
+      }
+    }
+  }
+
+  _minTutorialSpawnZ(playerZ, speed) {
+    return playerZ + speed * SPAWN.tutorialHintMinSpawnTtcSec;
   }
 
   _jumpClearY(type) {
@@ -670,12 +723,13 @@ export class Obstacles {
     const warmup = this._inWarmup(playerZ);
     const tutorial = this._inTutorial(playerZ);
     this._pruneSpawnHistory(playerZ, speed);
+    let maxSpawnZ = z;
 
     if (
       !tutorial &&
       this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers
     ) {
-      return;
+      return maxSpawnZ;
     }
 
     const doubleChance = warmup || tutorial
@@ -719,8 +773,13 @@ export class Obstacles {
         }
       }
       const zOff = !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
-      const placed = this._acquire(type, lane, z + zOff);
+      let spawnZ = z + zOff;
+      if (tutorial && warmup && lane === TUTORIAL_LANE) {
+        spawnZ = Math.max(spawnZ, this._minTutorialSpawnZ(playerZ, speed));
+      }
+      const placed = this._acquire(type, lane, spawnZ);
       if (!placed) continue;
+      maxSpawnZ = Math.max(maxSpawnZ, spawnZ);
       placed.nearMissed = false;
       if (tutorial && warmup && lane === TUTORIAL_LANE) {
         if (type === 'rail' && !this._spawnedFirstTutorialRail) {
@@ -732,12 +791,13 @@ export class Obstacles {
         }
       }
       placedTypes.push(type);
-      this._recordSpawn(z + zOff, type);
+      this._recordSpawn(spawnZ, type);
     }
     if (!warmup && tutorial && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
       this.postWarmupPatterns += 1;
     }
     this.patternsSpawned += 1;
+    return maxSpawnZ;
   }
 
   _gapForSpeed(speed, playerZ) {
@@ -793,8 +853,8 @@ export class Obstacles {
         if (this.nextZ >= playerZ + horizonDist) break;
       }
       try {
-        this._spawnPattern(this.nextZ, diff, playerZ, speed);
-        this.nextZ += this._gapForSpeed(speed, playerZ);
+        const placedZ = this._spawnPattern(this.nextZ, diff, playerZ, speed);
+        this.nextZ = placedZ + this._gapForSpeed(speed, playerZ);
       } catch (e) {
         console.error(e);
         this.nextZ += 20;
@@ -817,8 +877,6 @@ export class Obstacles {
     }
 
     const leadDist = speed * SPAWN.telegraphLead;
-    const approachDist = speed * SPAWN.tutorialHintApproachSec;
-    const preWarnDist = speed * SPAWN.tutorialHintPreWarnSec;
     const gap = SPAWN.telegraphObstacleGap;
     const minAlpha = SPAWN.telegraphMinAlpha;
     const rampDist = speed * SPAWN.telegraphRampSec;
@@ -832,25 +890,13 @@ export class Obstacles {
 
       const dist = it.z - playerZ;
       const inWarn = dist > 0 && dist <= leadDist + 2;
-      const inApproach = dist > 0 && dist <= approachDist;
-      const inPreWarn = dist > approachDist && dist <= preWarnDist;
       const laneX = LANES[it.lane];
       const colors = it.telColors;
 
-      if (it.isFirstTutorialRail) {
-        if (inPreWarn && !this._getReadyRailShown) {
-          this._getReadyRailShown = true;
-          this._onTutorialHint?.('ready');
-        }
-        if (inApproach) this._fireSlideHint();
-      }
-      if (it.isFirstTutorialSign) {
-        if (inPreWarn && !this._getReadySignShown) {
-          this._getReadySignShown = true;
-          this._onTutorialHint?.('ready');
-          this._scheduleJumpHint();
-        }
-        if (inApproach) this._fireJumpHint();
+      if (dist > 0 && speed > 0.1) {
+        const ttc = dist / speed;
+        if (it.isFirstTutorialRail) this._updateFirstTutorialHint('rail', ttc);
+        if (it.isFirstTutorialSign) this._updateFirstTutorialHint('sign', ttc);
       }
 
       const stripEndZ = it.z - gap;
@@ -938,7 +984,7 @@ export class Obstacles {
 
       if (it.hit.mode === 'slide') {
         if (sliding) continue;
-        if (it.isFirstTutorialRail && !this._graceSlideUsed) {
+        if (it.isFirstTutorialRail === true && !this._graceSlideUsed) {
           this._graceSlideUsed = true;
           it.collisionDisabled = true;
           this._reflashSlideHint();
@@ -951,7 +997,7 @@ export class Obstacles {
       if (it.hit.mode === 'jump') {
         const clearY = this._jumpClearY(it.type);
         if (jumping && playerBox.y > clearY) continue;
-        if (it.isFirstTutorialSign && !this._graceJumpUsed) {
+        if (it.isFirstTutorialSign === true && !this._graceJumpUsed) {
           this._graceJumpUsed = true;
           it.collisionDisabled = true;
           this._reflashJumpHint();
@@ -1020,9 +1066,11 @@ export class Obstacles {
     this._getReadySignShown = false;
     this._spawnedFirstTutorialRail = false;
     this._spawnedFirstTutorialSign = false;
+    this._railHintState = 'idle';
+    this._signHintState = 'idle';
+    this._railReadyStartMs = 0;
+    this._signReadyStartMs = 0;
     this._graceSlideUsed = false;
     this._graceJumpUsed = false;
-    clearTimeout(this._jumpChainTimer);
-    this._jumpChainTimer = null;
   }
 }

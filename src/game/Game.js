@@ -22,6 +22,8 @@ export class Game {
     this.lastPickupAt = -99;
     this.distance = 0;
     this.hitStopT = 0;
+    this._graceSlideFired = false;
+    this._graceJumpFired = false;
     this.clock = new THREE.Clock(false);
     this._raf = 0;
 
@@ -48,7 +50,10 @@ export class Game {
     this.player = new Player(this.scene);
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
-    this.obstacles.setTutorialHintCallback((action) => this.ui.flashTutorialHint(action));
+    this.obstacles.setTutorialHintCallback((action) => {
+      if (action) this.ui.setTutorialHint(action);
+      else this.ui.clearTutorialHint();
+    });
     this.obstacles.setTutorialGraceCallback((action) => this._tutorialGrace(action));
     this.collectibles = new Collectibles(this.scene);
     this.collectibles.setObstacles(this.obstacles);
@@ -123,6 +128,8 @@ export class Game {
     this.lastPickupAt = -99;
     this.distance = 0;
     this.hitStopT = 0;
+    this._graceSlideFired = false;
+    this._graceJumpFired = false;
     this.player.reset();
     this.world.reset();
     this.obstacles.reset();
@@ -209,6 +216,13 @@ export class Game {
   }
 
   _tutorialGrace(action) {
+    if (action === 'slide') {
+      if (this._graceSlideFired) return;
+      this._graceSlideFired = true;
+    } else if (action === 'jump') {
+      if (this._graceJumpFired) return;
+      this._graceJumpFired = true;
+    }
     this.combo = 1;
     this.comboTimer = 0;
     this.rig.punchFov(2.2);

@@ -1,5 +1,3 @@
-import { SPAWN } from './constants.js';
-
 export class UI {
   constructor() {
     this.hud = document.getElementById('hud');
@@ -28,6 +26,7 @@ export class UI {
     this._onPause = null;
     this._prevCombo = 1;
     this._comboPopTimer = 0;
+    this._tutorialHintAction = null;
 
     this.btnStart?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -204,38 +203,51 @@ export class UI {
   }
 
   flashTutorialHint(action) {
+    this.setTutorialHint(action);
+  }
+
+  /** Show tutorial hint at full opacity until clearTutorialHint (TTC-driven). */
+  setTutorialHint(action) {
     if (!this.tutorialHint) return;
     clearTimeout(this._tutorialHintTimer);
     clearTimeout(this._tutorialHintChainTimer);
-    this._showTutorialHint(action);
-  }
-
-  /** Schedule a follow-up hint (e.g. JUMP chained after GET READY for first sign). */
-  scheduleTutorialHint(action, delayMs) {
-    clearTimeout(this._tutorialHintChainTimer);
-    this._tutorialHintChainTimer = setTimeout(() => {
-      this._tutorialHintChainTimer = null;
-      this._showTutorialHint(action);
-    }, delayMs);
-  }
-
-  _showTutorialHint(action) {
-    if (!this.tutorialHint) return;
+    const same = this._tutorialHintAction === action;
+    this._tutorialHintAction = action;
     const isReady = action === 'ready';
     const isSlide = action === 'slide';
     const label = isReady ? 'GET READY' : isSlide ? 'SLIDE' : 'JUMP';
     const arrow = isReady ? '' : isSlide ? '↓' : '↑';
     this.tutorialHint.textContent = arrow ? `${arrow} ${label}` : label;
-    this.tutorialHint.classList.remove('hidden', 'slide', 'jump', 'ready', 'flash');
-    this.tutorialHint.classList.add(isReady ? 'ready' : isSlide ? 'slide' : 'jump', 'flash');
+    this.tutorialHint.classList.remove('hidden', 'slide', 'jump', 'ready', 'flash', 'hold', 'pop');
+    this.tutorialHint.classList.add('hold', isReady ? 'ready' : isSlide ? 'slide' : 'jump');
+    if (!same) {
+      void this.tutorialHint.offsetWidth;
+      this.tutorialHint.classList.add('pop');
+    }
     this.tutorialHint.setAttribute('aria-hidden', 'false');
+  }
+
+  clearTutorialHint() {
+    if (!this.tutorialHint) return;
+    this._tutorialHintAction = null;
+    this.tutorialHint.classList.add('hidden');
+    this.tutorialHint.classList.remove('hold', 'pop', 'flash', 'slide', 'jump', 'ready');
+    this.tutorialHint.setAttribute('aria-hidden', 'true');
     clearTimeout(this._tutorialHintTimer);
-    const duration = isReady ? SPAWN.tutorialHintReadyMs : SPAWN.tutorialHintVisibleMs;
-    this._tutorialHintTimer = setTimeout(() => {
-      this.tutorialHint?.classList.add('hidden');
-      this.tutorialHint?.classList.remove('flash', 'slide', 'jump', 'ready');
-      this.tutorialHint?.setAttribute('aria-hidden', 'true');
-    }, duration);
+    clearTimeout(this._tutorialHintChainTimer);
+  }
+
+  /** Schedule a follow-up hint (legacy one-shot; prefer setTutorialHint). */
+  scheduleTutorialHint(action, delayMs) {
+    clearTimeout(this._tutorialHintChainTimer);
+    this._tutorialHintChainTimer = setTimeout(() => {
+      this._tutorialHintChainTimer = null;
+      this.setTutorialHint(action);
+    }, delayMs);
+  }
+
+  _showTutorialHint(action) {
+    this.setTutorialHint(action);
   }
 
   popCombo() {
@@ -276,12 +288,9 @@ export class UI {
   resetHudAnim() {
     this._prevCombo = 1;
     this._comboPopTimer = 0;
+    this._tutorialHintAction = null;
     this.comboWrap?.classList.remove('pop', 'hot');
     this.scoreEl?.classList.remove('pulse');
-    this.tutorialHint?.classList.add('hidden');
-    this.tutorialHint?.classList.remove('flash', 'slide', 'jump', 'ready');
-    this.tutorialHint?.setAttribute('aria-hidden', 'true');
-    clearTimeout(this._tutorialHintTimer);
-    clearTimeout(this._tutorialHintChainTimer);
+    this.clearTutorialHint();
   }
 }
