@@ -6,7 +6,10 @@ Score against [AAA_CRITIC_RUBRIC.md](./AAA_CRITIC_RUBRIC.md) and [SUBWAY_SURFERS
 
 - [x] Run particle trail (Pepsi blue/red/cyan sparks behind feet)
 - [x] Speed streaks — side rails + center rush lines at high speed
-- [x] Pickup burst — radial sparks + expanding ring, scales with combo
+- [x] Pickup burst — shock ring + radial stars + vertical sparkle column
+- [x] Floating `+pts` HUD text + cyan pickup flash + cans counter pop
+- [x] Starter can line on reset (immediate targets)
+- [x] Glowing can halos + magnet suck scale-up
 - [x] Land dust — scaled puff count + ground ripple
 - [x] Crash burst — additive spray + DOM hit-flash vignette
 - [x] Additive blending on neon streaks for glossy pop

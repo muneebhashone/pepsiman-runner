@@ -105,14 +105,14 @@ export class UI {
 
   flashPickup(combo = 1) {
     if (!this.pickupFlash) return;
-    const intensity = 0.25 + Math.min(combo, 8) * 0.04;
+    const intensity = 0.32 + Math.min(combo, 8) * 0.05;
     this.pickupFlash.style.opacity = String(intensity);
     this.pickupFlash.classList.add('active');
     clearTimeout(this._pickupTimer);
     this._pickupTimer = setTimeout(() => {
       this.pickupFlash?.classList.remove('active');
       if (this.pickupFlash) this.pickupFlash.style.opacity = '0';
-    }, 90);
+    }, 130);
   }
 
   popCan() {
@@ -129,13 +129,26 @@ export class UI {
 
   floatPoints(pts, combo = 1) {
     if (!this.floatLayer) return;
-    const el = document.createElement('div');
-    el.className = 'float-pts';
-    el.textContent = `+${Math.floor(pts)}`;
-    if (combo >= 3) el.classList.add('hot');
-    this.floatLayer.appendChild(el);
-    requestAnimationFrame(() => el.classList.add('rise'));
-    setTimeout(() => el.remove(), 700);
+    const wrap = document.createElement('div');
+    wrap.className = 'float-pickup';
+
+    const label = document.createElement('div');
+    label.className = 'float-can-label';
+    label.textContent = 'CAN!';
+
+    const ptsEl = document.createElement('div');
+    ptsEl.className = 'float-pts';
+    ptsEl.textContent = `+${Math.floor(pts)}`;
+    if (combo >= 3) {
+      label.classList.add('hot');
+      ptsEl.classList.add('hot');
+    }
+
+    wrap.appendChild(label);
+    wrap.appendChild(ptsEl);
+    this.floatLayer.appendChild(wrap);
+    requestAnimationFrame(() => wrap.classList.add('rise'));
+    setTimeout(() => wrap.remove(), 900);
   }
   flashHit(intensity = 1) {
     if (!this.hitFlash) return;

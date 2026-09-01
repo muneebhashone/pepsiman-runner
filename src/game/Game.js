@@ -156,7 +156,7 @@ export class Game {
     this.coins += 1;
 
     this.audio.pickup(this.combo);
-    this.fx.canPop(pos, this.combo);
+    this.fx.canPop(pos, this.combo, this.camera);
     this.rig.punchFov(3 + this.combo * 0.25);
     this.ui.flashPickup(this.combo);
     this.ui.popCan();

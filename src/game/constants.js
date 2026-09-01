@@ -57,7 +57,8 @@ export const SPAWN = {
   collectibleChance: 0.72,
   collectibleCluster: 4,
   collectibleStartZ: 12,
-  telegraphLead: 1.2,
+  telegraphLead: 2.2,
+  telegraphDistance: 48,
 };
 
 export const SCORE = {
