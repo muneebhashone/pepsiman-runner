@@ -66,15 +66,15 @@ export class Game {
       isBusy: () => this.ui.isCueBusy(),
       whenIdle: (cb) => this.ui.whenCueIdle(cb),
     });
-    this.ui.setTutorialCueCompleteCallback((action, kind) => {
-      this.obstacles.onTutorialCueComplete(action, kind);
-    });
     this.obstacles.setTutorialGraceCallback((action) => this._tutorialGrace(action));
     this.collectibles = new Collectibles(this.scene);
     this.collectibles.setObstacles(this.obstacles);
     this.fx = new FX(this.scene);
     this.audio = new AudioSys();
     this.ui = new UI();
+    this.ui.setTutorialCueCompleteCallback((action, kind) => {
+      this.obstacles.onTutorialCueComplete(action, kind);
+    });
 
     this.ui.onStart(() => this.start());
     this.ui.onRetry(() => this.start());
