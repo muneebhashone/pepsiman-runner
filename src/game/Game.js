@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { PLAYER, SCORE, RENDER, COLORS } from './constants.js';
+import { PLAYER, SCORE, RENDER } from './constants.js';
 import { Input } from './Input.js';
 import { CameraRig } from './CameraRig.js';
 import { Player } from './Player.js';
@@ -47,6 +47,7 @@ export class Game {
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
     this.collectibles = new Collectibles(this.scene);
+    this.collectibles.setObstacles(this.obstacles);
     this.fx = new FX(this.scene);
     this.audio = new AudioSys();
     this.ui = new UI();
@@ -193,7 +194,7 @@ export class Game {
     const stats = this._stats();
 
     if (playing) {
-      const inp = this.input.consume();
+      const inp = this.input.consume(this.player.canQueueLane());
       if (inp.laneDelta) {
         if (this.player.tryLane(inp.laneDelta)) {
           this.audio.whoosh(inp.laneDelta * 0.6);
@@ -221,7 +222,7 @@ export class Game {
         this.fx.landDust(this.player.group.position, stats.speedNorm);
       }
 
-      this.world.update(this.player.z);
+      this.world.update(this.player.z, this.player.speed);
       this.obstacles.update(dt, this.player.z, this.player.speed);
       this.collectibles.update(
         dt,
@@ -239,6 +240,10 @@ export class Game {
       }
 
       const got = this.collectibles.collect(box);
+      if (got.length) {
+        const chainBonus = this.collectibles.chainBonus(got);
+        if (chainBonus > 0) this.score += chainBonus;
+      }
       for (const c of got) this._collectPickup(c);
 
       if (this.comboTimer > 0) {
@@ -247,12 +252,17 @@ export class Game {
       }
     } else if (this.state === 'menu' || this.state === 'gameover') {
       this.player.update(dt);
-      this.world.update(this.player.z);
+      this.world.update(this.player.z, this.player.speed);
     }
 
     const speedNorm = playing ? stats.speedNorm : this.state === 'menu' ? 0.12 : 0.08;
     this.fx.update(dt, this.player.group.position, speedNorm, playing || this.state === 'menu');
-    this.rig.update(dt, this.player.group.position, playing ? stats.speedNorm : 0);
+    this.rig.update(
+      dt,
+      this.player.group.position,
+      playing ? stats.speedNorm : 0,
+      this.player.lean
+    );
 
     this.ui.update(this._stats(), dt);
   }

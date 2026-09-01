@@ -31,9 +31,17 @@ export const PLAYER = {
   runSpeedBase: 18,
   runSpeedMax: 42,
   accelPerSec: 0.35,
+  /** Lane switch: 0.18–0.22s with overshoot settle */
   laneSwitchDuration: 0.2,
+  laneOvershoot: 0.14,
+  laneLeanMax: 0.42,
+  laneLeanDamp: 10,
+  /** Jump: ~0.45s sin arc apex */
   jumpDuration: 0.45,
   jumpHeight: 2.4,
+  /** Coyote-ish forgiveness after leaving ground */
+  coyoteTime: 0.1,
+  /** Slide: ~0.5s flat squash */
   slideDuration: 0.5,
   slideHeight: 0.55,
   invulnAfterHit: 0,
@@ -41,24 +49,50 @@ export const PLAYER = {
   height: 1.8,
 };
 
+export const INPUT = {
+  /** Buffer one queued lane change during active switch */
+  laneBufferMax: 1,
+  /** Touch swipe minimum distance (px) */
+  swipeMin: 24,
+  /** Touch swipe max time (ms) before ignored */
+  swipeMaxMs: 280,
+};
+
 export const WORLD = {
   segmentLength: 40,
   segmentsAhead: 8,
   segmentsBehind: 2,
   buildingRows: 2,
-  fogNear: 25,
-  fogFar: 120,
+  fogNear: 22,
+  fogFar: 110,
   roadWidth: 8.5,
+  poolSize: 10,
 };
 
 export const SPAWN = {
-  obstacleMinGap: 18,
-  obstacleMaxGap: 32,
-  collectibleChance: 0.72,
-  collectibleCluster: 4,
-  collectibleStartZ: 12,
-  telegraphLead: 2.2,
-  telegraphDistance: 48,
+  runwayZ: 180,
+  minSpawnAhead: 55,
+  obstacleMinGap: 24,
+  obstacleMaxGap: 38,
+  obstacleGapTighten: 0.22,
+  obstacleWarmupZ: 180,
+  obstacleWarmupGapMin: 42,
+  obstacleWarmupGapMax: 56,
+  warmupPatternCount: 5,
+  collectibleChance: 0.9,
+  collectibleWarmupZ: 200,
+  collectibleCluster: 3,
+  chainChance: 0.22,
+  chainLength: 5,
+  telegraphLead: 1.6,
+  telegraphStripLength: 4.5,
+  telegraphAhead: 14,
+  patternLookahead: 3,
+  doubleChanceBase: 0.05,
+  doubleChanceMax: 0.35,
+  starterCanSpacing: 5.5,
+  starterCanCount: 6,
+  hitboxShrink: 0.78,
 };
 
 export const SCORE = {
@@ -70,12 +104,18 @@ export const SCORE = {
 };
 
 export const CAMERA = {
-  offset: { x: 0, y: 5.2, z: -9.5 },
+  offset: { x: 0, y: 5.4, z: -9.8 },
   lookAhead: 14,
-  lag: 0.12,
+  lookAheadSpeedBoost: 6,
+  /** Exponential lag — lower = snappier, higher = floatier */
+  lag: 0.1,
+  lagY: 0.14,
   fovBase: 55,
+  fovSpeedBoost: 7,
   fovPunch: 8,
-  landShake: 0.18,
+  fovPunchDecay: 16,
+  landShake: 0.16,
+  landShakeDuration: 0.24,
 };
 
 export const RENDER = {
