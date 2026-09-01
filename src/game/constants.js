@@ -46,17 +46,25 @@ export const WORLD = {
   segmentsAhead: 8,
   segmentsBehind: 2,
   buildingRows: 2,
-  fogNear: 25,
-  fogFar: 120,
+  fogNear: 22,
+  fogFar: 110,
   roadWidth: 8.5,
+  poolSize: 10,
 };
 
 export const SPAWN = {
-  obstacleMinGap: 18,
-  obstacleMaxGap: 32,
-  collectibleChance: 0.55,
-  collectibleCluster: 3,
-  telegraphLead: 1.2,
+  obstacleMinGap: 20,
+  obstacleMaxGap: 34,
+  obstacleGapTighten: 0.28,
+  collectibleChance: 0.62,
+  collectibleCluster: 4,
+  chainChance: 0.38,
+  chainLength: 6,
+  telegraphLead: 1.35,
+  telegraphMinDist: 28,
+  patternLookahead: 3,
+  doubleChanceBase: 0.22,
+  doubleChanceMax: 0.48,
 };
 
 export const SCORE = {
