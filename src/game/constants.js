@@ -84,9 +84,11 @@ export const SPAWN = {
   collectibleCluster: 3,
   chainChance: 0.22,
   chainLength: 5,
-  telegraphLead: 1.6,
-  telegraphStripLength: 4.5,
+  /** Seconds of runway warning at current speed */
+  telegraphLead: 1.5,
+  telegraphStripLength: 6,
   telegraphAhead: 14,
+  telegraphChevronCount: 6,
   patternLookahead: 3,
   doubleChanceBase: 0.05,
   doubleChanceMax: 0.35,
@@ -96,25 +98,31 @@ export const SPAWN = {
 };
 
 export const SCORE = {
-  perMeter: 1.2,
-  canBase: 50,
-  comboMultStep: 0.15,
-  comboMax: 8,
-  comboDecay: 2.5,
+  perMeter: 0.65,
+  canBase: 25,
+  comboMultStep: 0.12,
+  comboMax: 6,
+  comboDecay: 1.6,
+  /** Min seconds between pickups to advance combo */
+  comboSpacing: 0.28,
 };
 
 export const CAMERA = {
-  offset: { x: 0, y: 5.4, z: -9.8 },
-  lookAhead: 14,
-  lookAheadSpeedBoost: 6,
+  offset: { x: 0, y: 8.4, z: -16.5 },
+  lookAhead: 24,
+  lookAheadSpeedBoost: 9,
+  lookHeight: 0.85,
+  /** Extra pull-back / look-ahead while airborne */
+  jumpPullback: 2.4,
+  jumpLookBoost: 5.5,
   /** Exponential lag — lower = snappier, higher = floatier */
   lag: 0.1,
   lagY: 0.14,
-  fovBase: 55,
-  fovSpeedBoost: 7,
-  fovPunch: 8,
+  fovBase: 58,
+  fovSpeedBoost: 6,
+  fovPunch: 6,
   fovPunchDecay: 16,
-  landShake: 0.16,
+  landShake: 0.14,
   landShakeDuration: 0.24,
 };
 

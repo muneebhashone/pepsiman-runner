@@ -131,6 +131,8 @@ export class UI {
     if (!this.floatLayer) return;
     const wrap = document.createElement('div');
     wrap.className = 'float-pickup';
+    const side = Math.random() > 0.5 ? 'right' : 'left';
+    wrap.classList.add(side);
 
     const label = document.createElement('div');
     label.className = 'float-can-label';

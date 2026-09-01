@@ -9,6 +9,7 @@ export class CameraRig {
     this.desired = new THREE.Vector3();
     this._pos = new THREE.Vector3();
     this._look = new THREE.Vector3();
+    this._jumpBlend = 0;
     this.shakeAmp = 0;
     this.shakeTime = 0;
     this.fovPunch = 0;
@@ -35,33 +36,38 @@ export class CameraRig {
     return current + (target - current) * t;
   }
 
-  update(dt, playerPos, speedNorm, playerLean = 0) {
-    const lookAhead = CAMERA.lookAhead + speedNorm * CAMERA.lookAheadSpeedBoost;
-    const lateralLead = playerLean * 0.8;
+  update(dt, playerPos, speedNorm, playerLean = 0, jumping = false, playerY = 0) {
+    const jumpTarget = jumping || playerY > 0.12 ? 1 : 0;
+    this._jumpBlend = this._expSmooth(this._jumpBlend, jumpTarget, 0.12, dt);
+
+    const lookAhead =
+      CAMERA.lookAhead +
+      speedNorm * CAMERA.lookAheadSpeedBoost +
+      this._jumpBlend * CAMERA.jumpLookBoost;
+    const lateralLead = playerLean * 0.55;
+    const pullZ = this.offset.z - this._jumpBlend * CAMERA.jumpPullback;
+    const liftY = this.offset.y + this._jumpBlend * 0.85;
 
     this.desired.set(
-      playerPos.x * 0.38 + lateralLead,
-      playerPos.y + this.offset.y,
-      playerPos.z + this.offset.z
+      playerPos.x * 0.28 + lateralLead,
+      playerPos.y + liftY,
+      playerPos.z + pullZ
     );
 
-    // Separate lag axes for buttery feel
     this._pos.x = this._expSmooth(this._pos.x, this.desired.x, CAMERA.lag, dt);
     this._pos.y = this._expSmooth(this._pos.y, this.desired.y, CAMERA.lagY, dt);
     this._pos.z = this._expSmooth(this._pos.z, this.desired.z, CAMERA.lag, dt);
 
     this.camera.position.copy(this._pos);
 
-    // Look-ahead with slight vertical lead on jump
-    const lookY = playerPos.y + 1.25 + Math.max(0, playerPos.y) * 0.15;
+    const lookY = playerPos.y + CAMERA.lookHeight + Math.max(0, playerY) * 0.08;
     this._look.set(
-      playerPos.x * 0.22 + lateralLead * 0.5,
+      playerPos.x * 0.16 + lateralLead * 0.35,
       lookY,
       playerPos.z + lookAhead
     );
     this.camera.lookAt(this._look);
 
-    // Subtle land shake — deterministic noise, not random jitter
     if (this.shakeTime > 0) {
       this.shakeTime -= dt;
       const norm = Math.max(0, this.shakeTime / CAMERA.landShakeDuration);
@@ -72,7 +78,6 @@ export class CameraRig {
       if (this.shakeTime <= 0) this.shakeAmp = 0;
     }
 
-    // FOV: speed ramp + punch decay
     this.fovPunch = Math.max(0, this.fovPunch - dt * CAMERA.fovPunchDecay);
     const targetFov = this.baseFov + speedNorm * CAMERA.fovSpeedBoost + this.fovPunch;
     this.camera.fov = this._expSmooth(this.camera.fov, targetFov, 0.08, dt);
@@ -80,13 +85,18 @@ export class CameraRig {
   }
 
   snapTo(playerPos) {
+    this._jumpBlend = 0;
     this._pos.set(
-      playerPos.x * 0.38,
+      playerPos.x * 0.28,
       playerPos.y + this.offset.y,
       playerPos.z + this.offset.z
     );
     this.camera.position.copy(this._pos);
-    this._look.set(playerPos.x * 0.22, playerPos.y + 1.25, playerPos.z + CAMERA.lookAhead);
+    this._look.set(
+      playerPos.x * 0.16,
+      playerPos.y + CAMERA.lookHeight,
+      playerPos.z + CAMERA.lookAhead
+    );
     this.camera.lookAt(this._look);
   }
 }
