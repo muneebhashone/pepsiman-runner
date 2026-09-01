@@ -118,6 +118,8 @@ export class Obstacles {
     this._rng = Math.random;
     this._hintSlideShown = false;
     this._hintJumpShown = false;
+    this._getReadyRailShown = false;
+    this._getReadySignShown = false;
     this._onTutorialHint = null;
 
     this._geo = {
@@ -186,12 +188,24 @@ export class Obstacles {
       railStripe: new THREE.MeshStandardMaterial({
         color: 0xffcc00,
         emissive: 0xffaa00,
-        emissiveIntensity: 0.5,
+        emissiveIntensity: 0.85,
+      }),
+      railStripeDark: new THREE.MeshStandardMaterial({
+        color: 0x111111,
+        emissive: 0x050505,
+        emissiveIntensity: 0.2,
       }),
       signTop: new THREE.MeshStandardMaterial({
         color: 0xffffff,
         emissive: 0xffffff,
-        emissiveIntensity: 0.35,
+        emissiveIntensity: 0.65,
+      }),
+      signFace: new THREE.MeshStandardMaterial({
+        color: 0xf8fbff,
+        emissive: 0xd0e8ff,
+        emissiveIntensity: 0.55,
+        metalness: 0.05,
+        roughness: 0.35,
       }),
       signPole: new THREE.MeshStandardMaterial({
         color: 0x556677,
@@ -424,50 +438,50 @@ export class Obstacles {
       g.add(s2);
       hit = { w: 1.2, h: 1.05, d: 0.48, y: 0.95, mode: 'jump' };
     } else if (type === 'rail') {
-      // Overhead hazard bar — thick dark silhouette, duck-under read at distance
-      const postL = new THREE.Mesh(new THREE.BoxGeometry(0.2, 2.55, 0.2), this._mats.railDark);
-      postL.position.set(-1.12, 1.28, 0);
+      // Overhead hazard — tall posts + thick striped bar reads from far away
+      const postL = new THREE.Mesh(new THREE.BoxGeometry(0.24, 2.85, 0.24), this._mats.railDark);
+      postL.position.set(-1.18, 1.42, 0);
       const postR = postL.clone();
-      postR.position.x = 1.12;
+      postR.position.x = 1.18;
       g.add(postL, postR);
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(2.5, 0.46, 0.32), this._mats.railDark);
-      bar.position.y = 2.48;
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.58, 0.38), this._mats.railDark);
+      bar.position.y = 2.72;
       bar.castShadow = true;
       g.add(bar);
-      for (let si = 0; si < 6; si++) {
-        const stripeMat = si % 2 === 0 ? this._mats.railStripe : this._mats.stripe;
-        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.38, 0.1), stripeMat);
-        stripe.position.set(-1.02 + si * 0.36, 2.48, 0.2);
+      for (let si = 0; si < 7; si++) {
+        const stripeMat = si % 2 === 0 ? this._mats.railStripe : this._mats.railStripeDark;
+        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.5, 0.14), stripeMat);
+        stripe.position.set(-1.02 + si * 0.34, 2.72, 0.24);
         g.add(stripe);
       }
-      const hang = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.1, 0.14), this._mats.railDark);
-      hang.position.y = 2.22;
+      const hang = new THREE.Mesh(new THREE.BoxGeometry(2.55, 0.12, 0.16), this._mats.railDark);
+      hang.position.y = 2.38;
       g.add(hang);
-      hit = { w: 2.05, h: 0.48, d: 1.05, y: 2.48, mode: 'slide' };
+      hit = { w: 2.15, h: 0.52, d: 1.1, y: 2.72, mode: 'slide' };
     } else if (type === 'sign') {
-      // Low road sign on twin poles — vault-over read; bright face toward camera
-      const poleL = new THREE.Mesh(new THREE.BoxGeometry(0.16, 1.05, 0.16), this._mats.signPole);
-      poleL.position.set(-0.82, 0.52, 0);
+      // Low vault sign — short poles, bright face, orange frame; distinct from overhead rail
+      const poleL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.88, 0.18), this._mats.signPole);
+      poleL.position.set(-0.92, 0.44, 0);
       const poleR = poleL.clone();
-      poleR.position.x = 0.82;
+      poleR.position.x = 0.92;
       g.add(poleL, poleR);
-      const frame = new THREE.Mesh(new THREE.BoxGeometry(2.05, 1.12, 0.14), this._mats.signFrame);
-      frame.position.y = 1.08;
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(2.35, 1.28, 0.18), this._mats.signFrame);
+      frame.position.y = 0.98;
       g.add(frame);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.95, 0.1), this._mats.sign);
-      m.position.set(0, 1.08, 0.1);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(2.15, 1.1, 0.12), this._mats.sign);
+      m.position.set(0, 0.98, 0.12);
       m.castShadow = true;
       g.add(m);
-      const face = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.82, 0.06), this._mats.signTop);
-      face.position.set(0, 1.08, 0.16);
+      const face = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.95, 0.08), this._mats.signFace);
+      face.position.set(0, 0.98, 0.2);
       g.add(face);
-      const top = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.16, 0.12), this._mats.signTop);
-      top.position.y = 1.62;
+      const top = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.18, 0.14), this._mats.signTop);
+      top.position.y = 1.58;
       g.add(top);
-      const base = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.12, 0.55), this._mats.signPole);
-      base.position.y = 0.06;
+      const base = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.14, 0.6), this._mats.signPole);
+      base.position.y = 0.07;
       g.add(base);
-      hit = { w: 1.65, h: 1.05, d: 0.42, y: 1.02, mode: 'jump' };
+      hit = { w: 1.85, h: 1.1, d: 0.45, y: 0.95, mode: 'jump' };
     } else {
       // Boxy delivery truck — lane change only; no cylinder silhouettes
       const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
@@ -669,6 +683,11 @@ export class Obstacles {
       const placed = this._acquire(type, lane, z + zOff);
       if (!placed) continue;
       placed.nearMissed = false;
+      if (tutorial && warmup && lane === TUTORIAL_LANE) {
+        placed.tutorialFirst =
+          (this.patternsSpawned === 0 && type === 'rail') ||
+          (this.patternsSpawned === 1 && type === 'sign');
+      }
       placedTypes.push(type);
       this._recordSpawn(z + zOff, type);
     }
@@ -749,6 +768,8 @@ export class Obstacles {
     }
 
     const leadDist = speed * SPAWN.telegraphLead;
+    const approachDist = speed * SPAWN.tutorialHintApproachSec;
+    const preWarnDist = speed * SPAWN.tutorialHintPreWarnSec;
     const gap = SPAWN.telegraphObstacleGap;
     const minAlpha = SPAWN.telegraphMinAlpha;
     const rampDist = speed * SPAWN.telegraphRampSec;
@@ -762,14 +783,25 @@ export class Obstacles {
 
       const dist = it.z - playerZ;
       const inWarn = dist > 0 && dist <= leadDist + 2;
+      const inApproach = dist > 0 && dist <= approachDist;
       const laneX = LANES[it.lane];
       const colors = it.telColors;
 
-      if (inWarn && it.type === 'rail' && !this._hintSlideShown) {
+      if (it.tutorialFirst && dist > approachDist && dist <= preWarnDist) {
+        if (it.type === 'rail' && !this._getReadyRailShown) {
+          this._getReadyRailShown = true;
+          this._onTutorialHint?.('ready');
+        }
+        if (it.type === 'sign' && !this._getReadySignShown) {
+          this._getReadySignShown = true;
+          this._onTutorialHint?.('ready');
+        }
+      }
+      if (inApproach && it.type === 'rail' && !this._hintSlideShown) {
         this._hintSlideShown = true;
         this._onTutorialHint?.('slide');
       }
-      if (inWarn && it.type === 'sign' && !this._hintJumpShown) {
+      if (inApproach && it.type === 'sign' && !this._hintJumpShown) {
         this._hintJumpShown = true;
         this._onTutorialHint?.('jump');
       }
@@ -923,5 +955,7 @@ export class Obstacles {
     this._rng = Math.random;
     this._hintSlideShown = false;
     this._hintJumpShown = false;
+    this._getReadyRailShown = false;
+    this._getReadySignShown = false;
   }
 }
