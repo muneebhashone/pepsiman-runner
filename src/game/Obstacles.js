@@ -156,6 +156,10 @@ export class Obstacles {
 
   /** AABB vs player hitbox. Returns colliding item or null. */
   collide(playerBox, jumping, sliding) {
+    const mode = playerBox.mode || (sliding ? 'slide' : jumping ? 'jump' : 'run');
+    const feetY = playerBox.feetY ?? playerBox.y - playerBox.h * 0.5;
+    const headY = feetY + playerBox.h;
+
     for (const it of this.items) {
       if (!it.alive) continue;
       const hx = it.mesh.position.x;
@@ -163,16 +167,26 @@ export class Obstacles {
       const hy = it.hit.y;
       const dx = Math.abs(playerBox.x - hx);
       const dz = Math.abs(playerBox.z - hz);
-      const dy = Math.abs(playerBox.y - hy);
-      if (dx < (playerBox.w + it.hit.w) * 0.5 && dz < (playerBox.d + it.hit.d) * 0.5) {
-        if (it.hit.mode === 'jump' && jumping && playerBox.y > 1.0) continue;
-        if (it.hit.mode === 'slide' && sliding) continue;
-        if (it.hit.mode === 'jump' && !jumping) {
-          // high obstacle — only hit if not clearing
-          if (playerBox.y + playerBox.h * 0.5 < hy - it.hit.h * 0.35) continue;
-        }
-        if (dy < (playerBox.h + it.hit.h) * 0.5) return it;
+      if (dx >= (playerBox.w + it.hit.w) * 0.5 || dz >= (playerBox.d + it.hit.d) * 0.5) {
+        continue;
       }
+
+      // Jump obstacles — clear when airborne with enough lift
+      if (it.hit.mode === 'jump') {
+        if (mode === 'jump' && playerBox.apexY > 0.3) continue;
+        const signBottom = hy - it.hit.h * 0.48;
+        if (headY < signBottom + 0.08) continue;
+      }
+
+      // Slide obstacles — duck under overhead rails
+      if (it.hit.mode === 'slide') {
+        if (mode === 'slide') continue;
+        const railTop = hy + it.hit.h * 0.48;
+        if (headY < railTop + 0.05) continue;
+      }
+
+      const dy = Math.abs(playerBox.y - hy);
+      if (dy < (playerBox.h + it.hit.h) * 0.5) return it;
     }
     return null;
   }

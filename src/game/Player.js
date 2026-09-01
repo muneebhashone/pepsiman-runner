@@ -7,8 +7,8 @@ function gloss(color, opts = {}) {
     color,
     metalness: opts.metalness ?? 0.55,
     roughness: opts.roughness ?? 0.28,
-    emissive: opts.emissive ?? 0x000000,
-    emissiveIntensity: opts.emissiveIntensity ?? 0,
+    emissive: opts.emissive ?? color,
+    emissiveIntensity: opts.emissiveIntensity ?? 0.08,
   });
 }
 
@@ -46,16 +46,16 @@ export class Player {
     this.group = new THREE.Group();
     this._buildMesh();
     scene.add(this.group);
-    this.hitbox = { w: 0.7, h: 1.7, d: 0.6 };
+    this.hitbox = { ...PLAYER.hitbox };
   }
 
   _buildMesh() {
     const root = new THREE.Group();
     this.root = root;
 
-    const blue = gloss(COLORS.pepsiBlue, { metalness: 0.68, roughness: 0.2 });
-    const red = gloss(COLORS.pepsiRed, { metalness: 0.45, roughness: 0.32 });
-    const white = gloss(COLORS.pepsiWhite, { metalness: 0.25, roughness: 0.38 });
+    const blue = gloss(COLORS.pepsiBlue, { metalness: 0.68, roughness: 0.2, emissiveIntensity: 0.12 });
+    const red = gloss(COLORS.pepsiRed, { metalness: 0.45, roughness: 0.32, emissiveIntensity: 0.1 });
+    const white = gloss(COLORS.pepsiWhite, { metalness: 0.25, roughness: 0.38, emissiveIntensity: 0.18 });
     const dark = gloss(0x111122, { metalness: 0.3, roughness: 0.5 });
 
     // Torso — slightly tapered capsule for mascot bulk
@@ -153,6 +153,20 @@ export class Player {
 
     this.group.add(root);
     this.root.scale.set(1, 1, 1);
+
+    // Rim halo — keeps Pepsiman readable on neon highway
+    const halo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.95, 16, 12),
+      new THREE.MeshBasicMaterial({
+        color: COLORS.pepsiBlue,
+        transparent: true,
+        opacity: 0.07,
+        depthWrite: false,
+      })
+    );
+    halo.position.y = 1.0;
+    this.group.add(halo);
+    this.halo = halo;
   }
 
   _makeLimb(mat, accent, isLeg = false) {
@@ -181,7 +195,15 @@ export class Player {
 
   /** True when buffered lane input can be consumed */
   canQueueLane() {
-    return !this.isLaneSwitching() || this.laneT > 0.35;
+    return !this.isLaneSwitching() || this.laneT > 0.2;
+  }
+
+  /** Collision X — smoothstep without visual overshoot bleed */
+  _collisionX() {
+    if (this.laneT >= 1) return this.x;
+    const t = Math.min(1, this.laneT);
+    const smooth = t * t * (3 - 2 * t);
+    return this.laneFromX + (this.laneToX - this.laneFromX) * smooth;
   }
 
   tryLane(delta) {
@@ -228,15 +250,54 @@ export class Player {
   }
 
   getHitBox() {
-    const h = this.sliding ? PLAYER.slideHeight + 0.35 : this.jumping ? 1.5 : this.hitbox.h;
-    const y = this.y + (this.sliding ? 0.35 : h * 0.5);
+    const cx = this._collisionX();
+    const switching = this.laneT < 1;
+    const laneShrink = switching ? 0.88 : 1;
+
+    if (this.sliding) {
+      const hb = PLAYER.hitboxSlide;
+      return {
+        x: cx,
+        y: this.y + 0.22,
+        z: this.z,
+        w: hb.w * laneShrink,
+        h: hb.h,
+        d: hb.d,
+        mode: 'slide',
+        feetY: this.y,
+        switching,
+      };
+    }
+
+    if (this.jumping) {
+      const hb = PLAYER.hitboxJump;
+      const rise = Math.min(1, this.y / PLAYER.jumpHeight);
+      const h = hb.h * (1 - rise * 0.12);
+      return {
+        x: cx,
+        y: this.y + h * 0.32,
+        z: this.z,
+        w: hb.w * laneShrink,
+        h,
+        d: hb.d,
+        mode: 'jump',
+        feetY: this.y,
+        apexY: this.y,
+        switching,
+      };
+    }
+
+    const hb = PLAYER.hitbox;
     return {
-      x: this.x,
-      y,
+      x: cx,
+      y: this.y + hb.h * 0.48,
       z: this.z,
-      w: this.hitbox.w,
-      h: this.sliding ? 0.7 : h,
-      d: this.hitbox.d,
+      w: hb.w * laneShrink,
+      h: hb.h,
+      d: hb.d,
+      mode: 'run',
+      feetY: this.y,
+      switching,
     };
   }
 
@@ -345,6 +406,12 @@ export class Player {
     // Cape flutter
     if (this.flap) {
       this.flap.rotation.x = 0.18 + Math.sin(this.runPhase * 0.6) * 0.1 + this.speed * 0.004;
+    }
+
+    // Halo pulse — visual loudness against neon highway
+    if (this.halo) {
+      this.halo.scale.setScalar(1 + Math.sin(this.runPhase * 0.5) * 0.04);
+      this.halo.material.opacity = 0.06 + (this.jumping ? 0.04 : 0) + this.speed * 0.0004;
     }
 
     this.group.position.set(this.x, this.y + bob, this.z);

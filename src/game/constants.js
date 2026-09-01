@@ -32,10 +32,10 @@ export const PLAYER = {
   runSpeedMax: 42,
   accelPerSec: 0.35,
   /** Lane switch: 0.18–0.22s with overshoot settle */
-  laneSwitchDuration: 0.2,
-  laneOvershoot: 0.14,
+  laneSwitchDuration: 0.18,
+  laneOvershoot: 0.08,
   laneLeanMax: 0.42,
-  laneLeanDamp: 10,
+  laneLeanDamp: 12,
   /** Jump: ~0.45s sin arc apex */
   jumpDuration: 0.45,
   jumpHeight: 2.4,
@@ -47,6 +47,10 @@ export const PLAYER = {
   invulnAfterHit: 0,
   radius: 0.55,
   height: 1.8,
+  /** Tighter collision capsule — visual mesh is larger than hurtbox */
+  hitbox: { w: 0.58, h: 1.38, d: 0.44 },
+  hitboxSlide: { w: 0.5, h: 0.48, d: 0.38 },
+  hitboxJump: { w: 0.52, h: 1.05, d: 0.4 },
 };
 
 export const INPUT = {
