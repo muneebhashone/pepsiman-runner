@@ -84,7 +84,7 @@ export const SPAWN = {
   obstacleMinGap: 38,
   obstacleMaxGap: 48,
   obstacleGapTighten: 0.1,
-  obstacleWarmupZ: 320,
+  obstacleWarmupZ: 130,
   obstacleWarmupGapMin: 52,
   obstacleWarmupGapMax: 68,
   /** Wider Z gap between first forced tutorial obstacles so lesson 2 isn't stacked on lesson 1 */
@@ -96,7 +96,7 @@ export const SPAWN = {
   postWarmupWideGapCount: 5,
   /** No double-lane blocks until after this many patterns (post-warmup) */
   earlyNoDoublePatterns: 8,
-  warmupPatternCount: 10,
+  warmupPatternCount: 4,
   /** First N post-warmup patterns alternate forced slide/jump obstacles in center lane */
   postWarmupTutorialPatterns: 0,
   /** Forced obstacle-type rotation length after center tutorial */
