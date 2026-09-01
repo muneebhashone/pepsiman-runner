@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { COLORS, LANES, SPAWN, WORLD, PLAYER } from './constants.js';
+import { COLORS, LANES, SPAWN, WORLD, PLAYER, FIZZ } from './constants.js';
 
 const POOL_SIZE = 64;
 const CAN_SCALE = 1.05;
@@ -254,8 +254,9 @@ export class Collectibles {
     this.bobT += dt;
     const diff = speedNorm(speed);
     const inWarmup = playerZ < SPAWN.collectibleWarmupZ;
-    const magnet =
-      (inWarmup ? 1.4 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
+    const magnet = this.rushActive
+      ? 3.8
+      : (inWarmup ? 1.4 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
 
     while (this.nextZ < horizon) {
@@ -293,16 +294,18 @@ export class Collectibles {
       const dx = Math.abs(playerX - laneX);
       const dz = Math.abs(playerZ - mesh.position.z);
       const dist = Math.hypot(dx, dz);
-      const inLane = this.rushActive
-        ? dx < LANE_PICKUP_DX * 2.8
-        : sameLane(playerLane, it.lane, dx);
+      const inLane =
+        this.rushActive && FIZZ.magnetAllLanes
+          ? true
+          : this.rushActive
+            ? dx < LANE_PICKUP_DX * 2.8
+            : sameLane(playerLane, it.lane, dx);
       const pullStrength = this.rushActive
-        ? 0.45
+        ? 0.62
         : inWarmup
           ? 0.32
           : 0.2 + diff * 0.12;
 
-      // Magnet only affects cans in the player's current lane
       if (inLane && dist < magnet && dist > 0.01) {
         if (dist <= SUCK_HIDE_DIST) {
           this._beginPop(it, true);
@@ -319,8 +322,11 @@ export class Collectibles {
         it.suckT += dt;
         const pull = ((magnet - dist) / magnet) ** 1.15;
         const step = pull * pullStrength * dt * 60;
-        // Stay in lane — only pull along Z and Y toward the player
-        mesh.position.x = laneX;
+        if (this.rushActive && FIZZ.magnetAllLanes) {
+          mesh.position.x += (playerX - mesh.position.x) * step * 0.28;
+        } else {
+          mesh.position.x = laneX;
+        }
         mesh.position.z += (playerZ - mesh.position.z) * step * 0.22;
         const targetY = playerY + 1.35;
         mesh.position.y += (targetY - mesh.position.y) * step * 0.14;
@@ -369,9 +375,12 @@ export class Collectibles {
       const dx = Math.abs(playerBox.x - mx);
       const dz = Math.abs(playerBox.z - mz);
       const dy = Math.abs(playerBox.y + 0.5 - my);
-      const inLane = this.rushActive
-        ? dx < LANE_PICKUP_DX * 2.8
-        : sameLane(playerLane, it.lane, dx);
+      const inLane =
+        this.rushActive && FIZZ.magnetAllLanes
+          ? true
+          : this.rushActive
+            ? dx < LANE_PICKUP_DX * 2.8
+            : sameLane(playerLane, it.lane, dx);
       const trackReach = dz < 1.45;
       const heightReach = dy < 1.5;
       const dist2d = Math.hypot(dx, dz);

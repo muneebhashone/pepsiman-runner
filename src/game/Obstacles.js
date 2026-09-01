@@ -6,6 +6,30 @@ const WARMUP_TYPES = ['rail', 'sign'];
 const BLOCK_TYPES = ['truck', 'pepsiWide', 'mover'];
 const POOL_SIZE = 48;
 
+/** Forced post-tutorial rotation — every colliding verb appears before weights matter */
+const ROTATION_TABLE = [
+  { kind: 'single', type: 'barrier' },
+  { kind: 'single', type: 'rail' },
+  { kind: 'single', type: 'sign' },
+  { kind: 'single', type: 'truck' },
+  { kind: 'barrelChain' },
+  { kind: 'pepsiWide' },
+  { kind: 'single', type: 'mover' },
+  { kind: 'single', type: 'ramp' },
+  { kind: 'combo', types: ['rail', 'barrier'], gap: 0.25 },
+  { kind: 'single', type: 'barrier' },
+  { kind: 'single', type: 'sign' },
+  { kind: 'single', type: 'truck' },
+  { kind: 'barrelChain' },
+  { kind: 'single', type: 'mover' },
+  { kind: 'single', type: 'ramp' },
+  { kind: 'combo', types: ['sign', 'rail'], gap: 5.8 },
+  { kind: 'pepsiWide' },
+  { kind: 'single', type: 'rail' },
+  { kind: 'single', type: 'truck' },
+  { kind: 'combo', types: ['ramp', 'barrel'], gap: 0.2 },
+];
+
 function actionMode(type) {
   if (type === 'rail') return 'slide';
   if (type === 'ramp') return 'ramp';
@@ -114,7 +138,9 @@ export class Obstacles {
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
     this.postWarmupPatterns = 0;
+    this.rotationIndex = 0;
     this.spawnHistory = [];
+    this._rotationLogged = false;
     this._nearMissCooldown = 0;
     this._pulseT = 0;
     this._rng = Math.random;
@@ -554,6 +580,97 @@ export class Obstacles {
     }
   }
 
+  _pickBlockedLane(rng) {
+    return pickLanes(1, rng)[0];
+  }
+
+  _placeSingle(z, type, rng) {
+    const blocked = this._pickBlockedLane(rng);
+    const placed = this._acquire(type, blocked, z);
+    if (!placed) return z;
+    if (type === 'mover') this._initMoverSweep(placed, blocked, rng);
+    this._recordSpawn(z, type);
+    return z;
+  }
+
+  _initMoverSweep(item, startLane, rng) {
+    const endLane = startLane === 0 ? 2 : startLane === 2 ? 0 : rng() > 0.5 ? 2 : 0;
+    item.moverStartLane = startLane;
+    item.moverEndLane = endLane;
+    item.moverPhase = 0;
+    item.lane = startLane;
+  }
+
+  _spawnBarrelChain(z, rng) {
+    const blocked = this._pickBlockedLane(rng);
+    const count = 2 + (rng() > 0.45 ? 1 : 0);
+    const spacing = 4.2;
+    let maxZ = z;
+    for (let i = 0; i < count; i++) {
+      const zz = z + i * spacing;
+      const p = this._acquire('barrel', blocked, zz);
+      if (p) {
+        maxZ = Math.max(maxZ, zz);
+        this._recordSpawn(zz, 'barrel');
+      }
+    }
+    return maxZ;
+  }
+
+  /** Block two lanes — one open gap forces a lane read */
+  _spawnPepsiWideGap(z, rng) {
+    const open = (rng() * 3) | 0;
+    let maxZ = z;
+    for (let lane = 0; lane < 3; lane++) {
+      if (lane === open) continue;
+      const p = this._acquire('pepsiWide', lane, z);
+      if (p) {
+        maxZ = Math.max(maxZ, z);
+        this._recordSpawn(z, 'pepsiWide');
+      }
+    }
+    return maxZ;
+  }
+
+  _spawnCombo(z, types, gap, rng) {
+    const blocked = this._pickBlockedLane(rng);
+    let maxZ = z;
+    for (let i = 0; i < types.length; i++) {
+      const zz = z + (i === 0 ? 0 : gap);
+      const p = this._acquire(types[i], blocked, zz);
+      if (p) {
+        maxZ = Math.max(maxZ, zz);
+        if (types[i] === 'mover') this._initMoverSweep(p, blocked, rng);
+        this._recordSpawn(zz, types[i]);
+      }
+    }
+    return maxZ;
+  }
+
+  _spawnRotationEntry(z, entry) {
+    const rng = this._rng;
+    if (entry.kind === 'barrelChain') return this._spawnBarrelChain(z, rng);
+    if (entry.kind === 'pepsiWide') return this._spawnPepsiWideGap(z, rng);
+    if (entry.kind === 'combo') return this._spawnCombo(z, entry.types, entry.gap ?? 0.25, rng);
+    return this._placeSingle(z, entry.type, rng);
+  }
+
+  _logRotationDebug() {
+    if (this._rotationLogged) return;
+    const recent = this.spawnHistory.slice(-SPAWN.rotationTableLength);
+    const types = new Set(recent.map((h) => h.type));
+    console.info(
+      `[Obstacles] Post-tutorial rotation — ${types.size} distinct types in ${recent.length} spawns:`,
+      [...types].sort().join(', ')
+    );
+    this._rotationLogged = true;
+  }
+
+  getRotationDistinctCount() {
+    const recent = this.spawnHistory.slice(-SPAWN.rotationTableLength);
+    return new Set(recent.map((h) => h.type)).size;
+  }
+
   /** Force jump/slide/block variety within rolling window */
   _varietyType(rng, playerZ, speed) {
     const modes = this._recentModes();
@@ -894,7 +1011,9 @@ export class Obstacles {
       shadow,
       chevrons,
       telColors: colors,
-      moverPhase: type === 'mover' ? Math.random() * Math.PI * 2 : 0,
+      moverPhase: type === 'mover' ? 0 : 0,
+      moverStartLane: type === 'mover' ? lane : undefined,
+      moverEndLane: undefined,
       moverLane: lane,
     };
     this.items.push(item);
@@ -946,27 +1065,29 @@ export class Obstacles {
 
     if (
       !tutorial &&
-      !warmup &&
-      this.patternsSpawned > SPAWN.warmupPatternCount + 2 &&
-      rng() < 0.26
-    ) {
-      const specialZ = this._spawnSpecialPattern(z, playerZ, speed);
-      if (specialZ != null) {
-        this.patternsSpawned += 1;
-        return specialZ;
-      }
-    }
-
-    if (
-      !tutorial &&
       this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers
     ) {
       return maxSpawnZ;
     }
 
-    const doubleChance = warmup || tutorial
-      ? 0
-      : SPAWN.doubleChanceBase + (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
+    // After center tutorial: cycle the full obstacle kit in a fixed table
+    if (!warmup && !tutorial) {
+      const entry = ROTATION_TABLE[this.rotationIndex % ROTATION_TABLE.length];
+      this.rotationIndex += 1;
+      maxSpawnZ = Math.max(maxSpawnZ, this._spawnRotationEntry(z, entry));
+      this.patternsSpawned += 1;
+      if (this.rotationIndex >= SPAWN.rotationTableLength) {
+        this._logRotationDebug();
+      }
+      return maxSpawnZ;
+    }
+
+    const pastEarlyDoubles =
+      this.patternsSpawned >= SPAWN.warmupPatternCount + SPAWN.earlyNoDoublePatterns;
+    const doubleChance =
+      warmup || tutorial || !pastEarlyDoubles
+        ? 0
+        : SPAWN.doubleChanceBase + (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
     const count = warmup || tutorial ? 1 : rng() < doubleChance ? 2 : 1;
     const blocked = tutorial
       ? [TUTORIAL_LANE]
@@ -1069,7 +1190,11 @@ export class Obstacles {
 
   _gapForSpeed(speed, playerZ) {
     const diff = speedNorm(speed);
-    if (this.patternsSpawned <= SPAWN.obstacleTutorialWideGapCount) {
+    const wideCutoff = SPAWN.warmupPatternCount + SPAWN.postWarmupWideGapCount;
+    if (
+      this.patternsSpawned <= SPAWN.obstacleTutorialWideGapCount ||
+      this.patternsSpawned <= wideCutoff
+    ) {
       return (
         SPAWN.obstacleTutorialGapMin +
         this._rng() * (SPAWN.obstacleTutorialGapMax - SPAWN.obstacleTutorialGapMin)
@@ -1162,13 +1287,25 @@ export class Obstacles {
       let laneX = LANES[it.lane];
       const colors = it.telColors;
 
-      // Keep mesh locked to lane X every frame (movers drift across lanes)
+      // Lane-sweeping truck — telegraphed cross-lane hazard
       if (it.type === 'mover') {
-        it.moverPhase += dt * 2.4;
-        const shift = Math.sin(it.moverPhase) * 2.15;
-        const lx = THREE.MathUtils.clamp(LANES[it.lane] + shift, LANES[0], LANES[2]);
+        it.moverPhase += dt * 0.92;
+        const start = it.moverStartLane ?? it.lane;
+        const end = it.moverEndLane ?? (start === 0 ? 2 : 0);
+        const u = (Math.sin(it.moverPhase) + 1) * 0.5;
+        const lx = THREE.MathUtils.lerp(LANES[start], LANES[end], u);
         it.mesh.position.set(lx, 0, it.z);
         laneX = lx;
+        let nearest = 0;
+        let best = Math.abs(LANES[0] - lx);
+        for (let li = 1; li < LANES.length; li++) {
+          const d = Math.abs(LANES[li] - lx);
+          if (d < best) {
+            best = d;
+            nearest = li;
+          }
+        }
+        it.lane = nearest;
       } else {
         it.mesh.position.set(laneX, 0, it.z);
       }
@@ -1263,6 +1400,13 @@ export class Obstacles {
       if (dx < 1.05 && dz < 1.6 && playerBox.z < it.z + 0.8) return true;
     }
     return false;
+  }
+
+  destroyObstacle(it) {
+    if (!it?.alive) return;
+    const idx = this.items.indexOf(it);
+    this._release(it);
+    if (idx >= 0) this.items.splice(idx, 1);
   }
 
   collide(playerBox, jumping, sliding) {
@@ -1372,7 +1516,9 @@ export class Obstacles {
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
     this.postWarmupPatterns = 0;
+    this.rotationIndex = 0;
     this.spawnHistory = [];
+    this._rotationLogged = false;
     this._nearMissCooldown = 0;
     this._pulseT = 0;
     this._rng = Math.random;

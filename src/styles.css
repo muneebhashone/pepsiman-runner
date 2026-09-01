@@ -71,6 +71,32 @@ body {
   opacity: 1;
 }
 
+#rush-wash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 13;
+  opacity: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(0, 85, 191, 0.22) 0%,
+    rgba(227, 41, 52, 0.18) 45%,
+    rgba(0, 85, 191, 0.12) 100%
+  );
+  mix-blend-mode: screen;
+  transition: opacity 0.25s ease-out;
+}
+
+#rush-wash.active {
+  opacity: 1;
+  animation: rush-wash-pulse 0.55s ease-in-out infinite alternate;
+}
+
+@keyframes rush-wash-pulse {
+  from { filter: saturate(1.15) brightness(1); }
+  to { filter: saturate(1.45) brightness(1.12); }
+}
+
 #tutorial-hint {
   position: absolute;
   left: 50%;
@@ -317,6 +343,25 @@ body {
   background: linear-gradient(90deg, var(--pepsi-blue), #3aa0ff, var(--pepsi-red));
   transition: width 0.12s ease-out;
   box-shadow: 0 0 12px rgba(58, 160, 255, 0.65);
+}
+
+.fizz-track.rush-ready .fizz-fill {
+  animation: fizz-ready-pulse 0.5s ease-in-out infinite alternate;
+  box-shadow: 0 0 18px rgba(227, 41, 52, 0.85), 0 0 10px rgba(58, 160, 255, 0.75);
+}
+
+@keyframes fizz-ready-pulse {
+  from { filter: brightness(1); transform: scaleY(1); }
+  to { filter: brightness(1.25); transform: scaleY(1.15); }
+}
+
+.fizz-track.rush-hot .fizz-fill {
+  animation: rush-pulse-fill 0.4s ease-in-out infinite alternate;
+}
+
+@keyframes rush-pulse-fill {
+  from { filter: saturate(1.2); }
+  to { filter: saturate(1.6) brightness(1.15); }
 }
 
 .fizz-rush {
@@ -741,8 +786,31 @@ body {
 
 .final-sub {
   color: var(--muted);
-  margin-bottom: 16px;
+  margin-bottom: 6px;
   font-size: 14px;
+}
+
+.final-stats {
+  color: var(--muted);
+  margin-bottom: 8px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+}
+
+.final-top-scores {
+  font-size: 12px;
+  color: #b8d4ff;
+  margin-bottom: 10px;
+  letter-spacing: 0.04em;
+}
+
+.final-top-scores.hidden {
+  display: none;
+}
+
+.stat-score .value.rush-mult {
+  color: #7ee8ff;
+  text-shadow: 0 0 12px rgba(0, 229, 255, 0.65);
 }
 
 .mobile-hint {

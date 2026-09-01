@@ -1,19 +1,22 @@
-import { SPAWN, SCORE } from './constants.js';
+import { SPAWN, SCORE, FIZZ } from './constants.js';
 
 const STORAGE_KEY = 'pepsiman-runner-v1';
 
 export function loadPersisted() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { highScore: 0, bestCombo: 1, totalCans: 0 };
+    if (!raw) return { highScore: 0, bestCombo: 1, totalCans: 0, topScores: [] };
     const p = JSON.parse(raw);
     return {
       highScore: Number(p.highScore) || 0,
       bestCombo: Number(p.bestCombo) || 1,
       totalCans: Number(p.totalCans) || 0,
+      topScores: Array.isArray(p.topScores)
+        ? p.topScores.map((n) => Number(n) || 0).filter((n) => n > 0).slice(0, 3)
+        : [],
     };
   } catch {
-    return { highScore: 0, bestCombo: 1, totalCans: 0 };
+    return { highScore: 0, bestCombo: 1, totalCans: 0, topScores: [] };
   }
 }
 
@@ -49,6 +52,9 @@ export class UI {
     this.finalSoClose = document.getElementById('final-so-close');
     this.finalScore = document.getElementById('final-score');
     this.finalSub = document.getElementById('final-sub');
+    this.finalStats = document.getElementById('final-stats');
+    this.finalTopScores = document.getElementById('final-top-scores');
+    this.rushWash = document.getElementById('rush-wash');
     this.btnStart = document.getElementById('btn-start');
     this.btnRetry = document.getElementById('btn-retry');
     this.btnResume = document.getElementById('btn-resume');
@@ -140,18 +146,31 @@ export class UI {
   }
 
   showGameOver(score, coins, bestCombo, meta = {}) {
-    if (this.finalScore) this.finalScore.textContent = String(Math.floor(score));
+    const pts = Math.floor(score);
+    const dist = Math.floor(meta.distance ?? 0);
+    const combo = Math.floor(bestCombo);
+    const best = Math.floor(meta.highScore ?? 0);
+    const runBestCombo = Math.floor(meta.allTimeBestCombo ?? combo);
+
+    if (this.finalScore) this.finalScore.textContent = String(pts);
     if (this.finalSub) {
-      this.finalSub.textContent = `${coins} cans · combo ×${bestCombo} · best ever ×${meta.allTimeBestCombo ?? bestCombo}`;
+      this.finalSub.textContent = `Score ${pts} · ${Math.floor(coins)} cans · combo ×${combo}`;
+    }
+    if (this.finalStats) {
+      this.finalStats.textContent = `${dist} m run · best combo ever ×${runBestCombo} · high ${best}`;
+    }
+    if (this.finalTopScores && meta.topScores?.length) {
+      this.finalTopScores.textContent = `Top 3: ${meta.topScores.map((s) => Math.floor(s)).join(' · ')}`;
+      this.finalTopScores.classList.remove('hidden');
+    } else if (this.finalTopScores) {
+      this.finalTopScores.classList.add('hidden');
     }
     if (this.finalCompare) {
-      const high = meta.highScore ?? 0;
-      const diff = high - score;
+      const high = best;
+      const diff = high - pts;
       if (high > 0) {
         this.finalCompare.textContent =
-          diff > 0
-            ? `${Math.floor(diff)} pts from your best (${Math.floor(high)})`
-            : 'NEW HIGH SCORE!';
+          diff > 0 ? `${diff} pts from your best (${high})` : 'NEW HIGH SCORE!';
         this.finalCompare.classList.remove('hidden');
       } else {
         this.finalCompare.classList.add('hidden');
@@ -176,8 +195,16 @@ export class UI {
   updateFizz(level, rushActive) {
     if (this.fizzFill) this.fizzFill.style.width = `${Math.round(level * 100)}%`;
     if (this.fizzRush) this.fizzRush.classList.toggle('hidden', !rushActive);
-    if (this.fizzFill?.parentElement) {
-      this.fizzFill.parentElement.classList.toggle('rush-hot', rushActive);
+    const track = this.fizzFill?.parentElement;
+    if (track) {
+      track.classList.toggle('rush-hot', rushActive);
+      track.classList.toggle(
+        'rush-ready',
+        !rushActive && level >= FIZZ.readyPulseAt
+      );
+    }
+    if (this.rushWash) {
+      this.rushWash.classList.toggle('active', rushActive);
     }
   }
 
@@ -577,7 +604,14 @@ export class UI {
       this.speedBar.classList.toggle('rush', stats.rushActive);
     }
 
-    if (stats.fizzLevel != null) this.updateFizz(stats.fizzLevel, stats.rushActive);
+    if (stats.fizzLevel != null) {
+      this.updateFizz(stats.fizzLevel, stats.rushActive);
+      if (this.scoreEl && stats.rushActive) {
+        this.scoreEl.classList.add('rush-mult');
+      } else {
+        this.scoreEl?.classList.remove('rush-mult');
+      }
+    }
     if (stats.missions) this.updateMissions(stats.missions);
 
     if (this._comboPopTimer > 0) {
