@@ -12,17 +12,17 @@ const ROTATION_TABLE = [
   { kind: 'single', type: 'mover' },
   { kind: 'barrelChain' },
   { kind: 'pepsiWide' },
+  { kind: 'single', type: 'ramp' },
   { kind: 'single', type: 'barrier' },
   { kind: 'single', type: 'rail' },
   { kind: 'single', type: 'sign' },
-  { kind: 'single', type: 'ramp' },
   { kind: 'combo', types: ['rail', 'barrier'], gap: 0.25 },
   { kind: 'single', type: 'barrier' },
   { kind: 'single', type: 'sign' },
   { kind: 'single', type: 'truck' },
   { kind: 'barrelChain' },
   { kind: 'single', type: 'mover' },
-  { kind: 'single', type: 'ramp' },
+  { kind: 'single', type: 'sign' },
   { kind: 'combo', types: ['sign', 'rail'], gap: 5.8 },
   { kind: 'pepsiWide' },
   { kind: 'single', type: 'rail' },
@@ -1465,7 +1465,25 @@ export class Obstacles {
         const end = it.moverEndLane ?? (start === 0 ? 2 : 0);
         if (start !== end) {
           this._ensureMoverDestTelegraphs(it);
-          const destAlpha = Math.min(1, alpha * 0.88);
+          const destLeadDist = THREE.MathUtils.clamp(
+            speed * SPAWN.moverDestTelegraphLeadSec,
+            SPAWN.moverDestTelegraphMinDist,
+            SPAWN.moverDestTelegraphMaxDist
+          );
+          const showDestStrip = dist > 0 && dist <= destLeadDist;
+          let destAlpha = 0;
+          if (showDestStrip) {
+            const nearDist = Math.min(rampDist, destLeadDist * 0.28);
+            if (dist <= nearDist) {
+              const rampUrg = nearDist > 0.01 ? 1 - dist / nearDist : 1;
+              destAlpha = minAlpha + (1 - minAlpha) * rampUrg ** 0.65;
+            } else {
+              const span = destLeadDist - nearDist;
+              const farU = span > 0.01 ? (destLeadDist - dist) / span : 1;
+              destAlpha = minAlpha * (0.38 + 0.62 * farU);
+            }
+            destAlpha = Math.min(1, destAlpha * blink);
+          }
           this._layoutTelegraphStrip(
             it,
             LANES[end],
@@ -1473,7 +1491,7 @@ export class Obstacles {
             it.destTelOuter,
             it.destChevrons,
             dist,
-            showStrip,
+            showDestStrip,
             destAlpha,
             colors,
             pulse,

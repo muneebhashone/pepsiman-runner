@@ -417,9 +417,13 @@ export class Game {
     }
 
     if (playing) {
-      const wasRush = this.fizz.isRush;
       this.fizz.update(dt);
-      if (wasRush && !this.fizz.isRush) {
+      if (this.fizz.isRush) {
+        if (!this._rushVisuals) {
+          this._rushVisuals = true;
+          this._startRush();
+        }
+      } else if (this._rushVisuals) {
         this._endRush();
         this._rushVisuals = false;
       }
@@ -438,6 +442,7 @@ export class Game {
       if (inp.laneDelta) {
         if (this.player.tryLane(inp.laneDelta)) {
           this.audio.whoosh(inp.laneDelta * 0.6);
+          this.rig.notifyLaneSwitch(inp.laneDelta);
         }
       }
       if (inp.jump) {

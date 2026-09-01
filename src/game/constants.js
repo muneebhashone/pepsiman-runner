@@ -125,6 +125,10 @@ export const SPAWN = {
   telegraphMinAlpha: 0.42,
   /** Opacity ramps to full only in the last N seconds before hazard */
   telegraphRampSec: 0.35,
+  /** Mover destination lane strip — earlier than body warn (~2s TTC, clamped 60–80m) */
+  moverDestTelegraphLeadSec: 2.0,
+  moverDestTelegraphMinDist: 60,
+  moverDestTelegraphMaxDist: 80,
   /** Verb hint pop-in duration (seconds) — hold timer starts after this settles */
   tutorialHintVerbPopSec: 0.18,
   /** Verb hint full-opacity dwell before fade (seconds) — after pop settles */
@@ -217,6 +221,10 @@ export const CAMERA = {
   jumpLookBoost: 1.2,
   /** Dolly-on-rails: tiny X follow fraction of player offset from center */
   lateralFollow: 0.06,
+  /** Brief lateral settle toward new lane on commit (world units) */
+  laneSettleAmp: 0.12,
+  /** Damp settle back to center — <0.25s feel */
+  laneSettleDecay: 0.14,
   /** Exponential lag — lower = snappier */
   lag: 0.08,
   lagY: 0.12,

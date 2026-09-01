@@ -16,6 +16,7 @@ export class CameraRig {
     this.baseFov = CAMERA.fovBase;
     this.zoneFov = 0;
     this._shakeSeed = 0;
+    this._laneSettle = 0;
     this.camera.fov = this.baseFov;
     this.camera.up.set(0, 1, 0);
     this.camera.updateProjectionMatrix();
@@ -43,6 +44,13 @@ export class CameraRig {
     this.zoneFov = tick;
   }
 
+  /** Brief lateral settle toward the committed lane — no roll, no FOV punch. */
+  notifyLaneSwitch(direction) {
+    if (!direction) return;
+    this._laneSettle =
+      THREE.MathUtils.clamp(direction, -1, 1) * CAMERA.laneSettleAmp;
+  }
+
   _expSmooth(current, target, rate, dt) {
     const t = 1 - Math.pow(rate, dt * 60);
     return current + (target - current) * t;
@@ -62,9 +70,16 @@ export class CameraRig {
     const liftY = this.offset.y + this._jumpBlend * 0.35;
     const lateralClamp = CAMERA.maxLateralOff;
 
+    this._laneSettle = THREE.MathUtils.damp(
+      this._laneSettle,
+      0,
+      CAMERA.laneSettleDecay,
+      dt
+    );
+
     // Tiny follow of player X — camera stays near track center
     const targetX = THREE.MathUtils.clamp(
-      playerPos.x * CAMERA.lateralFollow,
+      playerPos.x * CAMERA.lateralFollow + this._laneSettle,
       playerPos.x - lateralClamp,
       playerPos.x + lateralClamp
     );
@@ -126,6 +141,7 @@ export class CameraRig {
 
   snapTo(playerPos) {
     this._jumpBlend = 0;
+    this._laneSettle = 0;
     this.shakeAmp = 0;
     this.shakeTime = 0;
     this._shakeDuration = 0;
