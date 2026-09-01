@@ -32,7 +32,7 @@ function pickVerticalType(rng) {
 }
 
 const TUTORIAL_LANE = 1;
-const POST_WARMUP_SEQUENCE = ['rail', 'sign', 'rail', 'sign', 'rail', 'sign'];
+const POST_WARMUP_SEQUENCE = ['rail', 'sign', 'rail', 'sign', 'rail', 'sign', 'rail', 'sign'];
 
 function typeForLane(lane, openLane, rng, warmup, warmupIndex = 0) {
   if (warmup) return WARMUP_TYPES[warmupIndex % WARMUP_TYPES.length];
@@ -796,6 +796,8 @@ export class Obstacles {
     const pw = playerBox.w * shrink;
     const ph = playerBox.h * shrink;
     const pd = playerBox.d * shrink;
+    const pyMin = playerBox.y - ph * 0.5;
+    const pyMax = playerBox.y + ph * 0.5;
 
     for (const it of this.items) {
       if (!it.alive) continue;
@@ -809,11 +811,20 @@ export class Obstacles {
       const dz = Math.abs(playerBox.z - hz);
       if (dx >= (pw + hw) * 0.5 || dz >= (pd + hd) * 0.5) continue;
 
-      if (it.hit.mode === 'slide' && sliding) continue;
-      if (it.hit.mode === 'jump' && jumping && playerBox.y > (it.type === 'sign' ? 1.2 : 0.85)) continue;
+      if (it.hit.mode === 'slide') {
+        if (sliding) continue;
+        return it;
+      }
 
-      const dy = Math.abs(playerBox.y - hy);
-      if (dy < (ph + hh) * 0.5) return it;
+      if (it.hit.mode === 'jump') {
+        const clearY = it.type === 'sign' ? 1.2 : 0.85;
+        if (jumping && playerBox.y > clearY) continue;
+        return it;
+      }
+
+      const oyMin = hy - hh * 0.5;
+      const oyMax = hy + hh * 0.5;
+      if (pyMax > oyMin && pyMin < oyMax) return it;
     }
     return null;
   }
