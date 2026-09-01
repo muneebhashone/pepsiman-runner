@@ -267,14 +267,22 @@ export class Game {
           this.rig.punchFov(3.5);
         }
       }
-      if (inp.jump && this.player.tryJump()) {
-        this.audio.jump();
-        this.rig.punchFov(2.8);
-        this.obstacles.onTutorialCorrectAction('jump');
+      if (inp.jump) {
+        const jumped = this.player.tryJump();
+        if (jumped) {
+          this.audio.jump();
+          this.rig.punchFov(2.8);
+        }
+        if (jumped || this.player.jumping) {
+          this.obstacles.onTutorialCorrectAction('jump');
+        }
       }
-      if (inp.slide && this.player.trySlide()) {
-        this.audio.slide();
-        this.obstacles.onTutorialCorrectAction('slide');
+      if (inp.slide) {
+        const slid = this.player.trySlide();
+        if (slid) this.audio.slide();
+        if (slid || this.player.sliding) {
+          this.obstacles.onTutorialCorrectAction('slide');
+        }
       }
 
       this.player.speed = Math.min(
@@ -286,6 +294,12 @@ export class Game {
       this.score += this.player.speed * dt * SCORE.perMeter * (1 + (this.combo - 1) * 0.03);
 
       this.player.update(dt);
+      this.obstacles.checkTutorialPoseDismiss(
+        this.player.sliding,
+        this.player.jumping,
+        this.player.z,
+        this.player.speed
+      );
       if (this.player.justLanded) {
         this.audio.land();
         this.rig.landShake();

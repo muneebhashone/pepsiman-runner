@@ -132,6 +132,8 @@ export class Obstacles {
     this._signVerbFading = false;
     this._graceSlideUsed = false;
     this._graceJumpUsed = false;
+    this._lastPlayerZ = 0;
+    this._lastSpeed = 0;
     this._onTutorialHint = null;
     this._onTutorialGrace = null;
 
@@ -286,6 +288,19 @@ export class Obstacles {
   }
 
   _emitTutorialHint(action) {
+    if (action != null && action !== 'fade') {
+      if (action === 'slide' || action === 'ready') {
+        if (this._railHintState === 'done') return;
+      } else if (action === 'jump') {
+        if (this._signHintState === 'done') return;
+      } else if (action === 'again') {
+        const forRail = this._railHintState === 'retryBeat';
+        const forSign = this._signHintState === 'retryBeat';
+        if (forRail && this._railHintState === 'done') return;
+        if (forSign && this._signHintState === 'done') return;
+        if (!forRail && !forSign) return;
+      }
+    }
     this._onTutorialHint?.(action);
   }
 
@@ -313,15 +328,53 @@ export class Obstacles {
     this._emitTutorialHint('again');
   }
 
-  onTutorialCorrectAction(kind) {
-    const isRail = kind === 'slide';
+  _firstTutorialTtc(isRail) {
+    const playerZ = this._lastPlayerZ;
+    const speed = this._lastSpeed;
+    if (playerZ == null || speed <= 0.1) return null;
+    for (const it of this.items) {
+      if (!it.alive) continue;
+      if (isRail ? it.isFirstTutorialRail : it.isFirstTutorialSign) {
+        const dist = it.z - playerZ;
+        if (dist > 0) return dist / speed;
+        return 0;
+      }
+    }
+    return null;
+  }
+
+  _dismissTutorialHint(isRail) {
     const stateKey = isRail ? '_railHintState' : '_signHintState';
     const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
-    const state = this[stateKey];
-    if (state === 'idle' || state === 'done') return;
+    if (this[stateKey] === 'done') return false;
     this[stateKey] = 'done';
     this[fadeKey] = false;
     this._emitTutorialHint(null);
+    return true;
+  }
+
+  /** Dismiss when correct input or pose during any active first-tutorial window. */
+  _tryDismissTutorial(kind) {
+    const isRail = kind === 'slide';
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    if (this[stateKey] === 'done') return false;
+    const state = this[stateKey];
+    if (state !== 'idle') return this._dismissTutorialHint(isRail);
+    const ttc = this._firstTutorialTtc(isRail);
+    if (ttc != null && ttc > 0) return this._dismissTutorialHint(isRail);
+    return false;
+  }
+
+  onTutorialCorrectAction(kind) {
+    this._tryDismissTutorial(kind);
+  }
+
+  /** Dismiss if player is already in the correct pose when verb appears. */
+  checkTutorialPoseDismiss(sliding, jumping, playerZ, speed) {
+    this._lastPlayerZ = playerZ;
+    this._lastSpeed = speed;
+    if (sliding) this._tryDismissTutorial('slide');
+    if (jumping) this._tryDismissTutorial('jump');
   }
 
   _tutorialHintStartTtc() {
@@ -861,6 +914,8 @@ export class Obstacles {
   }
 
   update(dt, playerZ, speed) {
+    this._lastPlayerZ = playerZ;
+    this._lastSpeed = speed;
     this._pulseT += dt;
     if (this._nearMissCooldown > 0) this._nearMissCooldown -= dt;
     const diff = speedNorm(speed);

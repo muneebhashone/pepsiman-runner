@@ -211,6 +211,7 @@ export class UI {
   /** Show tutorial hint at full opacity until cleared or faded. */
   setTutorialHint(action) {
     if (!this.tutorialHint) return;
+    const dismissGen = this._tutorialHintDismissGen ?? 0;
     clearTimeout(this._tutorialHintTimer);
     clearTimeout(this._tutorialHintChainTimer);
     const same = this._tutorialHintAction === action;
@@ -238,11 +239,26 @@ export class UI {
       void this.tutorialHint.offsetWidth;
       this.tutorialHint.classList.add('pop');
     }
+    if ((this._tutorialHintDismissGen ?? 0) !== dismissGen) {
+      this.tutorialHint.classList.add('hidden');
+      this.tutorialHint.classList.remove(
+        'hold',
+        'pop',
+        'slide',
+        'jump',
+        'ready',
+        'again',
+        'fade-out'
+      );
+      return;
+    }
+    this._tutorialHintDismissed = false;
     this.tutorialHint.setAttribute('aria-hidden', 'false');
   }
 
   fadeTutorialHint() {
     if (!this.tutorialHint || this.tutorialHint.classList.contains('hidden')) return;
+    if (this._tutorialHintDismissed) return;
     this.tutorialHint.classList.remove('hold', 'pop');
     this.tutorialHint.classList.add('fade-out');
     clearTimeout(this._tutorialHintTimer);
@@ -252,7 +268,10 @@ export class UI {
 
   clearTutorialHint() {
     if (!this.tutorialHint) return;
+    this._tutorialHintDismissGen = (this._tutorialHintDismissGen ?? 0) + 1;
+    this._tutorialHintDismissed = true;
     this._tutorialHintAction = null;
+    this.tutorialHint.style.transition = 'none';
     this.tutorialHint.classList.add('hidden');
     this.tutorialHint.classList.remove(
       'hold',
@@ -265,6 +284,8 @@ export class UI {
       'again'
     );
     this.tutorialHint.setAttribute('aria-hidden', 'true');
+    void this.tutorialHint.offsetWidth;
+    this.tutorialHint.style.transition = '';
     clearTimeout(this._tutorialHintTimer);
     clearTimeout(this._tutorialHintChainTimer);
   }
@@ -321,6 +342,7 @@ export class UI {
     this._prevCombo = 1;
     this._comboPopTimer = 0;
     this._tutorialHintAction = null;
+    this._tutorialHintDismissed = false;
     this.comboWrap?.classList.remove('pop', 'hot');
     this.scoreEl?.classList.remove('pulse');
     this.clearTutorialHint();

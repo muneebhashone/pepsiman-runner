@@ -74,11 +74,11 @@ body {
 #tutorial-hint {
   position: absolute;
   left: 50%;
-  bottom: 25%;
+  top: 18%;
   transform: translateX(-50%);
   z-index: 18;
   pointer-events: none;
-  font-size: clamp(28px, 7vw, 50px);
+  font-size: clamp(22px, 4.5vw, 32px);
   font-weight: 900;
   letter-spacing: 0.1em;
   color: #ffffff;
@@ -113,7 +113,7 @@ body {
 
 #tutorial-hint.ready,
 #tutorial-hint.again {
-  font-size: clamp(22px, 5.6vw, 39px);
+  font-size: clamp(18px, 3.8vw, 26px);
   color: #ffffff;
   -webkit-text-stroke-color: rgba(0, 55, 120, 0.95);
   letter-spacing: 0.14em;
