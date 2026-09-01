@@ -105,7 +105,7 @@ export class UI {
 
   flashPickup(combo = 1) {
     if (!this.pickupFlash) return;
-    const intensity = 0.32 + Math.min(combo, 8) * 0.05;
+    const intensity = 0.12 + Math.min(combo, 8) * 0.02;
     this.pickupFlash.style.opacity = String(intensity);
     this.pickupFlash.classList.add('active');
     clearTimeout(this._pickupTimer);

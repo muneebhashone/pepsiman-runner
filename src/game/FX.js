@@ -4,6 +4,9 @@ import { COLORS } from './constants.js';
 const TRAIL_COLORS = [COLORS.pepsiBlue, COLORS.pepsiRed, COLORS.neonCyan];
 const MAX_FX_Y = 2.8;
 const STREAK_Y_MAX = 1.4;
+const MAX_NEAR_PICKUP_PARTICLES = 6;
+const NEAR_PICKUP_RADIUS = 2.8;
+const NEAR_PICKUP_RADIUS_SQ = NEAR_PICKUP_RADIUS * NEAR_PICKUP_RADIUS;
 
 export class FX {
   constructor(scene) {
@@ -13,7 +16,6 @@ export class FX {
     this.trailTimer = 0;
     this.hitFlashT = 0;
     this._tmp = new THREE.Vector3();
-    this._camDir = new THREE.Vector3();
 
     const streakGeo = new THREE.BoxGeometry(0.02, 0.02, 0.55);
     for (let i = 0; i < 40; i++) {
@@ -31,15 +33,15 @@ export class FX {
       this.streaks.push({ mesh: m, life: 0, max: 0, side: 0 });
     }
 
-    this.burstGeo = new THREE.SphereGeometry(0.1, 6, 6);
-    this.sparkGeo = new THREE.PlaneGeometry(0.1, 0.1);
-    this.dustGeo = new THREE.SphereGeometry(0.06, 5, 5);
+    this.burstGeo = new THREE.SphereGeometry(0.07, 5, 5);
+    this.sparkGeo = new THREE.PlaneGeometry(0.08, 0.08);
+    this.dustGeo = new THREE.SphereGeometry(0.05, 5, 5);
   }
 
-  _spawnParticle(mesh, vel, life, gravity = 10, spin = 0, opacity = 1) {
+  _spawnParticle(mesh, vel, life, gravity = 10, spin = 0, opacity = 1, pickup = false) {
     mesh.frustumCulled = true;
     this.scene.add(mesh);
-    this.particles.push({ mesh, vel, life, maxLife: life, gravity, spin, opacity });
+    this.particles.push({ mesh, vel, life, maxLife: life, gravity, spin, opacity, pickup });
   }
 
   _makeSparkMat(color, opacity = 1) {
@@ -57,6 +59,26 @@ export class FX {
     return Math.min(maxY, Math.max(0.05, y));
   }
 
+  _countNearPickupParticles(x, z) {
+    let n = 0;
+    for (const p of this.particles) {
+      if (!p.pickup) continue;
+      const dx = p.mesh.position.x - x;
+      const dz = p.mesh.position.z - z;
+      if (dx * dx + dz * dz < NEAR_PICKUP_RADIUS_SQ) n++;
+    }
+    return n;
+  }
+
+  /** Pickup burst anchor — always at asphalt, never torso/can height */
+  _groundPopPos(pos) {
+    return new THREE.Vector3(
+      pos.x,
+      0.1 + Math.random() * 0.05,
+      pos.z
+    );
+  }
+
   runTrail(pos, speedNorm) {
     if (speedNorm < 0.08) return;
     const rate = 0.04 - speedNorm * 0.025;
@@ -65,7 +87,7 @@ export class FX {
     this.trailTimer = 0.025 + Math.random() * 0.03;
 
     const color = TRAIL_COLORS[(Math.random() * TRAIL_COLORS.length) | 0];
-    const mat = this._makeSparkMat(color, 0.45 + speedNorm * 0.3);
+    const mat = this._makeSparkMat(color, 0.35 + speedNorm * 0.22);
     const m = new THREE.Mesh(this.sparkGeo, mat);
     m.position.set(
       pos.x + (Math.random() - 0.5) * 0.3,
@@ -104,56 +126,32 @@ export class FX {
     s.mesh.material.color.setHex(s.side > 0 ? 0x88ccff : 0xff99bb);
   }
 
-  canPop(pos, combo = 1, camera = null) {
-    const burstPos = pos.clone();
-    burstPos.y = this._clampGroundY(burstPos.y, 2.2);
+  canPop(pos, combo = 1) {
+    const budget = MAX_NEAR_PICKUP_PARTICLES - this._countNearPickupParticles(pos.x, pos.z);
+    if (budget <= 0) return;
 
-    const count = 14 + Math.min(combo, 8) * 2;
+    const count = Math.min(budget, 2 + Math.min(combo, 4));
     for (let i = 0; i < count; i++) {
       const mat = this._makeSparkMat(
         i % 3 === 0 ? COLORS.pepsiRed : i % 3 === 1 ? COLORS.pepsiBlue : 0xffffff,
-        1
+        0.65
       );
-      const m = new THREE.Mesh(this.burstGeo, mat);
-      m.position.copy(burstPos);
-      const spread = 3.5 + combo * 0.35;
-      const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * spread,
-        1.5 + Math.random() * 3.5,
-        (Math.random() - 0.5) * spread
-      );
-      this._spawnParticle(m, vel, 0.38 + Math.random() * 0.15, 7, 8, 1);
-    }
-
-    const ringMat = this._makeSparkMat(COLORS.neonCyan, 1);
-    const shock = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.38, 20), ringMat);
-    shock.rotation.x = -Math.PI / 2;
-    shock.position.copy(burstPos);
-    shock.position.y += 0.35;
-    this._spawnParticle(shock, new THREE.Vector3(0, 0.6, 0), 0.32, 0, 0, 1);
-    shock.userData.expand = true;
-
-    if (camera) {
-      const flash = new THREE.Mesh(
-        new THREE.RingGeometry(0.25, 0.5, 20),
-        this._makeSparkMat(0xffffff, 0.9)
-      );
-      flash.position.copy(burstPos);
-      flash.position.y += 0.9;
-      flash.lookAt(camera.position);
-      this._spawnParticle(flash, new THREE.Vector3(0, 0.3, 0), 0.28, 0, 0, 0.9);
-      flash.userData.expand = true;
-    }
-
-    for (let i = 0; i < 8; i++) {
-      const mat = this._makeSparkMat(i % 2 ? COLORS.pepsiRed : COLORS.pepsiBlue, 0.95);
       const m = new THREE.Mesh(this.sparkGeo, mat);
-      m.position.copy(burstPos);
-      m.position.y += 0.5;
-      const angle = (i / 8) * Math.PI * 2;
-      const vel = new THREE.Vector3(Math.cos(angle) * 4, 1.8, Math.sin(angle) * 4);
-      m.rotation.z = angle;
-      this._spawnParticle(m, vel, 0.3, 2, 10, 0.95);
+
+      const angle = (i / count) * Math.PI * 2 + (Math.random() - 0.5) * 0.3;
+      const spawn = this._groundPopPos(pos);
+      spawn.x += Math.cos(angle) * 0.06;
+      spawn.z += Math.sin(angle) * 0.06;
+      m.position.copy(spawn);
+      m.rotation.set(-Math.PI / 2 + 0.2, angle, 0);
+
+      const speed = 6.5 + combo * 0.25 + Math.random() * 1.5;
+      const vel = new THREE.Vector3(
+        Math.cos(angle) * speed,
+        0.12 + Math.random() * 0.18,
+        Math.sin(angle) * speed
+      );
+      this._spawnParticle(m, vel, 0.09 + Math.random() * 0.05, 14, 9, 0.65, true);
     }
   }
 
@@ -162,30 +160,25 @@ export class FX {
   }
 
   landDust(pos, speedNorm = 0.5) {
-    const n = 8 + Math.floor(speedNorm * 8);
+    const n = 4 + Math.floor(speedNorm * 4);
     for (let i = 0; i < n; i++) {
       const mat = new THREE.MeshBasicMaterial({
         color: i % 2 ? 0x99aabb : 0x667788,
         transparent: true,
-        opacity: 0.65,
+        opacity: 0.4,
       });
       const m = new THREE.Mesh(this.dustGeo.clone(), mat);
-      m.scale.setScalar(0.8 + Math.random() * 1.2);
+      m.scale.setScalar(0.6 + Math.random() * 0.8);
       m.position.set(pos.x + (Math.random() - 0.5) * 0.6, 0.08, pos.z + (Math.random() - 0.5) * 0.4);
+      const angle = Math.random() * Math.PI * 2;
+      const speed = 2.5 + speedNorm * 3 + Math.random() * 2;
       const vel = new THREE.Vector3(
-        (Math.random() - 0.5) * (3 + speedNorm * 4),
-        0.8 + Math.random() * 2.5,
-        (Math.random() - 0.5) * 2
+        Math.cos(angle) * speed,
+        0.5 + Math.random() * 1.2,
+        Math.sin(angle) * speed
       );
-      this._spawnParticle(m, vel, 0.38 + Math.random() * 0.12, 5, 0, 0.65);
+      this._spawnParticle(m, vel, 0.22 + Math.random() * 0.08, 6, 0, 0.4);
     }
-
-    const ringMat = this._makeSparkMat(0x88aacc, 0.35);
-    const ring = new THREE.Mesh(new THREE.RingGeometry(0.2, 0.35, 12), ringMat);
-    ring.rotation.x = -Math.PI / 2;
-    ring.position.set(pos.x, 0.05, pos.z);
-    this._spawnParticle(ring, new THREE.Vector3(0, 0.2, 0), 0.25, 0, 0, 0.35);
-    ring.userData.expand = true;
   }
 
   crashBurst(pos) {
@@ -250,10 +243,10 @@ export class FX {
       p.mesh.material.opacity = Math.max(0, lifeT * p.opacity);
 
       if (p.mesh.userData.expand) {
-        const sc = 1 + (1 - lifeT) * 2.8;
+        const sc = 1 + (1 - lifeT) * 1.2;
         p.mesh.scale.set(sc, sc, sc);
       } else {
-        p.mesh.scale.multiplyScalar(0.98);
+        p.mesh.scale.multiplyScalar(0.96);
       }
 
       if (p.life <= 0) {
