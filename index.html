@@ -17,9 +17,18 @@
       <div id="hit-flash" aria-hidden="true"></div>
       <div id="pickup-flash" aria-hidden="true"></div>
       <div id="float-layer" aria-hidden="true"></div>
+      <div id="combo-shout" aria-hidden="true"></div>
       <div id="tutorial-hint" class="hidden" aria-live="polite" aria-hidden="true"></div>
 
       <div id="hud" class="dimmed">
+        <div id="hud-fizz-wrap">
+          <div class="fizz-label">FIZZ</div>
+          <div class="fizz-track">
+            <div class="fizz-fill" id="hud-fizz-fill"></div>
+          </div>
+          <div class="fizz-rush hidden" id="hud-rush">PEPSI RUSH</div>
+        </div>
+        <div id="hud-missions" class="missions-row" aria-label="Missions"></div>
         <div class="hud-top">
           <div class="stat stat-score">
             <div class="label">Score</div>
@@ -76,7 +85,9 @@
           <div class="logo">GAME OVER</div>
           <div class="final-score" id="final-score">0</div>
           <div class="final-sub" id="final-sub">0 cans · best combo ×1</div>
-          <button class="btn" id="btn-retry" type="button">Run Again</button>
+          <div class="final-compare hidden" id="final-compare"></div>
+          <div class="final-so-close hidden" id="final-so-close">SO CLOSE!</div>
+          <button class="btn btn-retry-emphasis" id="btn-retry" type="button">ONE MORE RUN</button>
           <p class="tap-hint">Tap anywhere or Space to retry</p>
         </div>
       </div>

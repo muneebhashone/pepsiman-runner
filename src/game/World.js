@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { COLORS, WORLD, LANES, PLAYER } from './constants.js';
+import { COLORS, WORLD, LANES, PLAYER, RENDER } from './constants.js';
 
 const POOL = WORLD.poolSize ?? WORLD.segmentsAhead + WORLD.segmentsBehind;
 
@@ -88,10 +88,12 @@ export class World {
       dash: new THREE.BoxGeometry(0.12, 0.02, 3.2),
       curb: new THREE.BoxGeometry(1.2, 0.25, WORLD.segmentLength),
       rail: new THREE.BoxGeometry(0.08, 0.45, WORLD.segmentLength),
-      cone: new THREE.ConeGeometry(0.22, 0.55, 8),
-      barrel: new THREE.CylinderGeometry(0.28, 0.28, 0.7, 10),
-      lightPole: new THREE.CylinderGeometry(0.05, 0.07, 3.2, 8),
-      lightBulb: new THREE.SphereGeometry(0.18, 8, 8),
+      cone: new THREE.ConeGeometry(0.22, 0.55, 6),
+      barrel: new THREE.CylinderGeometry(0.28, 0.28, 0.7, 8),
+      lightPole: new THREE.CylinderGeometry(0.05, 0.07, 3.2, 6),
+      lightBulb: new THREE.SphereGeometry(0.18, 6, 6),
+      building: new THREE.BoxGeometry(1, 1, 1),
+      neonStrip: new THREE.BoxGeometry(1, 0.06, 0.06),
     };
 
     this._initSky();
@@ -103,7 +105,7 @@ export class World {
     this.scene.background = new THREE.Color(COLORS.sky);
     this.scene.fog = new THREE.Fog(COLORS.fog, WORLD.fogNear, WORLD.fogFar);
 
-    const skyGeo = new THREE.SphereGeometry(420, 32, 16);
+    const skyGeo = new THREE.SphereGeometry(420, 24, 12);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -137,38 +139,29 @@ export class World {
     this.sky.frustumCulled = false;
     this.scene.add(this.sky);
 
-    const hemi = new THREE.HemisphereLight(0xaabbee, 0x6a5878, 2.85);
+    const hemi = new THREE.HemisphereLight(0xaabbee, 0x6a5878, 2.2);
     this.scene.add(hemi);
     this.hemi = hemi;
 
-    const ambient = new THREE.AmbientLight(0x8899bb, 1.95);
+    const ambient = new THREE.AmbientLight(0x8899bb, 1.45);
     this.scene.add(ambient);
     this.ambient = ambient;
 
-    const sun = new THREE.DirectionalLight(0xfff4ee, 2.85);
+  // Perf budget: single directional + 512 shadow map; hero + road only cast/receive
+    const sun = new THREE.DirectionalLight(0xfff4ee, 2.1);
     sun.position.set(-8, 24, 12);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    sun.shadow.camera.near = 1;
-    sun.shadow.camera.far = 120;
-    sun.shadow.camera.left = -42;
-    sun.shadow.camera.right = 42;
-    sun.shadow.camera.top = 42;
-    sun.shadow.camera.bottom = -42;
-    sun.shadow.bias = -0.00025;
+    sun.shadow.mapSize.set(RENDER.shadowMapSize, RENDER.shadowMapSize);
+    sun.shadow.camera.near = 4;
+    sun.shadow.camera.far = 72;
+    sun.shadow.camera.left = -14;
+    sun.shadow.camera.right = 14;
+    sun.shadow.camera.top = 18;
+    sun.shadow.camera.bottom = -6;
+    sun.shadow.bias = -0.0003;
     this.scene.add(sun);
     this.scene.add(sun.target);
     this.sun = sun;
-
-    const fill = new THREE.PointLight(COLORS.pepsiBlue, 2.35, 90);
-    fill.position.set(0, 7, 6);
-    this.scene.add(fill);
-    this.fill = fill;
-
-    const rim = new THREE.PointLight(COLORS.pepsiRed, 1.55, 65);
-    rim.position.set(5, 5, -3);
-    this.scene.add(rim);
-    this.rim = rim;
   }
 
   _makeBillboard() {
@@ -228,7 +221,11 @@ export class World {
 
   _disableFrustumCull(root) {
     root.traverse((obj) => {
-      obj.frustumCulled = false;
+      if (obj.isMesh && obj.userData?.alwaysVisible) {
+        obj.frustumCulled = false;
+      } else if (obj.isMesh) {
+        obj.frustumCulled = true;
+      }
     });
   }
 
@@ -240,6 +237,7 @@ export class World {
     const road = new THREE.Mesh(this._sharedGeo.road, this.roadMat);
     road.position.y = -0.075;
     road.receiveShadow = true;
+    road.userData.alwaysVisible = true;
     road.frustumCulled = false;
     g.add(road);
 
@@ -268,27 +266,31 @@ export class World {
 
     for (const side of [-1, 1]) {
       let xOff = side * (WORLD.roadWidth / 2 + 3.8);
-      for (let row = 0; row < 2; row++) {
+      for (let row = 0; row < WORLD.buildingRows; row++) {
         let zz = -WORLD.segmentLength / 2 + 2;
         while (zz < WORLD.segmentLength / 2 - 2) {
           const w = 2.4 + rand() * 2.8;
           const d = 2.2 + rand() * 3.2;
-          const h = 8 + rand() * 20;
+          const h = 8 + rand() * 16;
           const mat = this._buildingMats[(rand() * 3) | 0];
-          const b = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+          const b = new THREE.Mesh(this._sharedGeo.building, mat);
+          b.scale.set(w, h, d);
           b.position.set(xOff + side * row * 4.8 + (rand() - 0.5) * 0.8, h / 2, zz + d / 2);
-          b.castShadow = true;
-          b.receiveShadow = true;
+          b.castShadow = false;
+          b.receiveShadow = false;
+          b.frustumCulled = true;
           g.add(b);
 
-          const stripCount = 1 + ((rand() * 2) | 0);
+          const stripCount = 1 + ((rand() * 1.5) | 0);
           for (let si = 0; si < stripCount; si++) {
             const stripY = Math.min(5.5, 2 + rand() * Math.min(3.5, h * 0.28));
             const neon = new THREE.Mesh(
-              new THREE.BoxGeometry(w * 0.55, 0.06, 0.06),
+              this._sharedGeo.neonStrip,
               this._neonMats[(rand() * 4) | 0]
             );
+            neon.scale.set(w * 0.55, 1, 1);
             neon.position.set(b.position.x, stripY, b.position.z + side * d * 0.51);
+            neon.frustumCulled = true;
             g.add(neon);
           }
           zz += d + 1.2 + rand() * 2.5;
@@ -304,7 +306,7 @@ export class World {
       g.add(board);
     }
 
-    const propCount = 2 + ((rand() * 4) | 0);
+    const propCount = 1 + ((rand() * 2) | 0);
     for (let p = 0; p < propCount; p++) {
       const side = rand() > 0.5 ? 1 : -1;
       const px = side * (WORLD.roadWidth / 2 + 0.9 + rand() * 0.6);
@@ -312,19 +314,23 @@ export class World {
       if (rand() > 0.55) {
         const cone = new THREE.Mesh(this._sharedGeo.cone, this._propMats.cone);
         cone.position.set(px, 0.28, pz);
-        cone.castShadow = true;
+        cone.castShadow = false;
+        cone.frustumCulled = true;
         g.add(cone);
       } else if (rand() > 0.5) {
         const barrel = new THREE.Mesh(this._sharedGeo.barrel, this._propMats.barrel);
         barrel.position.set(px, 0.35, pz);
-        barrel.castShadow = true;
+        barrel.castShadow = false;
+        barrel.frustumCulled = true;
         g.add(barrel);
       } else {
         const pole = new THREE.Mesh(this._sharedGeo.lightPole, this.sidewalkMat);
         pole.position.set(px, 1.6, pz);
+        pole.frustumCulled = true;
         g.add(pole);
         const bulb = new THREE.Mesh(this._sharedGeo.lightBulb, this._propMats.light);
         bulb.position.set(px, 3.25, pz);
+        bulb.frustumCulled = true;
         g.add(bulb);
       }
     }
@@ -445,24 +451,16 @@ export class World {
     }
     this._ensureSegmentCoverage(playerZ);
 
-    if (this.fill) {
-      this.fill.position.set(0, 7, playerZ + 8);
-      this.fill.intensity = 2.05 + this.speedNorm * 0.45;
-    }
-    if (this.rim) {
-      this.rim.position.set(0, 5, playerZ - 4);
-      this.rim.intensity = 1.65 + this.speedNorm * 0.35;
-    }
     if (this.ambient) {
-      this.ambient.intensity = 1.82 + this.speedNorm * 0.18;
+      this.ambient.intensity = 1.35 + this.speedNorm * 0.12;
     }
     if (this.hemi) {
-      this.hemi.intensity = 2.75 + this.speedNorm * 0.14;
+      this.hemi.intensity = 2.1 + this.speedNorm * 0.1;
     }
     if (this.sun) {
-      this.sun.position.set(-8, 24, playerZ + 12);
-      this.sun.intensity = 2.75 + this.speedNorm * 0.2;
-      this.sun.shadow.camera.far = 140;
+      this.sun.position.set(-8, 22, playerZ + 10);
+      this.sun.intensity = 2.05 + this.speedNorm * 0.15;
+      this.sun.shadow.camera.far = 68;
       this.sun.target.position.set(0, 0, playerZ);
       this.sun.target.updateMatrixWorld();
     }
@@ -479,6 +477,20 @@ export class World {
     }
     if (this.sky?.material?.uniforms) {
       this.sky.material.uniforms.uScroll.value = this.scrollT;
+    }
+  }
+
+  /** Speed-zone palette tick — subtle fog shift, no camera sickness */
+  setZoneLevel(level = 0) {
+    const fog = this.scene.fog;
+    if (!fog) return;
+    const t = Math.min(1, level);
+    fog.near = WORLD.fogNear + t * 4;
+    fog.far = WORLD.fogFar + t * 18;
+    if (this.sky?.material?.uniforms?.uGlow) {
+      this.sky.material.uniforms.uGlow.value.setHex(
+        t > 0.5 ? COLORS.pepsiRed : COLORS.pepsiBlue
+      );
     }
   }
 

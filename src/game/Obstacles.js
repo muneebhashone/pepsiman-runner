@@ -1,13 +1,15 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
 import { COLORS, LANES, SPAWN, WORLD, PLAYER, NEAR_MISS } from './constants.js';
 
-const TYPES = ['barrier', 'rail', 'sign', 'truck'];
+const TYPES = ['barrier', 'rail', 'sign', 'truck', 'barrel', 'pepsiWide', 'mover', 'ramp'];
 const WARMUP_TYPES = ['rail', 'sign'];
+const BLOCK_TYPES = ['truck', 'pepsiWide', 'mover'];
 const POOL_SIZE = 48;
 
 function actionMode(type) {
   if (type === 'rail') return 'slide';
-  if (type === 'truck') return 'block';
+  if (type === 'ramp') return 'ramp';
+  if (BLOCK_TYPES.includes(type)) return 'block';
   return 'jump';
 }
 
@@ -146,6 +148,10 @@ export class Obstacles {
       sign: new THREE.BoxGeometry(1.85, 1.05, 0.5),
       truckCab: new THREE.BoxGeometry(2.05, 1.75, 1.55),
       truckBody: new THREE.BoxGeometry(2.15, 2.25, 3.6),
+      barrelRoll: new THREE.CylinderGeometry(0.42, 0.42, 1.1, 10),
+      wideBody: new THREE.BoxGeometry(3.2, 2.1, 1.2),
+      ramp: new THREE.BoxGeometry(2.2, 0.35, 2.4),
+      wheel: new THREE.CylinderGeometry(0.32, 0.32, 0.22, 8),
       tel: new THREE.PlaneGeometry(SPAWN.telegraphStripWidth, SPAWN.telegraphStripLength),
       telOuter: new THREE.PlaneGeometry(
         SPAWN.telegraphStripWidth * 1.18,
@@ -202,6 +208,28 @@ export class Obstacles {
         metalness: 0.5,
         roughness: 0.35,
       }),
+      barrel: new THREE.MeshStandardMaterial({
+        color: COLORS.pepsiRed,
+        emissive: COLORS.pepsiRed,
+        emissiveIntensity: 0.35,
+        metalness: 0.45,
+        roughness: 0.35,
+      }),
+      wideTruck: new THREE.MeshStandardMaterial({
+        color: COLORS.truckTrailer,
+        emissive: COLORS.pepsiRed,
+        emissiveIntensity: 0.28,
+        metalness: 0.5,
+        roughness: 0.32,
+      }),
+      ramp: new THREE.MeshStandardMaterial({
+        color: COLORS.neonCyan,
+        emissive: COLORS.neonCyan,
+        emissiveIntensity: 0.55,
+        metalness: 0.35,
+        roughness: 0.28,
+      }),
+      wheel: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }),
       stripe: new THREE.MeshStandardMaterial({ color: 0x111111 }),
       railStripe: new THREE.MeshStandardMaterial({
         color: 0xffcc00,
@@ -525,19 +553,24 @@ export class Obstacles {
     }
   }
 
-  /** Force jump/slide variety within rolling window */
+  /** Force jump/slide/block variety within rolling window */
   _varietyType(rng, playerZ, speed) {
     const modes = this._recentModes();
     const needSlide = !modes.has('slide');
     const needJump = !modes.has('jump');
-    if (needSlide && needJump) return rng() < 0.5 ? 'rail' : rng() < 0.6 ? 'sign' : 'barrier';
+    const needBlock = !modes.has('block');
+    if (needSlide && needJump) return rng() < 0.5 ? 'rail' : rng() < 0.6 ? 'sign' : 'barrel';
     if (needSlide) return 'rail';
-    if (needJump) return rng() < 0.55 ? 'sign' : 'barrier';
+    if (needJump) return rng() < 0.55 ? 'sign' : 'barrel';
+    if (needBlock) return rng() < 0.45 ? 'truck' : rng() < 0.7 ? 'pepsiWide' : 'mover';
     const roll = rng();
-    if (roll < 0.28) return 'rail';
-    if (roll < 0.52) return 'sign';
-    if (roll < 0.72) return 'barrier';
-    return 'truck';
+    if (roll < 0.2) return 'rail';
+    if (roll < 0.38) return 'sign';
+    if (roll < 0.52) return 'barrel';
+    if (roll < 0.66) return 'barrier';
+    if (roll < 0.8) return 'truck';
+    if (roll < 0.9) return 'pepsiWide';
+    return rng() < 0.6 ? 'mover' : 'ramp';
   }
 
   /** Lanes without an obstacle near z (for collectible placement). */
@@ -690,6 +723,72 @@ export class Obstacles {
       base.position.y = 0.07;
       g.add(base);
       hit = { w: 1.85, h: 1.1, d: 0.45, y: 0.95, mode: 'jump' };
+    } else if (type === 'barrel') {
+      const barrel = new THREE.Mesh(this._geo.barrelRoll, this._mats.barrel);
+      barrel.rotation.z = Math.PI / 2;
+      barrel.position.y = 0.42;
+      barrel.castShadow = false;
+      g.add(barrel);
+      const band = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.44, 0.44, 0.12, 10),
+        this._mats.railStripe
+      );
+      band.rotation.z = Math.PI / 2;
+      band.position.y = 0.42;
+      g.add(band);
+      hit = { w: 1.05, h: 0.9, d: 1.05, y: 0.42, mode: 'jump' };
+    } else if (type === 'pepsiWide') {
+      const body = new THREE.Mesh(this._geo.wideBody, this._mats.wideTruck);
+      body.position.set(0, 1.15, 0);
+      body.castShadow = false;
+      g.add(body);
+      const logo = new THREE.Mesh(
+        new THREE.BoxGeometry(1.8, 0.9, 0.08),
+        this._mats.truckBody
+      );
+      logo.position.set(0, 1.2, 0.62);
+      g.add(logo);
+      for (const [wx, wz] of [
+        [-1.2, 0.35],
+        [1.2, 0.35],
+        [-1.2, -0.35],
+        [1.2, -0.35],
+      ]) {
+        const w = new THREE.Mesh(this._geo.wheel, this._mats.wheel);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(wx, 0.32, wz);
+        g.add(w);
+      }
+      hit = { w: 2.4, h: 2.0, d: 1.15, y: 1.15, mode: 'block' };
+    } else if (type === 'mover') {
+      const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
+      cab.position.set(0, 1.15, 0.8);
+      g.add(cab);
+      const body = new THREE.Mesh(this._geo.truckBody, this._mats.truckBody);
+      body.position.set(0, 1.35, -0.35);
+      g.add(body);
+      for (const [wx, wz] of [
+        [-0.85, 0.9],
+        [0.85, 0.9],
+        [-0.85, -1.1],
+        [0.85, -1.1],
+      ]) {
+        const w = new THREE.Mesh(this._geo.wheel, this._mats.wheel);
+        w.rotation.z = Math.PI / 2;
+        w.position.set(wx, 0.32, wz);
+        g.add(w);
+      }
+      hit = { w: 1.65, h: 1.95, d: 2.35, y: 1.15, mode: 'block' };
+      g.userData.mover = true;
+    } else if (type === 'ramp') {
+      const ramp = new THREE.Mesh(this._geo.ramp, this._mats.ramp);
+      ramp.position.set(0, 0.18, 0);
+      ramp.rotation.x = -0.22;
+      g.add(ramp);
+      const lip = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.08, 0.35), this._mats.signFrame);
+      lip.position.set(0, 0.32, 1.1);
+      g.add(lip);
+      hit = { w: 2.0, h: 0.35, d: 2.2, y: 0.2, mode: 'ramp' };
     } else {
       // Boxy delivery truck — lane change only; no cylinder silhouettes
       const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
@@ -700,8 +799,8 @@ export class Obstacles {
       body.position.set(0, 1.35, -0.55);
       body.castShadow = true;
       g.add(body);
-      const wheelGeo = new THREE.CylinderGeometry(0.32, 0.32, 0.22, 10);
-      const wheelMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 });
+      const wheelGeo = this._geo.wheel;
+      const wheelMat = this._mats.wheel;
       for (const [wx, wz] of [
         [-0.85, 1.2],
         [0.85, 1.2],
@@ -794,6 +893,8 @@ export class Obstacles {
       shadow,
       chevrons,
       telColors: colors,
+      moverPhase: type === 'mover' ? Math.random() * Math.PI * 2 : 0,
+      moverLane: lane,
     };
     this.items.push(item);
     return item;
@@ -841,6 +942,19 @@ export class Obstacles {
     const tutorial = this._inTutorial(playerZ);
     this._pruneSpawnHistory(playerZ, speed);
     let maxSpawnZ = z;
+
+    if (
+      !tutorial &&
+      !warmup &&
+      this.patternsSpawned > SPAWN.warmupPatternCount + 2 &&
+      rng() < 0.26
+    ) {
+      const specialZ = this._spawnSpecialPattern(z, playerZ, speed);
+      if (specialZ != null) {
+        this.patternsSpawned += 1;
+        return specialZ;
+      }
+    }
 
     if (
       !tutorial &&
@@ -915,6 +1029,41 @@ export class Obstacles {
     }
     this.patternsSpawned += 1;
     return maxSpawnZ;
+  }
+
+  /** Readable pattern kit: gate, combo verbs, barrel timing, ramp */
+  _spawnSpecialPattern(z, playerZ, speed) {
+    const rng = this._rng;
+    if (this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers) return null;
+    const blocked = pickLanes(1, rng)[0];
+    const roll = rng();
+    let maxZ = z;
+
+    const place = (type, lane, zz) => {
+      const p = this._acquire(type, lane, zz);
+      if (p) {
+        maxZ = Math.max(maxZ, zz);
+        this._recordSpawn(zz, type);
+      }
+    };
+
+    if (roll < 0.26) {
+      place('rail', blocked, z);
+      place('barrier', blocked, z + 0.2);
+    } else if (roll < 0.5) {
+      place('sign', blocked, z);
+      place('rail', blocked, z + 5.8);
+    } else if (roll < 0.72) {
+      place('rail', blocked, z);
+      place('sign', blocked, z + 5.8);
+    } else if (roll < 0.86) {
+      place('barrel', blocked, z);
+    } else if (roll < 0.93) {
+      place('mover', blocked, z);
+    } else {
+      place('ramp', blocked, z);
+    }
+    return maxZ;
   }
 
   _gapForSpeed(speed, playerZ) {
@@ -1009,11 +1158,23 @@ export class Obstacles {
 
       const dist = it.z - playerZ;
       const inWarn = dist > 0 && dist <= leadDist + 2;
-      const laneX = LANES[it.lane];
+      let laneX = LANES[it.lane];
       const colors = it.telColors;
 
-      // Keep mesh locked to lane X every frame (guards against stuck x=0)
-      it.mesh.position.set(laneX, 0, it.z);
+      // Keep mesh locked to lane X every frame (movers drift across lanes)
+      if (it.type === 'mover') {
+        it.moverPhase += dt * 2.4;
+        const shift = Math.sin(it.moverPhase) * 2.15;
+        const lx = THREE.MathUtils.clamp(LANES[it.lane] + shift, LANES[0], LANES[2]);
+        it.mesh.position.set(lx, 0, it.z);
+        laneX = lx;
+      } else {
+        it.mesh.position.set(laneX, 0, it.z);
+      }
+
+      if (it.type === 'barrel') {
+        it.mesh.children[0].rotation.x += dt * 7;
+      }
 
       if (dist > 0 && speed > 0.1) {
         const ttc = dist / speed;
@@ -1091,6 +1252,18 @@ export class Obstacles {
     }
   }
 
+  checkRamp(playerBox, playerLane) {
+    for (const it of this.items) {
+      if (!it.alive || it.type !== 'ramp') continue;
+      const hx = it.mesh.position.x;
+      const dx = Math.abs(playerBox.x - hx);
+      const dz = Math.abs(playerBox.z - it.z);
+      if (it.lane !== playerLane) continue;
+      if (dx < 1.05 && dz < 1.6 && playerBox.z < it.z + 0.8) return true;
+    }
+    return false;
+  }
+
   collide(playerBox, jumping, sliding) {
     const shrink = SPAWN.hitboxShrink;
     const pw = playerBox.w * shrink;
@@ -1122,6 +1295,8 @@ export class Obstacles {
         }
         return it;
       }
+
+      if (it.hit.mode === 'ramp') continue;
 
       if (it.hit.mode === 'jump') {
         const clearY = this._jumpClearY(it.type);

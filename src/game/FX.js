@@ -1,7 +1,9 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
 import { COLORS } from './constants.js';
 
-const TRAIL_COLORS = [COLORS.pepsiBlue, COLORS.pepsiRed, COLORS.neonCyan];
+const MAX_PARTICLES = 48;
+const MAX_STREAKS_ACTIVE = 24;
+const RUSH_TRAIL = [COLORS.pepsiRed, COLORS.pepsiBlue];
 const MAX_FX_Y = 2.8;
 const STREAK_Y_MAX = 1.4;
 const MAX_NEAR_PICKUP_PARTICLES = 6;
@@ -14,8 +16,7 @@ export class FX {
     this.particles = [];
     this.streaks = [];
     this.trailTimer = 0;
-    this.hitFlashT = 0;
-    this._tmp = new THREE.Vector3();
+    this.rushActive = false;
 
     const streakGeo = new THREE.BoxGeometry(0.02, 0.02, 0.55);
     for (let i = 0; i < 40; i++) {
@@ -38,7 +39,12 @@ export class FX {
     this.dustGeo = new THREE.SphereGeometry(0.05, 5, 5);
   }
 
+  setRushActive(active) {
+    this.rushActive = active;
+  }
+
   _spawnParticle(mesh, vel, life, gravity = 10, spin = 0, opacity = 1, pickup = false) {
+    if (this.particles.length >= MAX_PARTICLES) return;
     mesh.frustumCulled = true;
     this.scene.add(mesh);
     this.particles.push({ mesh, vel, life, maxLife: life, gravity, spin, opacity, pickup });
@@ -81,12 +87,13 @@ export class FX {
 
   runTrail(pos, speedNorm) {
     if (speedNorm < 0.08) return;
+    const colors = this.rushActive ? RUSH_TRAIL : [COLORS.pepsiBlue, COLORS.pepsiRed, COLORS.neonCyan];
     const rate = 0.04 - speedNorm * 0.025;
     this.trailTimer -= rate;
     if (this.trailTimer > 0) return;
     this.trailTimer = 0.025 + Math.random() * 0.03;
 
-    const color = TRAIL_COLORS[(Math.random() * TRAIL_COLORS.length) | 0];
+    const color = colors[(Math.random() * colors.length) | 0];
     const mat = this._makeSparkMat(color, 0.35 + speedNorm * 0.22);
     const m = new THREE.Mesh(this.sparkGeo, mat);
     m.position.set(
@@ -183,7 +190,7 @@ export class FX {
 
   crashBurst(pos, heavy = false) {
     this.hitFlashT = heavy ? 0.42 : 0.35;
-    const count = heavy ? 38 : 28;
+    const count = heavy ? 22 : 16;
     for (let i = 0; i < count; i++) {
       const mat = new THREE.MeshBasicMaterial({
         color: i % 3 === 0 ? COLORS.pepsiRed : i % 3 === 1 ? COLORS.pepsiBlue : 0xffffff,
@@ -221,7 +228,7 @@ export class FX {
   }
 
   nearMissSpark(pos) {
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 8; i++) {
       const mat = this._makeSparkMat(i % 2 ? COLORS.neonCyan : 0xffffff, 0.5);
       const m = new THREE.Mesh(this.sparkGeo, mat);
       m.position.set(
@@ -294,6 +301,7 @@ export class FX {
   }
 
   reset() {
+    this.rushActive = false;
     for (const p of this.particles) {
       this.scene.remove(p.mesh);
       p.mesh.geometry.dispose?.();

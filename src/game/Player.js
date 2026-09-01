@@ -50,6 +50,7 @@ export class Player {
     this.laneDir = 0;
     this.runPhase = 0;
     this.alive = true;
+    this.ghost = false;
     this.justLanded = false;
     this.lean = 0;
     this.coyoteT = 0;
@@ -229,6 +230,20 @@ export class Player {
     boot.castShadow = true;
     g.add(boot);
     return g;
+  }
+
+  setGhost(active) {
+    this.ghost = active;
+    const opacity = active ? 0.72 : 1;
+    this.root.traverse((child) => {
+      if (child.isMesh && child.material) {
+        child.material.transparent = active;
+        child.material.opacity = opacity;
+        if (active) {
+          child.material.emissiveIntensity = Math.min(1, (child.material.emissiveIntensity || 0.2) + 0.35);
+        }
+      }
+    });
   }
 
   isLaneSwitching() {
@@ -421,6 +436,7 @@ export class Player {
     this.laneT = 1;
     this.laneDir = 0;
     this.alive = true;
+    this.ghost = false;
     this.lean = 0;
     this.coyoteT = PLAYER.coyoteTime;
     this.wasGrounded = true;
@@ -433,6 +449,7 @@ export class Player {
     gsap.killTweensOf(this.legR.rotation);
     gsap.killTweensOf(this.head.rotation);
     this.root.scale.set(HERO_SCALE, HERO_SCALE, HERO_SCALE);
+    this.setGhost(false);
     this.root.rotation.set(0, 0, 0);
     this.head.rotation.set(0, 0, 0);
     this.torso.rotation.set(0, 0, 0);

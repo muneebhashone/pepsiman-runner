@@ -67,7 +67,7 @@ export const WORLD = {
   segmentLength: 40,
   segmentsAhead: 10,
   segmentsBehind: 2,
-  buildingRows: 2,
+  buildingRows: 1,
   fogNear: 42,
   fogFar: 175,
   roadWidth: 8.5,
@@ -143,60 +143,88 @@ export const SPAWN = {
 export const SCORE = {
   perMeter: 0.65,
   canBase: 25,
-  comboMultStep: 0.12,
-  comboMax: 6,
-  comboDecay: 1.6,
+  comboMultStep: 0.18,
+  comboMax: 12,
+  comboDecay: 1.85,
   /** Min seconds between pickups to advance combo */
   comboSpacing: 0.28,
+  /** Combo shout thresholds */
+  shoutNice: 3,
+  shoutWow: 5,
+  shoutPerfect: 8,
 };
 
 export const NEAR_MISS = {
   /** Max lateral miss distance (same lane, tight squeeze) */
-  proximityX: 0.62,
+  proximityX: 0.52,
   /** Z band behind obstacle front where near-miss registers */
-  proximityZ: 2.4,
-  scoreBonus: 12,
-  cooldown: 0.4,
+  proximityZ: 2.1,
+  scoreBonus: 18,
+  cooldown: 0.55,
+  hitStop: 0.045,
+};
+
+export const FIZZ = {
+  max: 1,
+  emptyAfterRush: 0,
+  perCan: 0.045,
+  perCanStreak: 0.008,
+  streakWindow: 1.4,
+  streakCap: 0.04,
+  perNearMiss: 0.14,
+  rushDuration: 4,
+  speedBoost: 1.12,
+  magnetAllLanes: true,
+};
+
+export const MISSIONS = {
+  perRun: 3,
+};
+
+export const ZONE = {
+  /** Speed-band palette / FOV tick every ~20s */
+  intervalSec: 20,
+  fovTick: 1.5,
 };
 
 export const DEATH = {
   hitStopDuration: 0.1,
-  fovPunch: 12,
-  shakeStrength: 0.62,
-  shakeDuration: 0.42,
+  fovPunch: 8,
+  shakeStrength: 0.45,
+  shakeDuration: 0.28,
 };
 
 export const CAMERA = {
   offset: { x: 0, y: 5.8, z: -11.5 },
   lookAhead: 16,
-  lookAheadSpeedBoost: 9,
+  lookAheadSpeedBoost: 2.5,
   lookHeight: 0.85,
-  /** Extra pull-back / look-ahead while airborne */
-  jumpPullback: 2.4,
-  jumpLookBoost: 5.5,
-  /** Exponential lag — lower = snappier, higher = floatier */
-  lag: 0.1,
-  lagY: 0.14,
-  /** Snappier X follow during lane switch (lower = faster) */
-  lagLaneSwitch: 0.045,
-  /** Hard clamp: camera X stays within playerX ± this */
-  maxLateralOff: 0.72,
-  /** Tighter clamp during fast lane switches — stay nearer road center */
-  maxLateralOffLaneSwitch: 0.48,
+  /** Minimal pull-back while airborne — horizon stays stable */
+  jumpPullback: 0.6,
+  jumpLookBoost: 1.2,
+  /** Dolly-on-rails: tiny X follow fraction of player offset from center */
+  lateralFollow: 0.06,
+  /** Exponential lag — lower = snappier */
+  lag: 0.08,
+  lagY: 0.12,
+  /** Hard clamp: camera X within playerX ± this (tight — road center anchor) */
+  maxLateralOff: 0.35,
   /** Vertical bounds relative to player */
   minYOffset: 6.8,
-  maxYOffset: 10.2,
-  /** Damp lean-driven lateral lead (0 = none) */
-  lateralLeadScale: 0.08,
+  maxYOffset: 9.8,
+  /** No lean-driven camera hunt */
+  lateralLeadScale: 0,
   fovBase: 58,
-  fovSpeedBoost: 6,
-  fovPunch: 6,
-  fovPunchDecay: 16,
-  landShake: 0.14,
-  landShakeDuration: 0.24,
+  fovSpeedBoost: 2.5,
+  fovPunch: 0,
+  fovPunchDecay: 20,
+  landShake: 0.03,
+  landShakeDuration: 0.12,
 };
 
 export const RENDER = {
-  maxPixelRatio: 2,
-  shadowMapSize: 2048,
+  maxPixelRatio: 1.25,
+  maxPixelRatioLow: 1,
+  shadowMapSize: 512,
+  /** Perf budget: hemi + ambient + 1 directional, 512 shadows, frustum-culled props */
 };

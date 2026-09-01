@@ -30,6 +30,7 @@ export class Collectibles {
     this._laneCursor = 0;
     this.magnetRange = 1.2;
     this.magnetRangeMax = 1.6;
+    this.rushActive = false;
 
     this.canGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.52, 14);
     this.canMat = new THREE.MeshStandardMaterial({
@@ -208,7 +209,25 @@ export class Collectibles {
     }
   }
 
-  _seedStarterCans() {
+  setRushActive(active) {
+    this.rushActive = active;
+  }
+
+  /** Snake cans through a jump arc or slide gutter — greed is a choice */
+  spawnGreedTrail(z, lane, verb = 'jump') {
+    const len = 5 + ((Math.random() * 2) | 0);
+    const spacing = 3.6;
+    for (let i = 0; i < len; i++) {
+      const lz = z + i * spacing;
+      const item = this._acquire(lane, lz);
+      if (!item) continue;
+      const t = i / (len - 1);
+      let y = CAN_FLOAT_Y;
+      if (verb === 'jump') y = 0.9 + Math.sin(t * Math.PI) * 2.1;
+      else if (verb === 'slide') y = 0.55 + (1 - t) * 0.25;
+      item.mesh.position.y = y;
+    }
+  }
     const startZ = 10;
     // Starter cans across all three lanes, not center-only
     for (let i = 0; i < SPAWN.starterCanCount; i++) {
@@ -272,8 +291,14 @@ export class Collectibles {
       const dx = Math.abs(playerX - laneX);
       const dz = Math.abs(playerZ - mesh.position.z);
       const dist = Math.hypot(dx, dz);
-      const inLane = sameLane(playerLane, it.lane, dx);
-      const pullStrength = inWarmup ? 0.32 : 0.2 + diff * 0.12;
+      const inLane = this.rushActive
+        ? dx < LANE_PICKUP_DX * 2.8
+        : sameLane(playerLane, it.lane, dx);
+      const pullStrength = this.rushActive
+        ? 0.45
+        : inWarmup
+          ? 0.32
+          : 0.2 + diff * 0.12;
 
       // Magnet only affects cans in the player's current lane
       if (inLane && dist < magnet && dist > 0.01) {
@@ -342,7 +367,9 @@ export class Collectibles {
       const dx = Math.abs(playerBox.x - mx);
       const dz = Math.abs(playerBox.z - mz);
       const dy = Math.abs(playerBox.y + 0.5 - my);
-      const inLane = sameLane(playerLane, it.lane, dx);
+      const inLane = this.rushActive
+        ? dx < LANE_PICKUP_DX * 2.8
+        : sameLane(playerLane, it.lane, dx);
       const trackReach = dz < 1.45;
       const heightReach = dy < 1.5;
       const dist2d = Math.hypot(dx, dz);
@@ -385,6 +412,7 @@ export class Collectibles {
     this.nextZ = 14;
     this.bobT = 0;
     this._laneCursor = 0;
+    this.rushActive = false;
     this._seedStarterCans();
   }
 }
