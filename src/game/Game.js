@@ -45,6 +45,9 @@ export class Game {
     this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 200);
 
     this.input = new Input(window);
+    this.input.setActionCallback((action) => {
+      if (this.state === 'playing') this.obstacles.onTutorialInputConsumed(action);
+    });
     this.input.attach();
     this.rig = new CameraRig(this.camera);
     this.player = new Player(this.scene);
@@ -268,21 +271,17 @@ export class Game {
         }
       }
       if (inp.jump) {
+        this.obstacles.onTutorialInputConsumed('jump');
         const jumped = this.player.tryJump();
         if (jumped) {
           this.audio.jump();
           this.rig.punchFov(2.8);
         }
-        if (jumped || this.player.jumping) {
-          this.obstacles.onTutorialCorrectAction('jump');
-        }
       }
       if (inp.slide) {
+        this.obstacles.onTutorialInputConsumed('slide');
         const slid = this.player.trySlide();
         if (slid) this.audio.slide();
-        if (slid || this.player.sliding) {
-          this.obstacles.onTutorialCorrectAction('slide');
-        }
       }
 
       this.player.speed = Math.min(

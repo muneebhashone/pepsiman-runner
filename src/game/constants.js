@@ -116,8 +116,8 @@ export const SPAWN = {
   telegraphMinAlpha: 0.42,
   /** Opacity ramps to full only in the last N seconds before hazard */
   telegraphRampSec: 0.35,
-  /** Verb hint full-opacity dwell before fade (seconds) */
-  tutorialHintVerbVisibleSec: 1.8,
+  /** Verb hint full-opacity dwell before fade (seconds) — real-time from verb show */
+  tutorialHintVerbVisibleSec: 1.6,
   /** Verb hint fade-out duration (seconds) */
   tutorialHintVerbFadeSec: 0.35,
   /** GET READY real-time hold before first verb (seconds) */
