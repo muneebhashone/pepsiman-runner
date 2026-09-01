@@ -21,8 +21,8 @@ export const COLORS = {
   canTop: 0xc0c0c0,
   telegraph: 0xe32934,
   telegraphGlow: 0xf25560,
-  telegraphSlide: 0x00e5ff,
-  telegraphSlideGlow: 0x66f0ff,
+  telegraphSlide: 0xff6600,
+  telegraphSlideGlow: 0xff2d95,
   truckCab: 0x2255aa,
   truckTrailer: 0xe32934,
   barrier: 0xffaa00,
@@ -93,6 +93,8 @@ export const SPAWN = {
   telegraphReactionMargin: 8,
   telegraphStripLength: 8,
   telegraphStripWidth: 2.1,
+  /** World-Z gap between strip end and obstacle front */
+  telegraphObstacleGap: 1.5,
   telegraphAhead: 14,
   telegraphChevronCount: 10,
   /** Minimum telegraph opacity at far edge of warn zone */
