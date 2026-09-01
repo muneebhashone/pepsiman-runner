@@ -45,25 +45,45 @@ export class AudioSys {
     const g = this.ctx.createGain();
     const f = this.ctx.createBiquadFilter();
     f.type = 'bandpass';
-    f.frequency.setValueAtTime(320, t);
-    f.frequency.exponentialRampToValueAtTime(2200, t + 0.1);
-    f.Q.value = 3;
+    f.frequency.setValueAtTime(280, t);
+    f.frequency.exponentialRampToValueAtTime(2600, t + 0.08);
+    f.Q.value = 4;
     osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(140, t);
-    osc.frequency.exponentialRampToValueAtTime(55, t + 0.2);
-    this._env(g, 0.008, 0.04, 0.35, 0.14, 0.24);
+    osc.frequency.setValueAtTime(160, t);
+    osc.frequency.exponentialRampToValueAtTime(48, t + 0.16);
+    this._env(g, 0.006, 0.03, 0.4, 0.12, 0.38);
+
+    // noise air layer
+    const bufLen = Math.floor(this.ctx.sampleRate * 0.14);
+    const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
+    const ch = buf.getChannelData(0);
+    for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+    const noise = this.ctx.createBufferSource();
+    noise.buffer = buf;
+    const nf = this.ctx.createBiquadFilter();
+    nf.type = 'highpass';
+    nf.frequency.value = 800;
+    const ng = this.ctx.createGain();
+    this._env(ng, 0.004, 0.02, 0.3, 0.1, 0.18);
+
     const p = this.ctx.createStereoPanner?.();
     osc.connect(f);
     f.connect(g);
+    noise.connect(nf);
+    nf.connect(ng);
     if (p) {
       p.pan.value = Math.max(-1, Math.min(1, pan));
       g.connect(p);
+      ng.connect(p);
       p.connect(this.master);
     } else {
       g.connect(this.master);
+      ng.connect(this.master);
     }
     osc.start(t);
-    osc.stop(t + 0.28);
+    osc.stop(t + 0.22);
+    noise.start(t);
+    noise.stop(t + 0.18);
   }
 
   jump() {
@@ -72,13 +92,31 @@ export class AudioSys {
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     osc.type = 'triangle';
-    osc.frequency.setValueAtTime(200, t);
-    osc.frequency.exponentialRampToValueAtTime(580, t + 0.1);
-    this._env(g, 0.004, 0.05, 0.28, 0.1, 0.22);
+    osc.frequency.setValueAtTime(180, t);
+    osc.frequency.exponentialRampToValueAtTime(680, t + 0.09);
+    this._env(g, 0.003, 0.04, 0.32, 0.09, 0.32);
     osc.connect(g);
     g.connect(this.master);
     osc.start(t);
-    osc.stop(t + 0.22);
+    osc.stop(t + 0.2);
+
+    // upward whoosh layer
+    const wOsc = this.ctx.createOscillator();
+    const wg = this.ctx.createGain();
+    const wf = this.ctx.createBiquadFilter();
+    wf.type = 'bandpass';
+    wf.frequency.setValueAtTime(400, t);
+    wf.frequency.exponentialRampToValueAtTime(1800, t + 0.1);
+    wf.Q.value = 2;
+    wOsc.type = 'sine';
+    wOsc.frequency.setValueAtTime(300, t);
+    wOsc.frequency.exponentialRampToValueAtTime(900, t + 0.1);
+    this._env(wg, 0.004, 0.03, 0.25, 0.08, 0.16);
+    wOsc.connect(wf);
+    wf.connect(wg);
+    wg.connect(this.master);
+    wOsc.start(t);
+    wOsc.stop(t + 0.16);
   }
 
   slide() {
@@ -140,20 +178,33 @@ export class AudioSys {
   canSparkle(combo = 1) {
     if (!this._started || !this.enabled) return;
     const t = this._t();
-    const base = 480 + Math.min(combo, 8) * 48;
-    const notes = [1, 1.25, 1.5];
+
+    // percussive pop
+    const popOsc = this.ctx.createOscillator();
+    const popG = this.ctx.createGain();
+    popOsc.type = 'sine';
+    popOsc.frequency.setValueAtTime(880 + combo * 30, t);
+    popOsc.frequency.exponentialRampToValueAtTime(220, t + 0.06);
+    this._env(popG, 0.001, 0.02, 0.15, 0.05, 0.28);
+    popOsc.connect(popG);
+    popG.connect(this.master);
+    popOsc.start(t);
+    popOsc.stop(t + 0.1);
+
+    const base = 520 + Math.min(combo, 8) * 55;
+    const notes = [1, 1.26, 1.5, 2];
     for (let i = 0; i < notes.length; i++) {
       const osc = this.ctx.createOscillator();
       const g = this.ctx.createGain();
-      osc.type = i === 0 ? 'sine' : 'triangle';
+      osc.type = i < 2 ? 'sine' : 'triangle';
       const freq = base * notes[i];
-      osc.frequency.setValueAtTime(freq, t + i * 0.025);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.6, t + i * 0.025 + 0.09);
-      this._env(g, 0.002, 0.03, 0.25, 0.07, 0.17 - i * 0.04);
+      osc.frequency.setValueAtTime(freq, t + i * 0.022);
+      osc.frequency.exponentialRampToValueAtTime(freq * 1.7, t + i * 0.022 + 0.1);
+      this._env(g, 0.002, 0.025, 0.28, 0.06, 0.2 - i * 0.035);
       osc.connect(g);
       g.connect(this.master);
-      osc.start(t + i * 0.025);
-      osc.stop(t + 0.2);
+      osc.start(t + i * 0.022);
+      osc.stop(t + 0.22);
     }
   }
 

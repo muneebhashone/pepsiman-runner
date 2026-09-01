@@ -30,7 +30,7 @@ Score against [AAA_CRITIC_RUBRIC.md](./AAA_CRITIC_RUBRIC.md) and [SUBWAY_SURFERS
 - [x] Jump triangle blip
 - [x] Slide noise scrape
 - [x] Land sine thump + noise puff
-- [x] Can sparkle arpeggio (combo pitch-up)
+- [x] Can sparkle arpeggio (combo pitch-up) + percussive pop
 - [x] Crash filtered noise + descending saw
 - [x] Game Over chord sting (separate from crash)
 - [x] Start run sting on begin

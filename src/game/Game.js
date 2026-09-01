@@ -146,17 +146,39 @@ export class Game {
     this.ui.hidePause();
   }
 
+  _collectPickup(c) {
+    const pos = c.mesh.position.clone();
+    this.comboTimer = SCORE.comboDecay;
+    this.combo = Math.min(SCORE.comboMax, this.combo + 1);
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    const pts = SCORE.canBase * this.combo * (1 + SCORE.comboMultStep * (this.combo - 1));
+    this.score += pts;
+    this.coins += 1;
+
+    this.audio.pickup(this.combo);
+    this.fx.canPop(pos, this.combo);
+    this.rig.punchFov(3 + this.combo * 0.25);
+    this.ui.flashPickup(this.combo);
+    this.ui.popCan();
+    this.ui.pulseScore();
+    this.ui.floatPoints(pts, this.combo);
+  }
+
   _gameOver() {
     if (this.state !== 'playing') return;
     this.state = 'gameover';
     this.player.kill();
     this.audio.crash();
-    this.audio.gameOver();
     this.fx.crashBurst(this.player.group.position.clone());
     this.ui.flashHit(this.fx.hitFlashIntensity());
     this.rig.landShake(0.28);
     this.input.enabled = false;
-    this.ui.showGameOver(this.score, this.coins, this.bestCombo);
+    setTimeout(() => {
+      if (this.state === 'gameover') {
+        this.audio.gameOver();
+        this.ui.showGameOver(this.score, this.coins, this.bestCombo);
+      }
+    }, 280);
   }
 
   _loop() {
@@ -178,7 +200,10 @@ export class Game {
           this.rig.punchFov(3.5);
         }
       }
-      if (inp.jump && this.player.tryJump()) this.audio.jump();
+      if (inp.jump && this.player.tryJump()) {
+        this.audio.jump();
+        this.rig.punchFov(2.8);
+      }
       if (inp.slide && this.player.trySlide()) this.audio.slide();
 
       this.player.speed = Math.min(
@@ -214,18 +239,7 @@ export class Game {
       }
 
       const got = this.collectibles.collect(box);
-      for (const c of got) {
-        this.comboTimer = SCORE.comboDecay;
-        this.combo = Math.min(SCORE.comboMax, this.combo + 1);
-        this.bestCombo = Math.max(this.bestCombo, this.combo);
-        const pts = SCORE.canBase * this.combo * (1 + SCORE.comboMultStep * (this.combo - 1));
-        this.score += pts;
-        this.coins += 1;
-        this.audio.pickup(this.combo);
-        this.fx.pickupBurst(c.mesh.position.clone(), this.combo);
-        this.rig.punchFov(2.5);
-        this.ui.pulseScore();
-      }
+      for (const c of got) this._collectPickup(c);
 
       if (this.comboTimer > 0) {
         this.comboTimer -= dt;

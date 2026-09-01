@@ -54,8 +54,9 @@ export const WORLD = {
 export const SPAWN = {
   obstacleMinGap: 18,
   obstacleMaxGap: 32,
-  collectibleChance: 0.55,
-  collectibleCluster: 3,
+  collectibleChance: 0.72,
+  collectibleCluster: 4,
+  collectibleStartZ: 12,
   telegraphLead: 1.2,
 };
 

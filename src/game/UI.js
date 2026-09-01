@@ -11,6 +11,8 @@ export class UI {
     this.gameOverOverlay = document.getElementById('overlay-gameover');
     this.pauseOverlay = document.getElementById('overlay-pause');
     this.hitFlash = document.getElementById('hit-flash');
+    this.pickupFlash = document.getElementById('pickup-flash');
+    this.floatLayer = document.getElementById('float-layer');
     this.finalScore = document.getElementById('final-score');
     this.finalSub = document.getElementById('final-sub');
     this.btnStart = document.getElementById('btn-start');
@@ -44,6 +46,11 @@ export class UI {
     // tap anywhere on start overlay
     this.startOverlay?.addEventListener('click', () => {
       if (!this.startOverlay.classList.contains('hidden')) this._onStart?.();
+    });
+
+    // tap anywhere on game over to retry
+    this.gameOverOverlay?.addEventListener('click', () => {
+      if (!this.gameOverOverlay.classList.contains('hidden')) this._onRetry?.();
     });
   }
 
@@ -96,6 +103,40 @@ export class UI {
     this.hud?.classList.add('dimmed');
   }
 
+  flashPickup(combo = 1) {
+    if (!this.pickupFlash) return;
+    const intensity = 0.25 + Math.min(combo, 8) * 0.04;
+    this.pickupFlash.style.opacity = String(intensity);
+    this.pickupFlash.classList.add('active');
+    clearTimeout(this._pickupTimer);
+    this._pickupTimer = setTimeout(() => {
+      this.pickupFlash?.classList.remove('active');
+      if (this.pickupFlash) this.pickupFlash.style.opacity = '0';
+    }, 90);
+  }
+
+  popCan() {
+    this.coinsEl?.classList.remove('pop');
+    void this.coinsEl?.offsetWidth;
+    this.coinsEl?.classList.add('pop');
+    this.coinsEl?.closest('.stat-cans')?.classList.add('glow');
+    clearTimeout(this._canPopTimer);
+    this._canPopTimer = setTimeout(() => {
+      this.coinsEl?.classList.remove('pop');
+      this.coinsEl?.closest('.stat-cans')?.classList.remove('glow');
+    }, 400);
+  }
+
+  floatPoints(pts, combo = 1) {
+    if (!this.floatLayer) return;
+    const el = document.createElement('div');
+    el.className = 'float-pts';
+    el.textContent = `+${Math.floor(pts)}`;
+    if (combo >= 3) el.classList.add('hot');
+    this.floatLayer.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('rise'));
+    setTimeout(() => el.remove(), 700);
+  }
   flashHit(intensity = 1) {
     if (!this.hitFlash) return;
     this.hitFlash.style.opacity = String(0.35 + intensity * 0.45);
@@ -126,7 +167,7 @@ export class UI {
     if (this.comboEl) this.comboEl.textContent = `×${stats.combo}`;
     if (this.comboWrap) {
       this.comboWrap.classList.toggle('hot', stats.combo >= 3);
-      if (stats.combo > this._prevCombo && stats.combo > 1) this.popCombo();
+      if (stats.combo > this._prevCombo) this.popCombo();
       this._prevCombo = stats.combo;
     }
     if (this.speedEl) this.speedEl.textContent = String(Math.round(stats.speed));

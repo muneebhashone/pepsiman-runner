@@ -110,39 +110,63 @@ export class FX {
     }
   }
 
-  pickupBurst(pos, combo = 1) {
-    const count = 12 + Math.min(combo, 6) * 2;
+  pickupBurst(pos, combo = 1, pts = 50) {
+    const count = 16 + Math.min(combo, 8) * 3;
     for (let i = 0; i < count; i++) {
       const mat = new THREE.MeshBasicMaterial({
         color: i % 3 === 0 ? COLORS.pepsiRed : i % 3 === 1 ? COLORS.pepsiBlue : 0xffffff,
         transparent: true,
         opacity: 1,
-        blending: i % 2 ? THREE.AdditiveBlending : THREE.NormalBlending,
+        blending: THREE.AdditiveBlending,
         depthWrite: false,
       });
-      const geo = i % 4 === 0 ? this.sparkGeo : this.burstGeo;
+      const geo = i % 3 === 0 ? this.sparkGeo : this.burstGeo;
       const m = new THREE.Mesh(geo, mat);
       m.position.copy(pos);
-      if (geo === this.sparkGeo) m.lookAt(pos.x, pos.y + 1, pos.z + 1);
-      const spread = 5 + combo * 0.4;
+      if (geo === this.sparkGeo) m.lookAt(pos.x, pos.y + 2, pos.z + 1);
+      const spread = 6 + combo * 0.6;
       const vel = new THREE.Vector3(
         (Math.random() - 0.5) * spread,
-        2 + Math.random() * 5 + combo * 0.15,
+        3 + Math.random() * 6 + combo * 0.2,
         (Math.random() - 0.5) * spread
       );
-      this._spawnParticle(m, vel, 0.4 + Math.random() * 0.25, 9, 8, 1);
+      this._spawnParticle(m, vel, 0.45 + Math.random() * 0.2, 8, 10, 1);
     }
 
-    // expanding ring
-    for (let i = 0; i < 8; i++) {
-      const mat = this._makeSparkMat(COLORS.neonCyan, 0.85);
+    // fast expanding shock ring
+    const ringMat = this._makeSparkMat(COLORS.neonCyan, 0.95);
+    const shock = new THREE.Mesh(new THREE.RingGeometry(0.15, 0.28, 20), ringMat);
+    shock.rotation.x = -Math.PI / 2;
+    shock.position.copy(pos);
+    shock.position.y += 0.5;
+    this._spawnParticle(shock, new THREE.Vector3(0, 1.2, 0), 0.3, 0, 0, 0.95);
+    shock.userData.expand = true;
+
+    // radial star burst
+    for (let i = 0; i < 10; i++) {
+      const mat = this._makeSparkMat(i % 2 ? COLORS.pepsiRed : COLORS.pepsiBlue, 0.9);
       const m = new THREE.Mesh(this.sparkGeo, mat);
       m.position.copy(pos);
-      const angle = (i / 8) * Math.PI * 2;
-      const vel = new THREE.Vector3(Math.cos(angle) * 4, 1.5, Math.sin(angle) * 4);
+      m.position.y += 0.4;
+      const angle = (i / 10) * Math.PI * 2;
+      const vel = new THREE.Vector3(Math.cos(angle) * 5.5, 2.5 + combo * 0.15, Math.sin(angle) * 5.5);
       m.rotation.z = angle;
-      this._spawnParticle(m, vel, 0.32, 2, 12, 0.85);
+      this._spawnParticle(m, vel, 0.35, 3, 14, 0.9);
     }
+
+    // vertical sparkle column
+    for (let i = 0; i < 6; i++) {
+      const mat = this._makeSparkMat(0xffffff, 0.8);
+      const m = new THREE.Mesh(this.burstGeo, mat);
+      m.position.copy(pos);
+      m.position.y += i * 0.25;
+      const vel = new THREE.Vector3((Math.random() - 0.5) * 1.5, 4 + i * 0.8, (Math.random() - 0.5) * 1.5);
+      this._spawnParticle(m, vel, 0.28, 5, 0, 0.8);
+    }
+  }
+
+  canPop(pos, combo = 1) {
+    this.pickupBurst(pos, combo);
   }
 
   landDust(pos, speedNorm = 0.5) {

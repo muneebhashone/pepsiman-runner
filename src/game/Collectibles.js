@@ -1,93 +1,142 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { COLORS, LANES, SPAWN, WORLD, SCORE } from './constants.js';
+import { COLORS, LANES, SPAWN, WORLD } from './constants.js';
 
 export class Collectibles {
   constructor(scene) {
     this.scene = scene;
     this.items = [];
-    this.nextZ = 25;
-    this.magnetRange = 2.8;
-    this.canGeo = new THREE.CylinderGeometry(0.28, 0.28, 0.55, 16);
+    this.nextZ = SPAWN.collectibleStartZ;
+    this.magnetRange = 3.6;
+    this.bobT = 0;
+
+    this.canGeo = new THREE.CylinderGeometry(0.3, 0.3, 0.58, 16);
     this.canMat = new THREE.MeshStandardMaterial({
       color: COLORS.canBody,
-      metalness: 0.75,
-      roughness: 0.25,
+      metalness: 0.8,
+      roughness: 0.18,
       emissive: COLORS.pepsiRed,
-      emissiveIntensity: 0.2,
+      emissiveIntensity: 0.45,
     });
     this.topMat = new THREE.MeshStandardMaterial({
       color: COLORS.canTop,
-      metalness: 0.9,
-      roughness: 0.15,
+      metalness: 0.95,
+      roughness: 0.1,
+      emissive: 0xdddddd,
+      emissiveIntensity: 0.15,
     });
-    this.bobT = 0;
+    this.glowMat = new THREE.MeshBasicMaterial({
+      color: COLORS.neonCyan,
+      transparent: true,
+      opacity: 0.35,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      side: THREE.DoubleSide,
+    });
+    this.ringGeo = new THREE.RingGeometry(0.38, 0.52, 24);
   }
 
   _makeCan(lane, z) {
     const g = new THREE.Group();
-    const body = new THREE.Mesh(this.canGeo, this.canMat);
+
+    const glow = new THREE.Mesh(this.ringGeo, this.glowMat.clone());
+    glow.rotation.x = -Math.PI / 2;
+    glow.position.y = 0.02;
+    g.add(glow);
+
+    const body = new THREE.Mesh(this.canGeo, this.canMat.clone());
     body.castShadow = true;
     g.add(body);
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.06, 16), this.topMat);
-    top.position.y = 0.3;
+
+    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.06, 16), this.topMat);
+    top.position.y = 0.32;
     g.add(top);
-    // swirl sticker
+
     const sticker = new THREE.Mesh(
-      new THREE.BoxGeometry(0.5, 0.2, 0.02),
+      new THREE.BoxGeometry(0.52, 0.22, 0.02),
       new THREE.MeshStandardMaterial({
         color: COLORS.pepsiBlue,
         emissive: COLORS.pepsiBlue,
-        emissiveIntensity: 0.4,
+        emissiveIntensity: 0.65,
+        metalness: 0.4,
+        roughness: 0.3,
       })
     );
-    sticker.position.z = 0.29;
+    sticker.position.z = 0.31;
     g.add(sticker);
+
     g.position.set(LANES[lane], 1.0, z);
     this.scene.add(g);
-    const item = { lane, z, mesh: g, alive: true, sucking: false };
+    const item = { lane, z, mesh: g, glow, body, alive: true, sucking: false, popT: 0 };
     this.items.push(item);
     return item;
   }
 
+  seedStarterLine() {
+    for (let i = 0; i < 3; i++) {
+      this._makeCan(i, 14 + i * 5);
+    }
+    this._makeCan(1, 32);
+    this._makeCan(0, 38);
+    this._makeCan(2, 44);
+  }
+
   update(dt, playerZ, playerX, playerY, speed) {
     this.bobT += dt;
-    // spawn clusters
-    while (this.nextZ < playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.8) {
+
+    while (this.nextZ < playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.85) {
       if (Math.random() < SPAWN.collectibleChance) {
         const lane = (Math.random() * 3) | 0;
         const n = 1 + ((Math.random() * SPAWN.collectibleCluster) | 0);
         for (let i = 0; i < n; i++) {
-          const useLane = Math.random() > 0.7 ? (Math.random() * 3) | 0 : lane;
-          this._makeCan(useLane, this.nextZ + i * 2.2);
+          const useLane = Math.random() > 0.65 ? (Math.random() * 3) | 0 : lane;
+          this._makeCan(useLane, this.nextZ + i * 2.0);
         }
       }
-      this.nextZ += 10 + Math.random() * 14;
+      this.nextZ += 8 + Math.random() * 12;
     }
 
     for (const it of this.items) {
       if (!it.alive) continue;
       const mesh = it.mesh;
-      mesh.position.y = 1.0 + Math.sin(this.bobT * 3 + it.z * 0.2) * 0.15;
-      mesh.rotation.y += dt * 2.5;
 
-      // magnet suck
+      if (it.popT > 0) {
+        it.popT -= dt;
+        const t = Math.max(0, it.popT / 0.12);
+        mesh.scale.setScalar(1 + (1 - t) * 0.6);
+        if (it.glow?.material) it.glow.material.opacity = t * 0.8;
+        if (it.popT <= 0) it.alive = false;
+        continue;
+      }
+
+      const bob = Math.sin(this.bobT * 4 + it.z * 0.25) * 0.18;
+      mesh.position.y = 1.0 + bob;
+      mesh.rotation.y += dt * 3.2;
+
+      const pulse = 0.35 + Math.sin(this.bobT * 5 + it.z) * 0.2;
+      if (it.glow?.material) it.glow.material.opacity = pulse;
+      if (it.body?.material) it.body.material.emissiveIntensity = 0.4 + pulse * 0.35;
+
       const dx = playerX - mesh.position.x;
       const dz = playerZ - mesh.position.z;
       const dist = Math.hypot(dx, dz);
       if (dist < this.magnetRange && dist > 0.01) {
         it.sucking = true;
-        const pull = Math.min(1, (this.magnetRange - dist) / this.magnetRange) * speed * 0.15 * dt * 60;
-        mesh.position.x += dx * pull * 0.08;
-        mesh.position.z += dz * pull * 0.08;
-        mesh.position.y += (playerY + 1.0 - mesh.position.y) * pull * 0.05;
+        const norm = (this.magnetRange - dist) / this.magnetRange;
+        const pull = norm * speed * 0.18 * dt * 60;
+        mesh.position.x += dx * pull * 0.12;
+        mesh.position.z += dz * pull * 0.12;
+        mesh.position.y += (playerY + 1.1 - mesh.position.y) * pull * 0.08;
+        mesh.scale.setScalar(1 + norm * 0.15);
       }
+
+      it.z = mesh.position.z;
     }
 
-    while (this.items.length && this.items[0].z < playerZ - 10 && !this.items[0].sucking) {
+    while (this.items.length && this.items[0].z < playerZ - 12 && !this.items[0].sucking) {
       const old = this.items.shift();
       if (old.alive) this.scene.remove(old.mesh);
     }
-    // clean dead
+
     this.items = this.items.filter((it) => {
       if (!it.alive) {
         this.scene.remove(it.mesh);
@@ -100,12 +149,13 @@ export class Collectibles {
   collect(playerBox) {
     const got = [];
     for (const it of this.items) {
-      if (!it.alive) continue;
-      const dx = Math.abs(playerBox.x - it.mesh.position.x);
-      const dz = Math.abs(playerBox.z - it.mesh.position.z);
-      const dy = Math.abs(playerBox.y - it.mesh.position.y);
-      if (dx < 0.85 && dz < 0.85 && dy < 1.4) {
-        it.alive = false;
+      if (!it.alive || it.popT > 0) continue;
+      const p = it.mesh.position;
+      const dx = Math.abs(playerBox.x - p.x);
+      const dz = Math.abs(playerBox.z - p.z);
+      const dy = Math.abs(playerBox.y - p.y);
+      if (dx < 1.15 && dz < 1.15 && dy < 1.65) {
+        it.popT = 0.12;
         got.push(it);
       }
     }
@@ -115,6 +165,7 @@ export class Collectibles {
   reset() {
     for (const it of this.items) this.scene.remove(it.mesh);
     this.items = [];
-    this.nextZ = 25;
+    this.nextZ = SPAWN.collectibleStartZ;
+    this.seedStarterLine();
   }
 }
