@@ -137,14 +137,15 @@ export class World {
     this.sky = new THREE.Mesh(skyGeo, skyMat);
     this.scene.add(this.sky);
 
-    const hemi = new THREE.HemisphereLight(0x6688bb, 0x2a1838, 0.82);
+    const hemi = new THREE.HemisphereLight(0x7799cc, 0x3a2848, 1.08);
     this.scene.add(hemi);
+    this.hemi = hemi;
 
-    const ambient = new THREE.AmbientLight(0x334466, 0.48);
+    const ambient = new THREE.AmbientLight(0x445577, 0.62);
     this.scene.add(ambient);
     this.ambient = ambient;
 
-    const sun = new THREE.DirectionalLight(0xfff0e8, 1.45);
+    const sun = new THREE.DirectionalLight(0xfff0e8, 1.62);
     sun.position.set(-8, 24, 12);
     sun.castShadow = true;
     sun.shadow.mapSize.set(2048, 2048);
@@ -381,7 +382,10 @@ export class World {
       this.rim.intensity = 0.48 + this.speedNorm * 0.28;
     }
     if (this.ambient) {
-      this.ambient.intensity = 0.44 + this.speedNorm * 0.12;
+      this.ambient.intensity = 0.58 + this.speedNorm * 0.14;
+    }
+    if (this.hemi) {
+      this.hemi.intensity = 1.02 + this.speedNorm * 0.1;
     }
     if (this.sun) this.sun.position.z = playerZ + 12;
 

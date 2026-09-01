@@ -3,8 +3,10 @@ import { COLORS, LANES, SPAWN, WORLD, PLAYER } from './constants.js';
 
 const POOL_SIZE = 96;
 const CAN_SCALE = 1.45;
-const SUCK_COLLECT_DIST = 1.35;
-const SUCK_COLLECT_DIST_WARMUP = 1.55;
+const SUCK_COLLECT_DIST = 2.5;
+const SUCK_HIDE_DIST = 2.5;
+const MAX_SUCKING_VISUALS = 2;
+const POP_DURATION = 0.16;
 
 function speedNorm(speed) {
   return Math.min(1, (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase));
@@ -107,6 +109,14 @@ export class Collectibles {
     });
   }
 
+  _countSuckingVisuals() {
+    let n = 0;
+    for (const it of this.items) {
+      if (it.alive && it.sucking && !it.popping) n++;
+    }
+    return n;
+  }
+
   _acquire(lane, z, chainId = -1) {
     const mesh = this.pool.pop();
     if (!mesh) return null;
@@ -128,6 +138,9 @@ export class Collectibles {
       chainId,
       spin: 2.4 + Math.random() * 1.2,
       bobPhase: z * 0.18 + Math.random() * Math.PI * 2,
+      readyCollect: false,
+      instantCollect: false,
+      collected: false,
     };
     this.items.push(item);
     return item;
@@ -138,6 +151,9 @@ export class Collectibles {
     item.sucking = false;
     item.suckT = 0;
     item.popping = false;
+    item.readyCollect = false;
+    item.instantCollect = false;
+    item.collected = false;
     item.mesh.visible = false;
     this._setCanOpacity(item.mesh, 1);
     this.pool.push(item.mesh);
@@ -176,12 +192,15 @@ export class Collectibles {
     this.nextZ = startZ + SPAWN.starterCanCount * SPAWN.starterCanSpacing + 8;
   }
 
-  _beginPop(item) {
+  _beginPop(item, hideMesh = false, instantCollect = false) {
     item.popping = true;
     item.popT = 0;
     item.sucking = false;
     item.suckT = 0;
-    this._setCanOpacity(item.mesh, 1);
+    item.readyCollect = true;
+    item.instantCollect = instantCollect;
+    if (hideMesh) item.mesh.visible = false;
+    this._setCanOpacity(item.mesh, hideMesh ? 0 : 1);
   }
 
   update(dt, playerZ, playerX, playerY, speed) {
@@ -203,12 +222,14 @@ export class Collectibles {
 
       if (it.popping) {
         it.popT += dt;
-        const t = it.popT / 0.18;
-        const s = CAN_SCALE * (1 + t * 1.4);
-        it.mesh.scale.set(s, s, s);
-        it.mesh.position.y += dt * 6;
-        it.mesh.rotation.y += dt * 12;
-        if (it.popT >= 0.18) {
+        const t = it.popT / POP_DURATION;
+        if (it.mesh.visible) {
+          const s = CAN_SCALE * (1 + t * 1.4);
+          it.mesh.scale.set(s, s, s);
+          it.mesh.position.y += dt * 6;
+          it.mesh.rotation.y += dt * 12;
+        }
+        if (it.popT >= POP_DURATION) {
           this._release(it);
         }
         continue;
@@ -227,6 +248,17 @@ export class Collectibles {
       const pullStrength = inWarmup ? 0.38 : 0.24 + diff * 0.16;
 
       if (dist < magnet && dist > 0.01) {
+        if (dist <= SUCK_HIDE_DIST) {
+          this._beginPop(it, true);
+          continue;
+        }
+
+        const suckingCount = this._countSuckingVisuals();
+        if (!it.sucking && suckingCount >= MAX_SUCKING_VISUALS) {
+          this._beginPop(it, true, true);
+          continue;
+        }
+
         it.sucking = true;
         it.suckT += dt;
         const pull = ((magnet - dist) / magnet) ** 1.15;
@@ -242,6 +274,10 @@ export class Collectibles {
         mesh.scale.set(s, s, s);
         const fade = THREE.MathUtils.clamp(1 - pull * 0.95, 0.08, 1);
         this._setCanOpacity(mesh, fade);
+
+        if (dist <= SUCK_HIDE_DIST + 0.35) {
+          this._beginPop(it, true);
+        }
       } else if (it.sucking) {
         it.sucking = false;
         it.suckT = 0;
@@ -266,7 +302,9 @@ export class Collectibles {
   collect(playerBox) {
     const got = [];
     for (const it of this.items) {
-      if (!it.alive || it.popping) continue;
+      if (!it.alive || it.collected) continue;
+      if (it.popping && !it.readyCollect) continue;
+
       const mx = it.mesh.position.x;
       const mz = it.mesh.position.z;
       const my = it.mesh.position.y;
@@ -277,10 +315,14 @@ export class Collectibles {
       const trackReach = dz < 1.45;
       const heightReach = dy < 1.5;
       const sweptThrough = dz < 1.0 && dx < 2.4;
-      const suckCollect = it.sucking ? SUCK_COLLECT_DIST : SUCK_COLLECT_DIST * 0.85;
-      const suckedIn = it.sucking && Math.hypot(dx, dz) < suckCollect;
-      if ((laneReach && trackReach && heightReach) || sweptThrough || suckedIn) {
-        this._beginPop(it);
+      const dist2d = Math.hypot(dx, dz);
+      const suckedIn = it.sucking && dist2d < SUCK_COLLECT_DIST;
+      const poppedNear = it.popping && it.readyCollect && dist2d < SUCK_COLLECT_DIST + 0.5;
+      const instant = it.popping && it.instantCollect;
+
+      if ((laneReach && trackReach && heightReach) || sweptThrough || suckedIn || poppedNear || instant) {
+        if (!it.popping) this._beginPop(it, true);
+        it.collected = true;
         got.push(it);
       }
     }
