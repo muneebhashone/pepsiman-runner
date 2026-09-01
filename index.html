@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <meta name="theme-color" content="#0055bf" />
+    <title>Pepsiman Runner</title>
+    <link rel="stylesheet" href="./src/styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="game-canvas"></canvas>
+      <div id="hud">
+        <div class="hud-top">
+          <div class="stat">
+            <div class="label">Score</div>
+            <div class="value" id="hud-score">0</div>
+          </div>
+          <div class="stat">
+            <div class="label">Cans</div>
+            <div class="value" id="hud-coins">0</div>
+          </div>
+          <div class="stat combo" id="hud-combo-wrap">
+            <div class="label">Combo</div>
+            <div class="value" id="hud-combo">x1</div>
+          </div>
+          <div class="stat">
+            <div class="label">Speed</div>
+            <div class="value" id="hud-speed">18</div>
+          </div>
+        </div>
+        <div class="speed-bar-wrap">
+          <div class="speed-bar" id="hud-speed-bar"></div>
+        </div>
+      </div>
+
+      <div class="overlay" id="overlay-start">
+        <div class="panel">
+          <div class="logo">PEPSIMAN<br />RUNNER</div>
+          <p class="tagline">Endless neon highway. Maximum Pepsi chaos.</p>
+          <div class="controls-hint">
+            <div class="desktop-hint">← → / A D — switch lanes</div>
+            <div class="desktop-hint">↑ / W — jump &nbsp; ↓ / S — slide</div>
+            <div class="mobile-hint">Swipe left / right / up / down</div>
+            <div>Grab cans · dodge barriers · stay hydrated</div>
+          </div>
+          <button class="btn" id="btn-start" type="button">Start Run</button>
+        </div>
+      </div>
+
+      <div class="overlay hidden" id="overlay-gameover">
+        <div class="panel">
+          <div class="logo">GAME OVER</div>
+          <div class="final-score" id="final-score">0</div>
+          <div class="final-sub" id="final-sub">0 cans · best combo x1</div>
+          <button class="btn" id="btn-retry" type="button">Run Again</button>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
