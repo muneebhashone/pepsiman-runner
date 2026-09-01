@@ -1,4 +1,29 @@
-import { SPAWN } from './constants.js';
+import { SPAWN, SCORE } from './constants.js';
+
+const STORAGE_KEY = 'pepsiman-runner-v1';
+
+export function loadPersisted() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { highScore: 0, bestCombo: 1, totalCans: 0 };
+    const p = JSON.parse(raw);
+    return {
+      highScore: Number(p.highScore) || 0,
+      bestCombo: Number(p.bestCombo) || 1,
+      totalCans: Number(p.totalCans) || 0,
+    };
+  } catch {
+    return { highScore: 0, bestCombo: 1, totalCans: 0 };
+  }
+}
+
+export function savePersisted(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  } catch {
+    /* ignore quota */
+  }
+}
 
 export class UI {
   constructor() {
@@ -16,6 +41,12 @@ export class UI {
     this.pickupFlash = document.getElementById('pickup-flash');
     this.floatLayer = document.getElementById('float-layer');
     this.tutorialHint = document.getElementById('tutorial-hint');
+    this.fizzFill = document.getElementById('hud-fizz-fill');
+    this.fizzRush = document.getElementById('hud-rush');
+    this.missionsEl = document.getElementById('hud-missions');
+    this.comboShout = document.getElementById('combo-shout');
+    this.finalCompare = document.getElementById('final-compare');
+    this.finalSoClose = document.getElementById('final-so-close');
     this.finalScore = document.getElementById('final-score');
     this.finalSub = document.getElementById('final-sub');
     this.btnStart = document.getElementById('btn-start');
@@ -108,13 +139,99 @@ export class UI {
     this.hud?.classList.remove('dimmed');
   }
 
-  showGameOver(score, coins, bestCombo) {
+  showGameOver(score, coins, bestCombo, meta = {}) {
     if (this.finalScore) this.finalScore.textContent = String(Math.floor(score));
     if (this.finalSub) {
-      this.finalSub.textContent = `${coins} cans · best combo ×${bestCombo}`;
+      this.finalSub.textContent = `${coins} cans · combo ×${bestCombo} · best ever ×${meta.allTimeBestCombo ?? bestCombo}`;
+    }
+    if (this.finalCompare) {
+      const high = meta.highScore ?? 0;
+      const diff = high - score;
+      if (high > 0) {
+        this.finalCompare.textContent =
+          diff > 0
+            ? `${Math.floor(diff)} pts from your best (${Math.floor(high)})`
+            : 'NEW HIGH SCORE!';
+        this.finalCompare.classList.remove('hidden');
+      } else {
+        this.finalCompare.classList.add('hidden');
+      }
+    }
+    if (this.finalSoClose) {
+      const show =
+        meta.soClose ||
+        meta.diedDuringRush ||
+        (meta.highScore > 0 && score >= meta.highScore * 0.9 && score < meta.highScore);
+      this.finalSoClose.classList.toggle('hidden', !show);
+      if (show && meta.diedDuringRush) {
+        this.finalSoClose.textContent = 'RUSH ENDED — SO CLOSE!';
+      } else if (show) {
+        this.finalSoClose.textContent = 'SO CLOSE!';
+      }
     }
     this.gameOverOverlay?.classList.remove('hidden');
     this.hud?.classList.add('dimmed');
+  }
+
+  updateFizz(level, rushActive) {
+    if (this.fizzFill) this.fizzFill.style.width = `${Math.round(level * 100)}%`;
+    if (this.fizzRush) this.fizzRush.classList.toggle('hidden', !rushActive);
+    if (this.fizzFill?.parentElement) {
+      this.fizzFill.parentElement.classList.toggle('rush-hot', rushActive);
+    }
+  }
+
+  updateMissions(missions) {
+    if (!this.missionsEl) return;
+    this.missionsEl.innerHTML = '';
+    for (const m of missions) {
+      const chip = document.createElement('div');
+      chip.className = 'mission-chip' + (m.done ? ' done' : '');
+      const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
+      chip.textContent = m.done ? `✓ ${m.label}` : `${m.label} ${pct}%`;
+      this.missionsEl.appendChild(chip);
+    }
+  }
+
+  shoutCombo(combo) {
+    if (!this.comboShout) return;
+    let text = '';
+    if (combo >= SCORE.shoutPerfect) text = 'PEPSI PERFECT';
+    else if (combo >= SCORE.shoutWow) text = 'WOW';
+    else if (combo >= SCORE.shoutNice) text = 'NICE';
+    if (!text) return;
+    this.comboShout.textContent = text;
+    this.comboShout.classList.remove('show');
+    void this.comboShout.offsetWidth;
+    this.comboShout.classList.add('show');
+  }
+
+  floatMission(label) {
+    if (!this.floatLayer) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'float-pickup near-miss';
+    wrap.classList.add('right');
+    const labelEl = document.createElement('div');
+    labelEl.className = 'float-can-label';
+    labelEl.textContent = `MISSION: ${label}`;
+    wrap.appendChild(labelEl);
+    this.floatLayer.appendChild(wrap);
+    requestAnimationFrame(() => wrap.classList.add('rise'));
+    setTimeout(() => wrap.remove(), 900);
+  }
+
+  floatRush() {
+    if (!this.floatLayer) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'float-pickup';
+    wrap.classList.add('left');
+    const label = document.createElement('div');
+    label.className = 'float-can-label hot';
+    label.textContent = 'PEPSI RUSH!';
+    wrap.appendChild(label);
+    this.floatLayer.appendChild(wrap);
+    requestAnimationFrame(() => wrap.classList.add('rise'));
+    setTimeout(() => wrap.remove(), 1100);
   }
 
   flashPickup(combo = 1) {
@@ -457,7 +574,11 @@ export class UI {
       const pct = Math.max(8, Math.min(100, stats.speedNorm * 100));
       this.speedBar.style.width = `${pct}%`;
       this.speedBar.classList.toggle('maxed', stats.speedNorm > 0.92);
+      this.speedBar.classList.toggle('rush', stats.rushActive);
     }
+
+    if (stats.fizzLevel != null) this.updateFizz(stats.fizzLevel, stats.rushActive);
+    if (stats.missions) this.updateMissions(stats.missions);
 
     if (this._comboPopTimer > 0) {
       this._comboPopTimer -= dt;

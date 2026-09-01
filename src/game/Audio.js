@@ -93,13 +93,13 @@ export class AudioSys {
     const g = this.ctx.createGain();
     const f = this.ctx.createBiquadFilter();
     f.type = 'bandpass';
-    f.frequency.setValueAtTime(520, t);
-    f.frequency.exponentialRampToValueAtTime(1400, t + 0.06);
-    f.Q.value = 3;
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(220, t);
-    osc.frequency.exponentialRampToValueAtTime(80, t + 0.12);
-    this._env(g, 0.003, 0.02, 0.35, 0.1, 0.22);
+    f.frequency.setValueAtTime(680, t);
+    f.frequency.exponentialRampToValueAtTime(2200, t + 0.08);
+    f.Q.value = 4.2;
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(280, t);
+    osc.frequency.exponentialRampToValueAtTime(90, t + 0.14);
+    this._env(g, 0.003, 0.03, 0.42, 0.12, 0.38);
     osc.connect(f);
     f.connect(g);
     g.connect(this.master);
@@ -212,7 +212,7 @@ export class AudioSys {
     popOsc.start(t);
     popOsc.stop(t + 0.1);
 
-    const base = 520 + Math.min(combo, 8) * 55;
+    const base = 480 + Math.min(combo, 12) * 68;
     const notes = [1, 1.26, 1.5, 2];
     for (let i = 0; i < notes.length; i++) {
       const osc = this.ctx.createOscillator();
@@ -294,6 +294,59 @@ export class AudioSys {
       o.start(t + 0.12);
       o.stop(t + 0.9);
     }
+  }
+
+  rushStinger() {
+    if (!this._started || !this.enabled) return;
+    const t = this._t();
+    const notes = [392, 523, 659, 784];
+    for (let i = 0; i < notes.length; i++) {
+      const osc = this.ctx.createOscillator();
+      const g = this.ctx.createGain();
+      osc.type = 'square';
+      const freq = notes[i];
+      osc.frequency.setValueAtTime(freq, t + i * 0.05);
+      this._env(g, 0.004, 0.06, 0.35, 0.14, 0.22);
+      const f = this.ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.value = 2400;
+      osc.connect(f);
+      f.connect(g);
+      g.connect(this.master);
+      osc.start(t + i * 0.05);
+      osc.stop(t + 0.45);
+    }
+  }
+
+  missionComplete() {
+    if (!this._started || !this.enabled) return;
+    const t = this._t();
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(660, t);
+    osc.frequency.exponentialRampToValueAtTime(990, t + 0.12);
+    this._env(g, 0.003, 0.04, 0.3, 0.1, 0.2);
+    osc.connect(g);
+    g.connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.22);
+  }
+
+  comboShout(level = 1) {
+    if (!this._started || !this.enabled) return;
+    const t = this._t();
+    const osc = this.ctx.createOscillator();
+    const g = this.ctx.createGain();
+    osc.type = 'triangle';
+    const base = 320 + level * 90;
+    osc.frequency.setValueAtTime(base, t);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.6, t + 0.08);
+    this._env(g, 0.002, 0.03, 0.25, 0.08, 0.16 + level * 0.04);
+    osc.connect(g);
+    g.connect(this.master);
+    osc.start(t);
+    osc.stop(t + 0.18);
   }
 
   startSting() {
