@@ -38,9 +38,8 @@ export class Obstacles {
 
     this._geo = {
       barrier: new THREE.BoxGeometry(1.6, 1.1, 0.5),
-      rail: new THREE.BoxGeometry(1.8, 0.45, 1.2),
-      sign: new THREE.BoxGeometry(1.9, 1.4, 0.3),
-      pole: new THREE.CylinderGeometry(0.06, 0.06, 2.2, 8),
+      rail: new THREE.BoxGeometry(1.85, 0.35, 1.0),
+      sign: new THREE.BoxGeometry(1.7, 0.9, 0.45),
       truckCab: new THREE.BoxGeometry(1.8, 1.6, 1.4),
       truckBody: new THREE.BoxGeometry(1.9, 2.0, 3.2),
       tel: new THREE.PlaneGeometry(1.7, SPAWN.telegraphStripLength),
@@ -56,8 +55,10 @@ export class Obstacles {
       }),
       rail: new THREE.MeshStandardMaterial({
         color: COLORS.rail,
-        metalness: 0.75,
-        roughness: 0.25,
+        metalness: 0.7,
+        roughness: 0.3,
+        emissive: 0x334455,
+        emissiveIntensity: 0.2,
       }),
       sign: new THREE.MeshStandardMaterial({
         color: COLORS.sign,
@@ -79,6 +80,11 @@ export class Obstacles {
         roughness: 0.35,
       }),
       stripe: new THREE.MeshStandardMaterial({ color: 0x111111 }),
+      signTop: new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        emissive: 0xffffff,
+        emissiveIntensity: 0.25,
+      }),
       telegraph: new THREE.MeshBasicMaterial({
         color: COLORS.telegraph,
         transparent: true,
@@ -149,22 +155,27 @@ export class Obstacles {
       const s = new THREE.Mesh(new THREE.BoxGeometry(1.65, 0.2, 0.52), this._mats.stripe);
       s.position.y = 0.7;
       g.add(s);
-      hit = { w: 1.1, h: 0.95, d: 0.42, y: 0.55, mode: 'block' };
+      hit = { w: 1.1, h: 0.95, d: 0.42, y: 0.55, mode: 'jump' };
     } else if (type === 'rail') {
+      const postL = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.5, 0.12), this._mats.rail);
+      postL.position.set(-0.85, 0.75, 0);
+      const postR = postL.clone();
+      postR.position.x = 0.85;
+      g.add(postL, postR);
       const m = new THREE.Mesh(this._geo.rail, this._mats.rail);
-      m.position.y = 0.25;
+      m.position.y = 1.35;
       m.castShadow = true;
       g.add(m);
-      hit = { w: 1.3, h: 0.38, d: 0.8, y: 0.25, mode: 'slide' };
+      hit = { w: 1.3, h: 0.38, d: 0.8, y: 1.35, mode: 'slide' };
     } else if (type === 'sign') {
-      const pole = new THREE.Mesh(this._geo.pole, this._mats.rail);
-      pole.position.set(-0.7, 1.1, 0);
-      g.add(pole);
       const m = new THREE.Mesh(this._geo.sign, this._mats.sign);
-      m.position.y = 2.0;
+      m.position.y = 0.5;
       m.castShadow = true;
       g.add(m);
-      hit = { w: 1.35, h: 0.95, d: 0.25, y: 2.0, mode: 'jump' };
+      const top = new THREE.Mesh(new THREE.BoxGeometry(1.9, 0.15, 0.5), this._mats.signTop);
+      top.position.y = 1.0;
+      g.add(top);
+      hit = { w: 1.35, h: 0.95, d: 0.42, y: 0.55, mode: 'jump' };
     } else {
       const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
       cab.position.set(0, 1.0, 1.4);
@@ -364,15 +375,13 @@ export class Obstacles {
       const hd = it.hit.d * shrink;
       const dx = Math.abs(playerBox.x - hx);
       const dz = Math.abs(playerBox.z - hz);
+      if (dx >= (pw + hw) * 0.5 || dz >= (pd + hd) * 0.5) continue;
+
+      if (it.hit.mode === 'slide' && sliding) continue;
+      if (it.hit.mode === 'jump' && jumping && playerBox.y > 0.9) continue;
+
       const dy = Math.abs(playerBox.y - hy);
-      if (dx < (pw + hw) * 0.5 && dz < (pd + hd) * 0.5) {
-        if (it.hit.mode === 'jump' && jumping && playerBox.y > 1.05) continue;
-        if (it.hit.mode === 'slide' && sliding) continue;
-        if (it.hit.mode === 'jump' && !jumping) {
-          if (playerBox.y + ph * 0.5 < hy - hh * 0.4) continue;
-        }
-        if (dy < (ph + hh) * 0.5) return it;
-      }
+      if (dy < (ph + hh) * 0.5) return it;
     }
     return null;
   }

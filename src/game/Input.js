@@ -1,5 +1,8 @@
+import { INPUT } from './constants.js';
+
 /**
  * Keyboard + mobile swipe input for lane / jump / slide.
+ * Buffers one queued lane change for Subway-Surfers-style chaining.
  */
 export class Input {
   constructor(target = window) {
@@ -7,6 +10,7 @@ export class Input {
     this.laneDelta = 0;
     this.jump = false;
     this.slide = false;
+    this._laneBuffer = 0;
     this._keys = new Set();
     this._touchStart = null;
     this._boundKeyDown = (e) => this._onKeyDown(e);
@@ -30,13 +34,22 @@ export class Input {
     this.target.removeEventListener('touchend', this._boundTouchEnd);
   }
 
+  _queueLane(delta) {
+    const next = this.laneDelta + this._laneBuffer + delta;
+    const clamped = Math.max(-INPUT.laneBufferMax, Math.min(INPUT.laneBufferMax, next));
+    const used = this.laneDelta + this._laneBuffer;
+    const remaining = clamped - used;
+    if (remaining > 0) this._laneBuffer += remaining;
+    else if (remaining < 0) this._laneBuffer += remaining;
+  }
+
   _onKeyDown(e) {
     if (!this.enabled) return;
     const k = e.code;
     if (this._keys.has(k)) return;
     this._keys.add(k);
-    if (k === 'ArrowLeft' || k === 'KeyA') this.laneDelta -= 1;
-    if (k === 'ArrowRight' || k === 'KeyD') this.laneDelta += 1;
+    if (k === 'ArrowLeft' || k === 'KeyA') this._queueLane(-1);
+    if (k === 'ArrowRight' || k === 'KeyD') this._queueLane(1);
     if (k === 'ArrowUp' || k === 'KeyW' || k === 'Space') this.jump = true;
     if (k === 'ArrowDown' || k === 'KeyS') this.slide = true;
   }
@@ -58,13 +71,14 @@ export class Input {
     const dy = t.clientY - this._touchStart.y;
     const adx = Math.abs(dx);
     const ady = Math.abs(dy);
-    const min = 28;
-    if (Math.max(adx, ady) < min) {
+    const elapsed = performance.now() - this._touchStart.t;
+    const min = INPUT.swipeMin;
+    if (elapsed > INPUT.swipeMaxMs || Math.max(adx, ady) < min) {
       this._touchStart = null;
       return;
     }
-    if (adx > ady) {
-      this.laneDelta += dx > 0 ? 1 : -1;
+    if (adx > ady * 1.15) {
+      this._queueLane(dx > 0 ? 1 : -1);
     } else {
       if (dy < 0) this.jump = true;
       else this.slide = true;
@@ -72,9 +86,19 @@ export class Input {
     this._touchStart = null;
   }
 
-  consume() {
+  /**
+   * Returns consumed input and drains lane buffer into laneDelta when ready.
+   * @param {boolean} canAcceptLane — false while mid-switch with full buffer
+   */
+  consume(canAcceptLane = true) {
+    let laneDelta = this.laneDelta;
+    if (canAcceptLane && this._laneBuffer !== 0) {
+      const buf = Math.sign(this._laneBuffer);
+      this._laneBuffer -= buf;
+      laneDelta += buf;
+    }
     const out = {
-      laneDelta: this.laneDelta,
+      laneDelta,
       jump: this.jump,
       slide: this.slide,
     };
@@ -84,10 +108,15 @@ export class Input {
     return out;
   }
 
+  hasBufferedLane() {
+    return this._laneBuffer !== 0;
+  }
+
   reset() {
     this.laneDelta = 0;
     this.jump = false;
     this.slide = false;
+    this._laneBuffer = 0;
     this._keys.clear();
     this._touchStart = null;
   }

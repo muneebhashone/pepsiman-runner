@@ -1,5 +1,5 @@
 import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { PLAYER, SCORE, RENDER, COLORS } from './constants.js';
+import { PLAYER, SCORE, RENDER } from './constants.js';
 import { Input } from './Input.js';
 import { CameraRig } from './CameraRig.js';
 import { Player } from './Player.js';
@@ -125,14 +125,14 @@ export class Game {
   }
 
   update(dt) {
-    const stats = this._stats();
+    
 
     if (this.state === 'playing') {
-      const inp = this.input.consume();
+      const inp = this.input.consume(this.player.canQueueLane());
       if (inp.laneDelta) {
         if (this.player.tryLane(inp.laneDelta)) {
           this.audio.whoosh(inp.laneDelta * 0.6);
-          this.rig.punchFov(3);
+          this.rig.punchFov(4);
         }
       }
       if (inp.jump && this.player.tryJump()) this.audio.jump();
@@ -197,9 +197,14 @@ export class Game {
       this.world.update(this.player.z, this.player.speed);
     }
 
-    const speedNorm = stats.speedNorm;
+    const speedNorm = this._stats().speedNorm;
     this.fx.update(dt, this.player.group.position, this.state === 'playing' ? speedNorm : 0.15);
-    this.rig.update(dt, this.player.group.position, this.state === 'playing' ? speedNorm : 0);
+    this.rig.update(
+      dt,
+      this.player.group.position,
+      this.state === 'playing' ? speedNorm : 0,
+      this.player.lean
+    );
     this.ui.update(this._stats());
   }
 
