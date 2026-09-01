@@ -103,7 +103,7 @@ export class World {
     this.scene.background = new THREE.Color(COLORS.sky);
     this.scene.fog = new THREE.Fog(COLORS.fog, WORLD.fogNear, WORLD.fogFar);
 
-    const skyGeo = new THREE.SphereGeometry(180, 32, 16);
+    const skyGeo = new THREE.SphereGeometry(420, 32, 16);
     const skyMat = new THREE.ShaderMaterial({
       side: THREE.BackSide,
       depthWrite: false,
@@ -157,6 +157,7 @@ export class World {
     sun.shadow.camera.bottom = -42;
     sun.shadow.bias = -0.00025;
     this.scene.add(sun);
+    this.scene.add(sun.target);
     this.sun = sun;
 
     const fill = new THREE.PointLight(COLORS.pepsiBlue, 2.35, 90);
@@ -343,7 +344,6 @@ export class World {
   }
 
   _prepareSegment(seg, z) {
-    this._decorateSegment(seg, (z * 0.017 + this.active.length * 31) | 0);
     seg.position.set(0, 0, z);
     seg.visible = true;
     if (!seg.parent) this.scene.add(seg);
@@ -356,6 +356,7 @@ export class World {
     if (!seg) {
       seg = new THREE.Group();
       seg.frustumCulled = false;
+      this._decorateSegment(seg, (z * 0.017) | 0);
     }
     return this._prepareSegment(seg, z);
   }
@@ -461,6 +462,13 @@ export class World {
     if (this.sun) {
       this.sun.position.set(-8, 24, playerZ + 12);
       this.sun.intensity = 2.75 + this.speedNorm * 0.2;
+      this.sun.shadow.camera.far = 140;
+      this.sun.target.position.set(0, 0, playerZ);
+      this.sun.target.updateMatrixWorld();
+    }
+
+    if (this.sky) {
+      this.sky.position.set(0, 0, playerZ);
     }
 
     if (this.scene.fog) {

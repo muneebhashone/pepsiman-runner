@@ -42,7 +42,8 @@ export class Game {
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 200);
+    this.camera = new THREE.PerspectiveCamera(58, window.innerWidth / window.innerHeight, 0.1, 700);
+    this._contextLost = false;
 
     this.input = new Input(window);
     this.input.setActionCallback((action) => {
@@ -84,9 +85,24 @@ export class Game {
     window.addEventListener('keydown', this._onKey);
 
     this.rig.snapTo(this.player.group.position);
+    this._bindContextHandlers();
     this.clock.start();
     this._loop = this._loop.bind(this);
     this._raf = requestAnimationFrame(this._loop);
+  }
+
+  _bindContextHandlers() {
+    const canvas = this.canvas;
+    canvas.addEventListener('webglcontextlost', (e) => {
+      e.preventDefault();
+      this._contextLost = true;
+      console.warn('[Pepsiman] WebGL context lost — stage may appear black until restored.');
+    });
+    canvas.addEventListener('webglcontextrestored', () => {
+      console.warn('[Pepsiman] WebGL context restored — reloading to rebuild GPU resources.');
+      this._contextLost = false;
+      window.location.reload();
+    });
   }
 
   _stats() {
@@ -380,6 +396,13 @@ export class Game {
   }
 
   render() {
+    if (this._contextLost) return;
+    const gl = this.renderer.getContext();
+    if (gl?.isContextLost?.()) {
+      this._contextLost = true;
+      console.warn('[Pepsiman] WebGL context is lost.');
+      return;
+    }
     this.renderer.render(this.scene, this.camera);
   }
 
