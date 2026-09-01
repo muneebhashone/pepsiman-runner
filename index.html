@@ -13,27 +13,36 @@
   <body>
     <div id="app">
       <canvas id="game-canvas"></canvas>
-      <div id="hud">
+
+      <div id="hit-flash" aria-hidden="true"></div>
+      <div id="pickup-flash" aria-hidden="true"></div>
+      <div id="float-layer" aria-hidden="true"></div>
+
+      <div id="hud" class="dimmed">
         <div class="hud-top">
-          <div class="stat">
+          <div class="stat stat-score">
             <div class="label">Score</div>
             <div class="value" id="hud-score">0</div>
           </div>
-          <div class="stat">
+          <div class="stat stat-cans">
             <div class="label">Cans</div>
-            <div class="value" id="hud-coins">0</div>
+            <div class="value cans-value" id="hud-coins">0</div>
           </div>
           <div class="stat combo" id="hud-combo-wrap">
             <div class="label">Combo</div>
-            <div class="value" id="hud-combo">x1</div>
+            <div class="value" id="hud-combo">×1</div>
           </div>
-          <div class="stat">
-            <div class="label">Speed</div>
-            <div class="value" id="hud-speed">18</div>
-          </div>
+          <button class="btn-pause" id="btn-pause" type="button" aria-label="Pause">⏸</button>
         </div>
-        <div class="speed-bar-wrap">
-          <div class="speed-bar" id="hud-speed-bar"></div>
+
+        <div class="hud-bottom">
+          <div class="speed-label">
+            <span class="label">Speed</span>
+            <span class="value" id="hud-speed">18</span>
+          </div>
+          <div class="speed-bar-wrap">
+            <div class="speed-bar" id="hud-speed-bar"></div>
+          </div>
         </div>
       </div>
 
@@ -48,6 +57,16 @@
             <div>Grab cans · dodge barriers · stay hydrated</div>
           </div>
           <button class="btn" id="btn-start" type="button">Start Run</button>
+          <p class="tap-hint">Tap anywhere or press Space</p>
+        </div>
+      </div>
+
+      <div class="overlay hidden" id="overlay-pause">
+        <div class="panel panel-compact">
+          <div class="logo logo-sm">PAUSED</div>
+          <p class="tagline">Take a breather. The highway waits.</p>
+          <button class="btn" id="btn-resume" type="button">Resume</button>
+          <p class="tap-hint">Esc / P to resume</p>
         </div>
       </div>
 
@@ -55,8 +74,9 @@
         <div class="panel">
           <div class="logo">GAME OVER</div>
           <div class="final-score" id="final-score">0</div>
-          <div class="final-sub" id="final-sub">0 cans · best combo x1</div>
+          <div class="final-sub" id="final-sub">0 cans · best combo ×1</div>
           <button class="btn" id="btn-retry" type="button">Run Again</button>
+          <p class="tap-hint">Tap anywhere or Space to retry</p>
         </div>
       </div>
     </div>

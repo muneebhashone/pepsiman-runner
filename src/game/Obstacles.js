@@ -25,15 +25,24 @@ function typeForLane(lane, openLane, rng, warmup) {
   return blockTypes[(rng() * blockTypes.length) | 0];
 }
 
+const TELEGRAPH_COLORS = {
+  barrier: { core: 0xffaa00, glow: 0xff6600 },
+  rail: { core: 0x00e5ff, glow: 0x0088cc },
+  sign: { core: 0xff4466, glow: 0xff1133 },
+  truck: { core: 0xff2244, glow: 0xaa0022 },
+};
+
 export class Obstacles {
   constructor(scene) {
     this.scene = scene;
     this.items = [];
     this.pool = [];
     this.telPool = [];
+    this.telOuterPool = [];
     this.shadowPool = [];
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
+    this._pulseT = 0;
     this._rng = Math.random;
 
     this._geo = {
@@ -42,7 +51,8 @@ export class Obstacles {
       sign: new THREE.BoxGeometry(1.7, 0.9, 0.45),
       truckCab: new THREE.BoxGeometry(1.8, 1.6, 1.4),
       truckBody: new THREE.BoxGeometry(1.9, 2.0, 3.2),
-      tel: new THREE.PlaneGeometry(1.7, SPAWN.telegraphStripLength),
+      tel: new THREE.PlaneGeometry(1.55, SPAWN.telegraphStripLength),
+      telOuter: new THREE.PlaneGeometry(2.5, SPAWN.telegraphStripLength * 1.35),
       shadow: new THREE.PlaneGeometry(1.3, 1.8),
     };
     this._mats = {
@@ -112,6 +122,13 @@ export class Obstacles {
       tel.frustumCulled = true;
       this.scene.add(tel);
       this.telPool.push(tel);
+
+      const telOuter = new THREE.Mesh(this._geo.telOuter, this._mats.telegraph.clone());
+      telOuter.rotation.x = -Math.PI / 2;
+      telOuter.visible = false;
+      telOuter.frustumCulled = true;
+      this.scene.add(telOuter);
+      this.telOuterPool.push(telOuter);
 
       const sh = new THREE.Mesh(this._geo.shadow, this._mats.shadow.clone());
       sh.rotation.x = -Math.PI / 2;
@@ -204,12 +221,24 @@ export class Obstacles {
     }
 
     const telLead = SPAWN.telegraphAhead;
+    const colors = TELEGRAPH_COLORS[type] || TELEGRAPH_COLORS.barrier;
+
     const tel = this.telPool.pop();
     if (tel) {
       tel.visible = true;
       tel.material.opacity = 0;
+      tel.material.color.setHex(colors.core);
       tel.rotation.set(-Math.PI / 2, 0, 0);
-      tel.position.set(LANES[lane], 0.04, z - telLead);
+      tel.position.set(LANES[lane], 0.05, z - telLead);
+    }
+
+    const telOuter = this.telOuterPool.pop();
+    if (telOuter) {
+      telOuter.visible = true;
+      telOuter.material.opacity = 0;
+      telOuter.material.color.setHex(colors.glow);
+      telOuter.rotation.set(-Math.PI / 2, 0, 0);
+      telOuter.position.set(LANES[lane], 0.04, z - telLead);
     }
 
     const shadow = this.shadowPool.pop();
@@ -236,6 +265,7 @@ export class Obstacles {
       hit,
       alive: true,
       tel,
+      telOuter,
       shadow,
       telZ: z - telLead,
       shadowZ: z - telLead * 0.55,
@@ -253,6 +283,12 @@ export class Obstacles {
       item.tel.scale.set(1, 1, 1);
       this.telPool.push(item.tel);
       item.tel = null;
+    }
+    if (item.telOuter) {
+      item.telOuter.visible = false;
+      item.telOuter.scale.set(1, 1, 1);
+      this.telOuterPool.push(item.telOuter);
+      item.telOuter = null;
     }
     if (item.shadow) {
       item.shadow.visible = false;
@@ -309,6 +345,7 @@ export class Obstacles {
   }
 
   update(dt, playerZ, speed) {
+    this._pulseT += dt;
     const diff = speedNorm(speed);
     const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
     const minAhead = this._minAhead(speed);
@@ -323,23 +360,39 @@ export class Obstacles {
       }
     }
 
-    const leadDist = SPAWN.telegraphLead * (30 + diff * 10);
+    const leadDist = SPAWN.telegraphLead * (34 + diff * 12);
+    const pulse = 0.7 + Math.sin(this._pulseT * 10) * 0.3;
 
     for (const it of this.items) {
       if (!it.alive) continue;
       const dist = it.z - playerZ;
+      const urgency = dist > 0 && dist < leadDist ? 1 - dist / leadDist : 0;
+      const blink = 0.78 + Math.sin(this._pulseT * 14 + it.z * 0.25) * 0.22;
 
       if (it.tel) {
         const alpha =
           dist < leadDist && dist > 3
-            ? 0.18 + 0.5 * (1 - dist / leadDist) ** 1.4
+            ? (0.28 + 0.62 * urgency ** 1.2) * blink
             : dist <= 3
-              ? 0.55
+              ? 0.75 * pulse
               : 0;
         it.tel.material.opacity = alpha;
-        it.tel.position.set(LANES[it.lane], 0.04, it.telZ);
-        const pulse = 0.94 + Math.sin(playerZ * 0.3 + it.lane) * 0.06;
-        it.tel.scale.set(pulse, pulse, 1);
+        it.tel.position.set(LANES[it.lane], 0.05, it.telZ);
+        const scale = 1 + urgency * 0.1;
+        it.tel.scale.set(scale, scale, 1);
+      }
+
+      if (it.telOuter) {
+        const outerAlpha =
+          dist < leadDist && dist > 3
+            ? (0.14 + 0.38 * urgency ** 1.1) * pulse
+            : dist <= 3
+              ? 0.42 * pulse
+              : 0;
+        it.telOuter.material.opacity = outerAlpha;
+        it.telOuter.position.set(LANES[it.lane], 0.04, it.telZ);
+        const scale = 1 + urgency * 0.14;
+        it.telOuter.scale.set(scale, scale, 1);
       }
 
       if (it.shadow) {
@@ -390,6 +443,7 @@ export class Obstacles {
     while (this.items.length) this._release(this.items.shift());
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
+    this._pulseT = 0;
     this._rng = Math.random;
   }
 }

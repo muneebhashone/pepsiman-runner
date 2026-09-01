@@ -13,7 +13,7 @@ import { UI } from './UI.js';
 export class Game {
   constructor(canvas) {
     this.canvas = canvas;
-    this.state = 'menu'; // menu | playing | gameover
+    this.state = 'menu'; // menu | playing | paused | gameover
     this.score = 0;
     this.coins = 0;
     this.combo = 1;
@@ -27,12 +27,13 @@ export class Game {
       canvas,
       antialias: true,
       powerPreference: 'high-performance',
+      alpha: false,
     });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, RENDER.maxPixelRatio));
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.15;
+    this.renderer.toneMappingExposure = 1.22;
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -53,11 +54,15 @@ export class Game {
 
     this.ui.onStart(() => this.start());
     this.ui.onRetry(() => this.start());
+    this.ui.onResume(() => this.resume());
+    this.ui.onPause(() => this.pause());
     this.ui.showStart();
     this.ui.update(this._stats());
 
     this._onResize = () => this._resize();
+    this._onKey = (e) => this._onGlobalKey(e);
     window.addEventListener('resize', this._onResize);
+    window.addEventListener('keydown', this._onKey);
 
     this.rig.snapTo(this.player.group.position);
     this.clock.start();
@@ -75,6 +80,23 @@ export class Game {
       speed: this.player.speed,
       speedNorm: Math.max(0, Math.min(1, speedNorm)),
     };
+  }
+
+  _onGlobalKey(e) {
+    if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (this.state === 'playing') this.pause();
+      else if (this.state === 'paused') this.resume();
+      e.preventDefault();
+      return;
+    }
+    if (this.state === 'menu' && (e.code === 'Space' || e.code === 'Enter')) {
+      this.start();
+      e.preventDefault();
+    }
+    if (this.state === 'gameover' && (e.code === 'Space' || e.code === 'Enter')) {
+      this.start();
+      e.preventDefault();
+    }
   }
 
   _resize() {
@@ -103,8 +125,44 @@ export class Game {
     this.input.reset();
     this.input.enabled = true;
     this.rig.snapTo(this.player.group.position);
+    this.ui.resetHudAnim();
     this.ui.hideOverlays();
     this.ui.update(this._stats());
+    this.audio.startSting();
+    if (this.clock.running === false) this.clock.start();
+  }
+
+  pause() {
+    if (this.state !== 'playing') return;
+    this.state = 'paused';
+    this.input.enabled = false;
+    this.ui.showPause();
+  }
+
+  resume() {
+    if (this.state !== 'paused') return;
+    this.state = 'playing';
+    this.input.enabled = true;
+    this.input.reset();
+    this.ui.hidePause();
+  }
+
+  _collectPickup(c) {
+    const pos = c.mesh.position.clone();
+    this.comboTimer = SCORE.comboDecay;
+    this.combo = Math.min(SCORE.comboMax, this.combo + 1);
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    const pts = SCORE.canBase * this.combo * (1 + SCORE.comboMultStep * (this.combo - 1));
+    this.score += pts;
+    this.coins += 1;
+
+    this.audio.pickup(this.combo);
+    this.fx.canPop(pos, this.combo, this.camera);
+    this.rig.punchFov(3 + this.combo * 0.25);
+    this.ui.flashPickup(this.combo);
+    this.ui.popCan();
+    this.ui.pulseScore();
+    this.ui.floatPoints(pts, this.combo);
   }
 
   _gameOver() {
@@ -113,8 +171,15 @@ export class Game {
     this.player.kill();
     this.audio.crash();
     this.fx.crashBurst(this.player.group.position.clone());
+    this.ui.flashHit(this.fx.hitFlashIntensity());
+    this.rig.landShake(0.28);
     this.input.enabled = false;
-    this.ui.showGameOver(this.score, this.coins, this.bestCombo);
+    setTimeout(() => {
+      if (this.state === 'gameover') {
+        this.audio.gameOver();
+        this.ui.showGameOver(this.score, this.coins, this.bestCombo);
+      }
+    }, 280);
   }
 
   _loop() {
@@ -125,20 +190,23 @@ export class Game {
   }
 
   update(dt) {
-    
+    const playing = this.state === 'playing';
+    const stats = this._stats();
 
-    if (this.state === 'playing') {
+    if (playing) {
       const inp = this.input.consume(this.player.canQueueLane());
       if (inp.laneDelta) {
         if (this.player.tryLane(inp.laneDelta)) {
           this.audio.whoosh(inp.laneDelta * 0.6);
-          this.rig.punchFov(4);
+          this.rig.punchFov(3.5);
         }
       }
-      if (inp.jump && this.player.tryJump()) this.audio.jump();
+      if (inp.jump && this.player.tryJump()) {
+        this.audio.jump();
+        this.rig.punchFov(2.8);
+      }
       if (inp.slide && this.player.trySlide()) this.audio.slide();
 
-      // accelerate
       this.player.speed = Math.min(
         PLAYER.runSpeedMax,
         this.player.speed + PLAYER.accelPerSec * dt
@@ -151,7 +219,7 @@ export class Game {
       if (this.player.justLanded) {
         this.audio.land();
         this.rig.landShake();
-        this.fx.landDust(this.player.group.position);
+        this.fx.landDust(this.player.group.position, stats.speedNorm);
       }
 
       this.world.update(this.player.z, this.player.speed);
@@ -176,36 +244,27 @@ export class Game {
         const chainBonus = this.collectibles.chainBonus(got);
         if (chainBonus > 0) this.score += chainBonus;
       }
-      for (const c of got) {
-        this.comboTimer = SCORE.comboDecay;
-        this.combo = Math.min(SCORE.comboMax, this.combo + 1);
-        this.bestCombo = Math.max(this.bestCombo, this.combo);
-        const pts = SCORE.canBase * this.combo * (1 + SCORE.comboMultStep * (this.combo - 1));
-        this.score += pts;
-        this.coins += 1;
-        this.audio.pickup(this.combo);
-        this.fx.pickupBurst(c.mesh.position.clone());
-        this.rig.punchFov(2);
-      }
+      for (const c of got) this._collectPickup(c);
 
       if (this.comboTimer > 0) {
         this.comboTimer -= dt;
         if (this.comboTimer <= 0) this.combo = 1;
       }
-    } else {
+    } else if (this.state === 'menu' || this.state === 'gameover') {
       this.player.update(dt);
       this.world.update(this.player.z, this.player.speed);
     }
 
-    const speedNorm = this._stats().speedNorm;
-    this.fx.update(dt, this.player.group.position, this.state === 'playing' ? speedNorm : 0.15);
+    const speedNorm = playing ? stats.speedNorm : this.state === 'menu' ? 0.12 : 0.08;
+    this.fx.update(dt, this.player.group.position, speedNorm, playing || this.state === 'menu');
     this.rig.update(
       dt,
       this.player.group.position,
-      this.state === 'playing' ? speedNorm : 0,
+      playing ? stats.speedNorm : 0,
       this.player.lean
     );
-    this.ui.update(this._stats());
+
+    this.ui.update(this._stats(), dt);
   }
 
   render() {
@@ -215,6 +274,7 @@ export class Game {
   dispose() {
     cancelAnimationFrame(this._raf);
     window.removeEventListener('resize', this._onResize);
+    window.removeEventListener('keydown', this._onKey);
     this.input.detach();
     this.renderer.dispose();
   }
