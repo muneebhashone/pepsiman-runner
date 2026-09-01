@@ -31,6 +31,7 @@ function pickVerticalType(rng) {
   return 'barrier';
 }
 
+const TUTORIAL_LANE = 1;
 const POST_WARMUP_SEQUENCE = ['rail', 'sign', 'rail', 'sign', 'rail', 'sign'];
 
 function typeForLane(lane, openLane, rng, warmup, warmupIndex = 0) {
@@ -46,7 +47,7 @@ function typeForLane(lane, openLane, rng, warmup, warmupIndex = 0) {
 
 const SLIDE_TYPES = ['rail'];
 
-/** After rotation.x = -PI/2, PlaneGeometry width → world X, height → world +Z. */
+/** Red telegraph only for hazards that kill on contact; slide rails use magenta accent */
 function telegraphColorsFor(type) {
   const core = COLORS.pepsiRed;
   const glow = SLIDE_TYPES.includes(type) ? COLORS.telegraphSlideGlow : COLORS.telegraphGlow;
@@ -145,9 +146,16 @@ export class Obstacles {
       sign: new THREE.MeshStandardMaterial({
         color: COLORS.sign,
         emissive: COLORS.sign,
-        emissiveIntensity: 0.45,
-        metalness: 0.25,
-        roughness: 0.45,
+        emissiveIntensity: 0.25,
+        metalness: 0.15,
+        roughness: 0.55,
+      }),
+      signFrame: new THREE.MeshStandardMaterial({
+        color: COLORS.signFrame,
+        emissive: COLORS.signFrame,
+        emissiveIntensity: 0.55,
+        metalness: 0.35,
+        roughness: 0.4,
       }),
       truckCab: new THREE.MeshStandardMaterial({
         color: COLORS.truckCab,
@@ -155,10 +163,10 @@ export class Obstacles {
         roughness: 0.3,
       }),
       truckBody: new THREE.MeshStandardMaterial({
-        color: COLORS.truckTrailer,
+        color: 0xd8e4f8,
         emissive: COLORS.pepsiBlue,
-        emissiveIntensity: 0.22,
-        metalness: 0.45,
+        emissiveIntensity: 0.15,
+        metalness: 0.5,
         roughness: 0.35,
       }),
       stripe: new THREE.MeshStandardMaterial({ color: 0x111111 }),
@@ -227,6 +235,22 @@ export class Obstacles {
       this.scene.add(chev);
       this.chevronPool.push(chev);
     }
+  }
+
+  _inTutorial(playerZ) {
+    return (
+      this._inWarmup(playerZ) ||
+      this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns
+    );
+  }
+
+  _countActiveBlockers(playerZ, range = 90) {
+    let n = 0;
+    for (const it of this.items) {
+      if (!it.alive) continue;
+      if (it.z > playerZ - 8 && it.z < playerZ + range) n++;
+    }
+    return n;
   }
 
   _inWarmup(playerZ) {
@@ -363,7 +387,7 @@ export class Obstacles {
     let hit = { w: 1.0, h: 0.95, d: 0.45, y: 0.55, mode: 'block' };
 
     if (type === 'barrier') {
-      // Solid mid-height lane block — jump over
+      // Striped mid-height block — jump over; never cylinder-shaped
       const base = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.35, 0.58), this._mats.stripe);
       base.position.y = 0.18;
       g.add(base);
@@ -379,7 +403,7 @@ export class Obstacles {
       g.add(s2);
       hit = { w: 1.2, h: 1.05, d: 0.48, y: 0.95, mode: 'jump' };
     } else if (type === 'rail') {
-      // Low overhead rail — slide under; tall posts + thin bar read as "duck"
+      // Low overhead rail — slide under; tall posts + thin bar
       const postL = new THREE.Mesh(new THREE.BoxGeometry(0.14, 2.15, 0.14), this._mats.rail);
       postL.position.set(-0.95, 1.08, 0);
       const postR = postL.clone();
@@ -394,10 +418,13 @@ export class Obstacles {
       g.add(warn);
       hit = { w: 1.45, h: 0.32, d: 0.9, y: 2.05, mode: 'slide' };
     } else if (type === 'sign') {
-      // High overhead sign — jump; tall pole + elevated board
+      // High overhead board on pole — jump; flat rectangular sign, not can-shaped
       const pole = new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.35, 0.16), this._mats.signPole);
       pole.position.y = 1.18;
       g.add(pole);
+      const frame = new THREE.Mesh(new THREE.BoxGeometry(2.15, 1.15, 0.12), this._mats.signFrame);
+      frame.position.y = 2.15;
+      g.add(frame);
       const m = new THREE.Mesh(this._geo.sign, this._mats.sign);
       m.position.y = 2.15;
       m.castShadow = true;
@@ -412,7 +439,7 @@ export class Obstacles {
       g.add(legL, legR);
       hit = { w: 1.45, h: 1.05, d: 0.45, y: 2.15, mode: 'jump' };
     } else {
-      // Big truck — lane change only
+      // Boxy delivery truck — lane change only; no cylinder silhouettes
       const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
       cab.position.set(0, 1.15, 1.55);
       cab.castShadow = true;
@@ -558,22 +585,34 @@ export class Obstacles {
   _spawnPattern(z, diff, playerZ, speed) {
     const rng = this._rng;
     const warmup = this._inWarmup(playerZ);
+    const tutorial = this._inTutorial(playerZ);
     this._pruneSpawnHistory(playerZ, speed);
-    const doubleChance = warmup
+
+    if (
+      !tutorial &&
+      this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers
+    ) {
+      return;
+    }
+
+    const doubleChance = warmup || tutorial
       ? 0
       : SPAWN.doubleChanceBase + (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
-    const count = warmup ? 1 : rng() < doubleChance ? 2 : 1;
-    const blocked = pickLanes(count, rng);
+    const count = warmup || tutorial ? 1 : rng() < doubleChance ? 2 : 1;
+    const blocked = tutorial
+      ? [TUTORIAL_LANE]
+      : pickLanes(count, rng);
     const open = [0, 1, 2].find((l) => !blocked.includes(l));
 
     const placedTypes = [];
     for (let bi = 0; bi < blocked.length; bi++) {
       const lane = blocked[bi];
       let type;
-      if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
-        type = POST_WARMUP_SEQUENCE[this.postWarmupPatterns % POST_WARMUP_SEQUENCE.length];
-        if (bi > 0 && placedTypes.includes(type) && (type === 'rail' || type === 'sign')) {
-          type = type === 'rail' ? 'sign' : 'rail';
+      if (tutorial) {
+        if (warmup) {
+          type = WARMUP_TYPES[this.patternsSpawned % WARMUP_TYPES.length];
+        } else {
+          type = POST_WARMUP_SEQUENCE[this.postWarmupPatterns % POST_WARMUP_SEQUENCE.length];
         }
       } else if (!warmup && bi === 0) {
         type = this._varietyType(rng, playerZ, speed);
@@ -603,7 +642,7 @@ export class Obstacles {
       placedTypes.push(type);
       this._recordSpawn(z + zOff, type);
     }
-    if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
+    if (!warmup && tutorial && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
       this.postWarmupPatterns += 1;
     }
     this.patternsSpawned += 1;
@@ -648,6 +687,9 @@ export class Obstacles {
 
     // Always fill horizon (pre-seed from runwayZ while still on runway)
     while (this.nextZ < playerZ + horizonDist) {
+      if (this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers + 1) {
+        break;
+      }
       if (this.nextZ < runwayZ) {
         this.nextZ = runwayZ;
         if (this.nextZ >= playerZ + horizonDist) break;
@@ -701,27 +743,27 @@ export class Obstacles {
       const widthScale = 1 + urgency * 0.04;
       const lengthScale = stripLen / baseLength;
       const alpha = showStrip
-        ? Math.min(1, (minAlpha + (1 - minAlpha) * urgency ** 0.55) * blink)
+        ? Math.min(1, (minAlpha + (1 - minAlpha) * urgency ** 0.7) * blink)
         : 0;
 
       layFlatOnRoad(it.tel);
-      it.tel.visible = showStrip;
+      it.tel.visible = showStrip && alpha > 0.02;
       it.tel.material.opacity = alpha;
       it.tel.material.color.setHex(colors.core);
       it.tel.position.set(laneX, 0.08, stripCenterZ);
       it.tel.scale.set(widthScale, lengthScale, 1);
 
       layFlatOnRoad(it.telOuter);
-      it.telOuter.visible = showStrip;
-      it.telOuter.material.opacity = showStrip ? Math.min(1, alpha * 0.65 * pulse) : 0;
+      it.telOuter.visible = showStrip && alpha > 0.02;
+      it.telOuter.material.opacity = showStrip ? Math.min(1, alpha * 0.55 * pulse) : 0;
       it.telOuter.material.color.setHex(colors.glow);
       it.telOuter.position.set(laneX, 0.07, stripCenterZ);
       it.telOuter.scale.set(widthScale * 1.06, lengthScale * 1.04, 1);
 
       if (it.shadow) {
         layFlatOnRoad(it.shadow);
-        it.shadow.visible = showStrip;
-        it.shadow.material.opacity = showStrip ? 0.18 + 0.3 * urgency : 0;
+        it.shadow.visible = showStrip && alpha > 0.02;
+        it.shadow.material.opacity = showStrip ? 0.12 + 0.22 * urgency : 0;
         it.shadow.position.set(laneX, 0.06, stripStartZ + stripLen * 0.72);
       }
 

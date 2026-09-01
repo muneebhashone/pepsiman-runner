@@ -24,6 +24,7 @@ export class CameraRig {
   landShake(strength = CAMERA.landShake, duration = CAMERA.landShakeDuration) {
     this.shakeAmp = Math.max(this.shakeAmp, strength);
     this.shakeTime = duration;
+    this._shakeDuration = duration;
     this._shakeSeed = Math.random() * 1000;
   }
 
@@ -101,11 +102,13 @@ export class CameraRig {
 
     if (this.shakeTime > 0) {
       this.shakeTime -= dt;
-      const norm = Math.max(0, this.shakeTime / CAMERA.landShakeDuration);
+      const duration = this._shakeDuration || CAMERA.landShakeDuration;
+      const norm = Math.max(0, this.shakeTime / duration);
       const damp = norm * norm;
-      const t = this._shakeSeed + (CAMERA.landShakeDuration - this.shakeTime) * 42;
+      const t = this._shakeSeed + (duration - this.shakeTime) * 42;
       this.camera.position.x += Math.sin(t * 17.3) * this.shakeAmp * damp;
-      this.camera.position.y += Math.sin(t * 23.7 + 1.2) * this.shakeAmp * damp * 0.55;
+      this.camera.position.y += Math.sin(t * 23.7 + 1.2) * this.shakeAmp * damp * 0.65;
+      this.camera.position.z += Math.sin(t * 11.1 + 0.7) * this.shakeAmp * damp * 0.35;
       this.camera.position.x = THREE.MathUtils.clamp(
         this.camera.position.x,
         playerPos.x - lateralClamp,
@@ -124,6 +127,7 @@ export class CameraRig {
     this._jumpBlend = 0;
     this.shakeAmp = 0;
     this.shakeTime = 0;
+    this._shakeDuration = 0;
     this.fovPunch = 0;
     this.camera.fov = this.baseFov;
     this.camera.up.set(0, 1, 0);
