@@ -46,6 +46,7 @@ export class Game {
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
     this.collectibles = new Collectibles(this.scene);
+    this.collectibles.setObstacles(this.obstacles);
     this.fx = new FX(this.scene);
     this.audio = new AudioSys();
     this.ui = new UI();
@@ -153,7 +154,7 @@ export class Game {
         this.fx.landDust(this.player.group.position);
       }
 
-      this.world.update(this.player.z);
+      this.world.update(this.player.z, this.player.speed);
       this.obstacles.update(dt, this.player.z, this.player.speed);
       this.collectibles.update(
         dt,
@@ -171,6 +172,10 @@ export class Game {
       }
 
       const got = this.collectibles.collect(box);
+      if (got.length) {
+        const chainBonus = this.collectibles.chainBonus(got);
+        if (chainBonus > 0) this.score += chainBonus;
+      }
       for (const c of got) {
         this.comboTimer = SCORE.comboDecay;
         this.combo = Math.min(SCORE.comboMax, this.combo + 1);
@@ -189,7 +194,7 @@ export class Game {
       }
     } else {
       this.player.update(dt);
-      this.world.update(this.player.z);
+      this.world.update(this.player.z, this.player.speed);
     }
 
     const speedNorm = this._stats().speedNorm;
