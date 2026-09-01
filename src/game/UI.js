@@ -189,6 +189,22 @@ export class UI {
 
   flashTutorialHint(action) {
     if (!this.tutorialHint) return;
+    clearTimeout(this._tutorialHintTimer);
+    clearTimeout(this._tutorialHintChainTimer);
+    this._showTutorialHint(action);
+  }
+
+  /** Schedule a follow-up hint (e.g. JUMP chained after GET READY for first sign). */
+  scheduleTutorialHint(action, delayMs) {
+    clearTimeout(this._tutorialHintChainTimer);
+    this._tutorialHintChainTimer = setTimeout(() => {
+      this._tutorialHintChainTimer = null;
+      this._showTutorialHint(action);
+    }, delayMs);
+  }
+
+  _showTutorialHint(action) {
+    if (!this.tutorialHint) return;
     const isReady = action === 'ready';
     const isSlide = action === 'slide';
     const label = isReady ? 'GET READY' : isSlide ? 'SLIDE' : 'JUMP';
@@ -250,5 +266,6 @@ export class UI {
     this.tutorialHint?.classList.remove('flash', 'slide', 'jump', 'ready');
     this.tutorialHint?.setAttribute('aria-hidden', 'true');
     clearTimeout(this._tutorialHintTimer);
+    clearTimeout(this._tutorialHintChainTimer);
   }
 }
