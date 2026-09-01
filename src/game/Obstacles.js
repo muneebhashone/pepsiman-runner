@@ -387,13 +387,25 @@ export class Obstacles {
     return null;
   }
 
-  _dismissTutorialHint(isRail) {
+  _markTutorialDone(isRail) {
     const stateKey = isRail ? '_railHintState' : '_signHintState';
     const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
     this[stateKey] = 'done';
     this[fadeKey] = false;
-    this._onTutorialHint?.(null);
     return true;
+  }
+
+  /** True when correct input should dismiss the on-screen tutorial cue. */
+  canDismissTutorialOnInput(kind) {
+    const isRail = kind === 'slide';
+    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const state = this[stateKey];
+    return state === 'verb' || state === 'ready' || state === 'retryBeat';
+  }
+
+  markTutorialDismissed(kind) {
+    const isRail = kind === 'slide';
+    return this._markTutorialDone(isRail);
   }
 
   /** Dismiss when correct input or pose during any active first-tutorial window. */
@@ -401,9 +413,7 @@ export class Obstacles {
     const isRail = kind === 'slide';
     const stateKey = isRail ? '_railHintState' : '_signHintState';
     const state = this[stateKey];
-    if (state !== 'idle') return this._dismissTutorialHint(isRail);
-    const ttc = this._firstTutorialTtc(isRail);
-    if (ttc != null && ttc > 0) return this._dismissTutorialHint(isRail);
+    if (state === 'verb') return this._markTutorialDone(isRail);
     return false;
   }
 
@@ -440,21 +450,9 @@ export class Obstacles {
     this._emitTutorialHint(isRail ? 'slide' : 'jump', kind);
   }
 
-  /** True when jump/slide verb or beat is on screen for this tutorial kind. */
-  _tutorialHintActive(kind) {
-    const isRail = kind === 'slide';
-    const state = isRail ? this._railHintState : this._signHintState;
-    return state === 'ready' || state === 'verb' || state === 'retryBeat';
-  }
-
-  /** Dismiss on consumed input — synchronous, before tryJump/trySlide. */
+  /** Dismiss on consumed input — only correct verb while its beat is active. */
   onTutorialInputConsumed(kind) {
-    const isRail = kind === 'slide';
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
-    const ttc = this._firstTutorialTtc(isRail);
-    const obstacleAhead = ttc != null && ttc > 0;
-    if (!this._tutorialHintActive(kind) && !obstacleAhead) return false;
-    return this._dismissTutorialHint(isRail);
+    return this.canDismissTutorialOnInput(kind);
   }
 
   onTutorialCorrectAction(kind) {
@@ -465,8 +463,9 @@ export class Obstacles {
   checkTutorialPoseDismiss(sliding, jumping, playerZ, speed) {
     this._lastPlayerZ = playerZ;
     this._lastSpeed = speed;
-    if (sliding) this._tryDismissTutorial('slide');
-    if (jumping) this._tryDismissTutorial('jump');
+    if (sliding && this._railHintState === 'verb') return 'slide';
+    if (jumping && this._signHintState === 'verb') return 'jump';
+    return null;
   }
 
   _tutorialHintStartTtc() {
