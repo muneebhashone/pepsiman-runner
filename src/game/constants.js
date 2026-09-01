@@ -116,12 +116,15 @@ export const SPAWN = {
   telegraphMinAlpha: 0.42,
   /** Opacity ramps to full only in the last N seconds before hazard */
   telegraphRampSec: 0.35,
-  /** Tutorial verb at full opacity while time-to-contact is in [tail, lead] (seconds) */
-  tutorialHintVerbLeadSec: 2.0,
-  tutorialHintVerbTailSec: 0.4,
-  /** GET READY real-time hold before verb replaces it (seconds) */
+  /** Verb hint full-opacity dwell before fade (seconds) */
+  tutorialHintVerbVisibleSec: 1.8,
+  /** Verb hint fade-out duration (seconds) */
+  tutorialHintVerbFadeSec: 0.35,
+  /** GET READY real-time hold before first verb (seconds) */
   tutorialHintReadyBeforeVerbSec: 0.9,
-  /** Start GET READY when ttc <= verbLead + readyBeforeVerb (seconds) */
+  /** AGAIN / GET READY beat before grace-retry verb (seconds) */
+  tutorialHintRetryBeatSec: 0.7,
+  /** Start GET READY when ttc <= readyStartSec (seconds) */
   tutorialHintReadyStartSec: 2.9,
   /** Min spawn lead so first tutorial threats enter teaching range with full dwell */
   tutorialHintMinSpawnTtcSec: 3.2,

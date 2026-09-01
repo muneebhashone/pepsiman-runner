@@ -74,15 +74,15 @@ body {
 #tutorial-hint {
   position: absolute;
   left: 50%;
-  bottom: 34%;
+  bottom: 25%;
   transform: translateX(-50%);
   z-index: 18;
   pointer-events: none;
-  font-size: clamp(40px, 10vw, 72px);
+  font-size: clamp(28px, 7vw, 50px);
   font-weight: 900;
   letter-spacing: 0.1em;
   color: #ffffff;
-  -webkit-text-stroke: 3px rgba(0, 26, 58, 0.95);
+  -webkit-text-stroke: 2px rgba(0, 26, 58, 0.95);
   paint-order: stroke fill;
   text-shadow:
     0 0 24px rgba(227, 41, 52, 0.9),
@@ -111,8 +111,9 @@ body {
     0 5px 0 rgba(0, 40, 80, 0.95);
 }
 
-#tutorial-hint.ready {
-  font-size: clamp(32px, 8vw, 56px);
+#tutorial-hint.ready,
+#tutorial-hint.again {
+  font-size: clamp(22px, 5.6vw, 39px);
   color: #ffffff;
   -webkit-text-stroke-color: rgba(0, 55, 120, 0.95);
   letter-spacing: 0.14em;
@@ -129,6 +130,15 @@ body {
 
 #tutorial-hint.hold.pop {
   animation: tutorial-hint-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+#tutorial-hint.fade-out {
+  visibility: visible;
+  opacity: 0;
+  transition:
+    opacity 0.35s ease-out,
+    transform 0.35s ease-out;
+  transform: translateX(-50%) scale(0.92) translateY(-8px);
 }
 
 #tutorial-hint.hidden {
