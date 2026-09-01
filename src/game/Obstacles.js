@@ -20,13 +20,15 @@ function pickLanes(n, rng) {
 
 function pickVerticalType(rng) {
   const roll = rng();
-  if (roll < 0.42) return 'rail';
-  if (roll < 0.72) return 'barrier';
-  return 'sign';
+  if (roll < 0.5) return 'rail';
+  if (roll < 0.82) return 'sign';
+  return 'barrier';
 }
 
-function typeForLane(lane, openLane, rng, warmup) {
-  if (warmup) return WARMUP_TYPES[(rng() * WARMUP_TYPES.length) | 0];
+const POST_WARMUP_SEQUENCE = ['rail', 'sign', 'rail', 'sign', 'rail', 'sign'];
+
+function typeForLane(lane, openLane, rng, warmup, warmupIndex = 0) {
+  if (warmup) return WARMUP_TYPES[warmupIndex % WARMUP_TYPES.length];
   if (lane === openLane) {
     if (rng() < SPAWN.verticalObstacleBias) return pickVerticalType(rng);
     return TYPES[(rng() * TYPES.length) | 0];
@@ -102,6 +104,7 @@ export class Obstacles {
     this.chevronPool = [];
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
+    this.postWarmupPatterns = 0;
     this._pulseT = 0;
     this._rng = Math.random;
 
@@ -468,8 +471,18 @@ export class Obstacles {
     const blocked = pickLanes(count, rng);
     const open = [0, 1, 2].find((l) => !blocked.includes(l));
 
-    for (const lane of blocked) {
-      let type = typeForLane(lane, open, rng, warmup);
+    const placedTypes = [];
+    for (let bi = 0; bi < blocked.length; bi++) {
+      const lane = blocked[bi];
+      let type;
+      if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
+        type = POST_WARMUP_SEQUENCE[this.postWarmupPatterns % POST_WARMUP_SEQUENCE.length];
+        if (bi > 0 && placedTypes.includes(type) && (type === 'rail' || type === 'sign')) {
+          type = type === 'rail' ? 'sign' : 'rail';
+        }
+      } else {
+        type = typeForLane(lane, open, rng, warmup, this.patternsSpawned);
+      }
       if (!warmup && count === 2 && blocked.length === 2) {
         const other = blocked.find((l) => l !== lane);
         const otherType = typeForLane(other, open, rng, false);
@@ -485,6 +498,10 @@ export class Obstacles {
       }
       const zOff = !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
       this._acquire(type, lane, z + zOff);
+      placedTypes.push(type);
+    }
+    if (!warmup && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
+      this.postWarmupPatterns += 1;
     }
     this.patternsSpawned += 1;
   }
@@ -629,6 +646,7 @@ export class Obstacles {
     while (this.items.length) this._release(this.items.shift());
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
+    this.postWarmupPatterns = 0;
     this._pulseT = 0;
     this._rng = Math.random;
   }

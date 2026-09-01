@@ -422,7 +422,7 @@ export class World {
     }
     if (this.rim) {
       this.rim.position.set(0, 5, playerZ - 4);
-      this.rim.intensity = 1.35 + this.speedNorm * 0.3;
+      this.rim.intensity = 1.65 + this.speedNorm * 0.35;
     }
     if (this.ambient) {
       this.ambient.intensity = 1.82 + this.speedNorm * 0.18;
