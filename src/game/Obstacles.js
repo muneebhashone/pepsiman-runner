@@ -9,8 +9,8 @@ const POOL_SIZE = 48;
 /** Forced post-tutorial rotation — every colliding verb appears before weights matter */
 const ROTATION_TABLE = [
   { kind: 'single', type: 'truck' },
-  { kind: 'barrelChain' },
   { kind: 'single', type: 'mover' },
+  { kind: 'barrelChain' },
   { kind: 'pepsiWide' },
   { kind: 'single', type: 'barrier' },
   { kind: 'single', type: 'rail' },
@@ -1283,20 +1283,21 @@ export class Obstacles {
 
   _gapForSpeed(speed, playerZ) {
     const diff = speedNorm(speed);
-    const wideCutoff = SPAWN.warmupPatternCount + SPAWN.postWarmupWideGapCount;
-    if (
-      this.patternsSpawned <= SPAWN.obstacleTutorialWideGapCount ||
-      this.patternsSpawned <= wideCutoff
-    ) {
-      return (
-        SPAWN.obstacleTutorialGapMin +
-        this._rng() * (SPAWN.obstacleTutorialGapMax - SPAWN.obstacleTutorialGapMin)
-      );
-    }
     if (this._inWarmup(playerZ)) {
       return (
         SPAWN.obstacleWarmupGapMin +
         this._rng() * (SPAWN.obstacleWarmupGapMax - SPAWN.obstacleWarmupGapMin)
+      );
+    }
+    const wideCutoff = SPAWN.warmupPatternCount + SPAWN.postWarmupWideGapCount;
+    if (
+      this._inTutorial(playerZ) &&
+      (this.patternsSpawned <= SPAWN.obstacleTutorialWideGapCount ||
+        this.patternsSpawned <= wideCutoff)
+    ) {
+      return (
+        SPAWN.obstacleTutorialGapMin +
+        this._rng() * (SPAWN.obstacleTutorialGapMax - SPAWN.obstacleTutorialGapMin)
       );
     }
     const min = SPAWN.obstacleMinGap - diff * SPAWN.obstacleGapTighten * 12;

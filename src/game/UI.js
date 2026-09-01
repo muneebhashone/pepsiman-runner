@@ -177,10 +177,12 @@ export class UI {
       }
     }
     if (this.finalSoClose) {
+      const isNewHigh = best > 0 && pts >= best;
       const show =
-        meta.soClose ||
-        meta.diedDuringRush ||
-        (meta.highScore > 0 && score >= meta.highScore * 0.9 && score < meta.highScore);
+        !isNewHigh &&
+        (meta.soClose ||
+          meta.diedDuringRush ||
+          (meta.highScore > 0 && score >= meta.highScore * 0.9 && score < meta.highScore));
       this.finalSoClose.classList.toggle('hidden', !show);
       if (show && meta.diedDuringRush) {
         this.finalSoClose.textContent = 'RUSH ENDED — SO CLOSE!';
