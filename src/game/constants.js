@@ -35,7 +35,7 @@ export const COLORS = {
 export const PLAYER = {
   runSpeedBase: 18,
   runSpeedMax: 42,
-  accelPerSec: 0.35,
+  accelPerSec: 0.22,
   /** Lane switch: 0.18–0.22s with overshoot settle */
   laneSwitchDuration: 0.2,
   laneOvershoot: 0.14,
@@ -78,18 +78,18 @@ export const SPAWN = {
   runwayZ: 55,
   minSpawnAhead: 55,
   /** Z gap between patterns — ~1.8–2.5s at base speed, tightens slowly with velocity */
-  obstacleMinGap: 32,
-  obstacleMaxGap: 42,
-  obstacleGapTighten: 0.14,
-  obstacleWarmupZ: 180,
-  obstacleWarmupGapMin: 32,
-  obstacleWarmupGapMax: 42,
+  obstacleMinGap: 38,
+  obstacleMaxGap: 48,
+  obstacleGapTighten: 0.1,
+  obstacleWarmupZ: 320,
+  obstacleWarmupGapMin: 52,
+  obstacleWarmupGapMax: 68,
   /** Wider Z gap between first forced tutorial obstacles so lesson 2 isn't stacked on lesson 1 */
-  obstacleTutorialGapMin: 65,
-  obstacleTutorialGapMax: 75,
+  obstacleTutorialGapMin: 72,
+  obstacleTutorialGapMax: 82,
   /** How many initial tutorial patterns use the wider gap */
-  obstacleTutorialWideGapCount: 3,
-  warmupPatternCount: 2,
+  obstacleTutorialWideGapCount: 4,
+  warmupPatternCount: 10,
   /** First N post-warmup patterns alternate forced slide/jump obstacles in center lane */
   postWarmupTutorialPatterns: 0,
   /** Max hazards visible ahead of player at once */
@@ -167,11 +167,11 @@ export const NEAR_MISS = {
 export const FIZZ = {
   max: 1,
   emptyAfterRush: 0,
-  perCan: 0.045,
+  perCan: 0.09,
   perCanStreak: 0.008,
   streakWindow: 1.4,
   streakCap: 0.04,
-  perNearMiss: 0.14,
+  perNearMiss: 0.16,
   rushDuration: 4,
   speedBoost: 1.12,
   magnetAllLanes: true,
@@ -184,12 +184,12 @@ export const MISSIONS = {
 export const ZONE = {
   /** Speed-band palette / FOV tick every ~20s */
   intervalSec: 20,
-  fovTick: 1.5,
+  fovTick: 0.75,
 };
 
 export const DEATH = {
   hitStopDuration: 0.1,
-  fovPunch: 8,
+  fovPunch: 4,
   shakeStrength: 0.45,
   shakeDuration: 0.28,
 };
