@@ -2,6 +2,9 @@
  * Lightweight cue-queue regression checks (no browser required).
  * Run: node scripts/test-cue-queue.mjs
  */
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { SPAWN } from '../src/game/constants.js';
 
 // Minimal DOM shim for UI cue queue
@@ -193,7 +196,18 @@ async function testClearOnDismiss() {
   console.log('PASS clearTutorialHint clears textContent');
 }
 
+function testGameConstructorOrder() {
+  const gamePath = join(dirname(fileURLToPath(import.meta.url)), '../src/game/Game.js');
+  const src = readFileSync(gamePath, 'utf8');
+  const uiAssign = src.indexOf('this.ui = new UI()');
+  const cueComplete = src.indexOf('this.ui.setTutorialCueCompleteCallback');
+  assert(uiAssign !== -1 && cueComplete !== -1, 'Game.js must assign UI and wire cue callback');
+  assert(uiAssign < cueComplete, 'this.ui = new UI() must precede setTutorialCueCompleteCallback');
+  console.log('PASS Game constructor assigns UI before cue callback wiring');
+}
+
 (async () => {
+  testGameConstructorOrder();
   await testVerbHold();
   await testNoPreemption();
   await testGraceSequence();
