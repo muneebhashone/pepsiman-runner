@@ -290,6 +290,17 @@ export class UI {
     clearTimeout(this._tutorialHintChainTimer);
   }
 
+  isTutorialHintVisible() {
+    return Boolean(this.tutorialHint && !this.tutorialHint.classList.contains('hidden'));
+  }
+
+  matchesTutorialAction(action) {
+    if (!this._tutorialHintAction) return false;
+    if (action === 'slide') return this._tutorialHintAction === 'slide';
+    if (action === 'jump') return this._tutorialHintAction === 'jump';
+    return false;
+  }
+
   /** Schedule a follow-up hint (legacy one-shot; prefer setTutorialHint). */
   scheduleTutorialHint(action, delayMs) {
     clearTimeout(this._tutorialHintChainTimer);
