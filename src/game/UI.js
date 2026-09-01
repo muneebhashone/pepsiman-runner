@@ -29,6 +29,12 @@ export class UI {
     this._prevCombo = 1;
     this._comboPopTimer = 0;
     this._tutorialHintAction = null;
+    this._cueQueue = [];
+    this._cueActive = null;
+    this._cueGen = 0;
+    this._cueTimers = { hold: null, fade: null };
+    this._cueIdleWaiters = [];
+    this._onCueComplete = null;
 
     this.btnStart?.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -72,6 +78,10 @@ export class UI {
 
   onPause(fn) {
     this._onPause = fn;
+  }
+
+  setTutorialCueCompleteCallback(fn) {
+    this._onCueComplete = fn;
   }
 
   showStart() {
@@ -205,17 +215,59 @@ export class UI {
   }
 
   flashTutorialHint(action) {
-    this.setTutorialHint(action);
+    this.enqueueTutorialCue(action);
   }
 
-  /** Show tutorial hint at full opacity until cleared or faded. */
-  setTutorialHint(action) {
+  /** Queue a tutorial cue — only one owns #tutorial-hint until its lifecycle completes. */
+  enqueueTutorialCue(action, kind = null) {
+    if (!action || action === 'fade') return;
+    if (action === 'ready' && this._shouldDropReady()) return;
+    this._cueQueue.push({ action, kind });
+    this._drainCueQueue();
+  }
+
+  _shouldDropReady() {
+    const verb = (a) => a === 'slide' || a === 'jump';
+    if (this._cueActive) {
+      const a = this._cueActive.action;
+      if (verb(a) || a === 'again' || a === 'ready') return true;
+    }
+    if (this._cueQueue.some((c) => c.action === 'ready')) return true;
+    if (this._cueQueue.some((c) => verb(c.action))) return true;
+    return false;
+  }
+
+  _isVerb(action) {
+    return action === 'slide' || action === 'jump';
+  }
+
+  _holdMs(action) {
+    if (action === 'ready') return SPAWN.tutorialHintReadyBeforeVerbSec * 1000;
+    if (action === 'again') return SPAWN.tutorialHintRetryBeatSec * 1000;
+    return SPAWN.tutorialHintVerbVisibleSec * 1000;
+  }
+
+  _fadeAfter(action) {
+    return this._isVerb(action);
+  }
+
+  _drainCueQueue() {
+    if (this._cueActive) return;
+    const next = this._cueQueue.shift();
+    if (!next) {
+      this._notifyCueIdle();
+      return;
+    }
+    this._startCue(next.action, next.kind);
+  }
+
+  _startCue(action, kind) {
     if (!this.tutorialHint) return;
-    const dismissGen = this._tutorialHintDismissGen ?? 0;
-    clearTimeout(this._tutorialHintTimer);
-    clearTimeout(this._tutorialHintChainTimer);
-    const same = this._tutorialHintAction === action;
+    const gen = ++this._cueGen;
+    this._cueActive = { action, kind, gen };
     this._tutorialHintAction = action;
+    this._tutorialHintDismissed = false;
+
     const isReady = action === 'ready';
     const isAgain = action === 'again';
     const isSlide = action === 'slide';
@@ -234,44 +286,44 @@ export class UI {
       'fade-out'
     );
     const tone = isReady || isAgain ? (isAgain ? 'again' : 'ready') : isSlide ? 'slide' : 'jump';
-    this.tutorialHint.classList.add('hold', tone);
-    if (!same) {
-      void this.tutorialHint.offsetWidth;
-      this.tutorialHint.classList.add('pop');
-    }
-    if ((this._tutorialHintDismissGen ?? 0) !== dismissGen) {
-      this.tutorialHint.classList.add('hidden');
-      this.tutorialHint.classList.remove(
-        'hold',
-        'pop',
-        'slide',
-        'jump',
-        'ready',
-        'again',
-        'fade-out'
-      );
-      return;
-    }
-    this._tutorialHintDismissed = false;
+    this.tutorialHint.classList.add('hold', tone, 'pop');
     this.tutorialHint.setAttribute('aria-hidden', 'false');
+    void this.tutorialHint.offsetWidth;
+
+    const pop = SPAWN.tutorialHintVerbPopSec * 1000;
+    const hold = this._holdMs(action);
+    const fade = this._fadeAfter(action) ? SPAWN.tutorialHintVerbFadeSec * 1000 : 0;
+
+    this._clearCueTimers();
+    this._cueTimers.hold = setTimeout(() => {
+      if (this._cueActive?.gen !== gen) return;
+      if (fade > 0) this._beginCueFade(gen, fade);
+      else this._finishCue(gen);
+    }, pop + hold + 16);
   }
 
-  fadeTutorialHint() {
-    if (!this.tutorialHint || this.tutorialHint.classList.contains('hidden')) return;
-    if (this._tutorialHintDismissed) return;
+  _beginCueFade(gen, fadeMs) {
+    if (!this.tutorialHint || this._cueActive?.gen !== gen) return;
     this.tutorialHint.classList.remove('hold', 'pop');
     this.tutorialHint.classList.add('fade-out');
-    clearTimeout(this._tutorialHintTimer);
-    const fadeMs = SPAWN.tutorialHintVerbFadeSec * 1000 + 50;
-    this._tutorialHintTimer = setTimeout(() => this.clearTutorialHint(), fadeMs);
+    clearTimeout(this._cueTimers.fade);
+    this._cueTimers.fade = setTimeout(() => this._finishCue(gen), fadeMs + 50);
   }
 
-  clearTutorialHint() {
-    if (!this.tutorialHint) return;
-    this._tutorialHintDismissGen = (this._tutorialHintDismissGen ?? 0) + 1;
-    this._tutorialHintDismissed = true;
+  _finishCue(gen) {
+    if (this._cueActive?.gen !== gen) return;
+    const { action, kind } = this._cueActive;
+    this._cueActive = null;
     this._tutorialHintAction = null;
+    this._hideCueDOM();
+    this._onCueComplete?.(action, kind);
+    this._drainCueQueue();
+  }
+
+  _hideCueDOM() {
+    if (!this.tutorialHint) return;
     this.tutorialHint.style.transition = 'none';
+    this.tutorialHint.textContent = '';
     this.tutorialHint.classList.add('hidden');
     this.tutorialHint.classList.remove(
       'hold',
@@ -286,32 +338,75 @@ export class UI {
     this.tutorialHint.setAttribute('aria-hidden', 'true');
     void this.tutorialHint.offsetWidth;
     this.tutorialHint.style.transition = '';
-    clearTimeout(this._tutorialHintTimer);
-    clearTimeout(this._tutorialHintChainTimer);
+  }
+
+  _clearCueTimers() {
+    clearTimeout(this._cueTimers.hold);
+    clearTimeout(this._cueTimers.fade);
+    this._cueTimers.hold = null;
+    this._cueTimers.fade = null;
+  }
+
+  isCueBusy() {
+    return Boolean(this._cueActive) || this._cueQueue.length > 0;
+  }
+
+  whenCueIdle(cb) {
+    if (!this.isCueBusy()) {
+      cb();
+      return;
+    }
+    this._cueIdleWaiters.push(cb);
+  }
+
+  _notifyCueIdle() {
+    if (this.isCueBusy()) return;
+    const waiters = this._cueIdleWaiters.splice(0);
+    for (const cb of waiters) cb();
+  }
+
+  /** @deprecated Use enqueueTutorialCue */
+  setTutorialHint(action) {
+    this.enqueueTutorialCue(action);
+  }
+
+  /** @deprecated Lifecycle owned by cue queue */
+  fadeTutorialHint() {}
+
+  clearTutorialHint() {
+    if (!this.tutorialHint) return;
+    this._cueGen++;
+    this._cueQueue = [];
+    this._cueActive = null;
+    this._tutorialHintAction = null;
+    this._tutorialHintDismissed = true;
+    this._clearCueTimers();
+    this._hideCueDOM();
+    this._notifyCueIdle();
   }
 
   isTutorialHintVisible() {
-    return Boolean(this.tutorialHint && !this.tutorialHint.classList.contains('hidden'));
+    return Boolean(this._cueActive);
   }
 
   matchesTutorialAction(action) {
-    if (!this._tutorialHintAction) return false;
-    if (action === 'slide') return this._tutorialHintAction === 'slide';
-    if (action === 'jump') return this._tutorialHintAction === 'jump';
+    if (!this._cueActive) return false;
+    if (action === 'slide') return this._cueActive.action === 'slide';
+    if (action === 'jump') return this._cueActive.action === 'jump';
     return false;
   }
 
-  /** Schedule a follow-up hint (legacy one-shot; prefer setTutorialHint). */
+  /** @deprecated Use enqueueTutorialCue via obstacle callback */
   scheduleTutorialHint(action, delayMs) {
     clearTimeout(this._tutorialHintChainTimer);
     this._tutorialHintChainTimer = setTimeout(() => {
       this._tutorialHintChainTimer = null;
-      this.setTutorialHint(action);
+      this.enqueueTutorialCue(action);
     }, delayMs);
   }
 
   _showTutorialHint(action) {
-    this.setTutorialHint(action);
+    this.enqueueTutorialCue(action);
   }
 
   popCombo() {
@@ -354,8 +449,6 @@ export class UI {
     this._comboPopTimer = 0;
     this._tutorialHintAction = null;
     this._tutorialHintDismissed = false;
-    this.comboWrap?.classList.remove('pop', 'hot');
-    this.scoreEl?.classList.remove('pulse');
     this.clearTutorialHint();
   }
 }

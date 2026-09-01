@@ -129,7 +129,7 @@ body {
 }
 
 #tutorial-hint.hold.pop {
-  animation: tutorial-hint-in 0.12s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: tutorial-hint-in 0.18s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 #tutorial-hint.fade-out {

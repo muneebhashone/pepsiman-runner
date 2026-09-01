@@ -58,10 +58,16 @@ export class Game {
     this.player = new Player(this.scene);
     this.world = new World(this.scene);
     this.obstacles = new Obstacles(this.scene);
-    this.obstacles.setTutorialHintCallback((action) => {
-      if (action === 'fade') this.ui.fadeTutorialHint();
-      else if (action) this.ui.setTutorialHint(action);
+    this.obstacles.setTutorialHintCallback((action, kind) => {
+      if (action) this.ui.enqueueTutorialCue(action, kind);
       else this.ui.clearTutorialHint();
+    });
+    this.obstacles.setTutorialCueGate({
+      isBusy: () => this.ui.isCueBusy(),
+      whenIdle: (cb) => this.ui.whenCueIdle(cb),
+    });
+    this.ui.setTutorialCueCompleteCallback((action, kind) => {
+      this.obstacles.onTutorialCueComplete(action, kind);
     });
     this.obstacles.setTutorialGraceCallback((action) => this._tutorialGrace(action));
     this.collectibles = new Collectibles(this.scene);
