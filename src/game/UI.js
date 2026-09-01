@@ -1,3 +1,5 @@
+import { SPAWN } from './constants.js';
+
 export class UI {
   constructor() {
     this.hud = document.getElementById('hud');
@@ -187,17 +189,21 @@ export class UI {
 
   flashTutorialHint(action) {
     if (!this.tutorialHint) return;
+    const isReady = action === 'ready';
     const isSlide = action === 'slide';
-    const label = isSlide ? 'SLIDE' : 'JUMP';
-    const arrow = isSlide ? '↓' : '↑';
-    this.tutorialHint.textContent = `${arrow} ${label}`;
-    this.tutorialHint.classList.remove('hidden', 'slide', 'jump');
-    this.tutorialHint.classList.add(isSlide ? 'slide' : 'jump', 'flash');
+    const label = isReady ? 'GET READY' : isSlide ? 'SLIDE' : 'JUMP';
+    const arrow = isReady ? '' : isSlide ? '↓' : '↑';
+    this.tutorialHint.textContent = arrow ? `${arrow} ${label}` : label;
+    this.tutorialHint.classList.remove('hidden', 'slide', 'jump', 'ready', 'flash');
+    this.tutorialHint.classList.add(isReady ? 'ready' : isSlide ? 'slide' : 'jump', 'flash');
+    this.tutorialHint.setAttribute('aria-hidden', 'false');
     clearTimeout(this._tutorialHintTimer);
+    const duration = isReady ? SPAWN.tutorialHintReadyMs : SPAWN.tutorialHintVisibleMs;
     this._tutorialHintTimer = setTimeout(() => {
       this.tutorialHint?.classList.add('hidden');
-      this.tutorialHint?.classList.remove('flash', 'slide', 'jump');
-    }, 800);
+      this.tutorialHint?.classList.remove('flash', 'slide', 'jump', 'ready');
+      this.tutorialHint?.setAttribute('aria-hidden', 'true');
+    }, duration);
   }
 
   popCombo() {
@@ -241,7 +247,8 @@ export class UI {
     this.comboWrap?.classList.remove('pop', 'hot');
     this.scoreEl?.classList.remove('pulse');
     this.tutorialHint?.classList.add('hidden');
-    this.tutorialHint?.classList.remove('flash', 'slide', 'jump');
+    this.tutorialHint?.classList.remove('flash', 'slide', 'jump', 'ready');
+    this.tutorialHint?.setAttribute('aria-hidden', 'true');
     clearTimeout(this._tutorialHintTimer);
   }
 }

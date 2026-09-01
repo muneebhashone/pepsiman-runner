@@ -111,6 +111,14 @@ export const SPAWN = {
   telegraphMinAlpha: 0.42,
   /** Opacity ramps to full only in the last N seconds before hazard */
   telegraphRampSec: 0.35,
+  /** Tutorial DOM hint: fire when obstacle enters this travel-time window (seconds) */
+  tutorialHintApproachSec: 1.8,
+  /** Optional pre-warn for first forced tutorial threats (seconds before contact) */
+  tutorialHintPreWarnSec: 2.4,
+  /** Total DOM hint visible duration (ms) — plateau ~1.1s inside 1.5s animation */
+  tutorialHintVisibleMs: 1500,
+  /** Shorter flash for GET READY pre-warn (ms) */
+  tutorialHintReadyMs: 900,
   /** Bias spawn toward jump/slide obstacles after warmup */
   verticalObstacleBias: 0.82,
   patternLookahead: 3,
