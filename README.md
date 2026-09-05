@@ -1,55 +1,69 @@
 # Pepsiman Runner
 
-A playable Pepsiman-inspired **3D endless runner** (Subway Surfers-class juice) built with Three.js + GSAP from CDN. No install required.
+A complete, self-contained 3D arcade runner made with Three.js. Run through a sunlit coastal city, dodge delivery trucks, jump barriers, slide beneath gates, and collect cans to unleash Pepsi Rush.
 
-## Open the game
+## Play locally
 
-Open this file in Chrome (`file://` works because all modules use absolute HTTPS CDN imports):
+Requires Node.js 18+.
 
+```sh
+npm install
+npm run dev
 ```
-/workspace/pepsiman-runner/index.html
+
+Open the local URL printed by Vite, usually http://localhost:5173. The game needs WebGL 2 and browser hardware acceleration. Dependencies are bundled locally; gameplay has no CDN, remote asset, account, or API requirements.
+
+```sh
+npm run build    # Static production files in dist/
+npm run preview  # Serve the production build locally
+npm test         # Syntax, game systems, spawning, and tutorial checks
 ```
 
-Or serve the folder with any static file server if you prefer.
+Serve `dist/` from any static web host. Use an HTTP server rather than opening `index.html` as a file.
 
 ## Controls
 
-| Action        | Keyboard              | Mobile        |
-|---------------|-----------------------|---------------|
-| Lane left     | Left Arrow or A       | Swipe left    |
-| Lane right    | Right Arrow or D      | Swipe right   |
-| Jump          | Up Arrow, W, or Space | Swipe up      |
-| Slide         | Down Arrow or S       | Swipe down    |
+| Action | Keyboard | Touch |
+| --- | --- | --- |
+| Move left / right | ← / → or A / D | Swipe left / right, or touch buttons |
+| Jump | ↑, W, or Space | Swipe up or ↑ button |
+| Slide / dive from a jump | ↓ or S | Swipe down or ↓ button |
+| Pause / resume | Esc or P | Pause button |
+| Mute / unmute | M | Menu sound button or pause settings |
+| Start / retry | Space or Enter | Run button |
 
-## Features
+## Game modes
 
-- 3-lane endless highway with neon city buildings + Pepsi billboards
-- Procedural glossy Pepsiman (blue/red, swirl emblem, run bob, lean, squash/stretch)
-- Obstacles: barriers, low rails (slide under), high signs (jump), trucks — lane telegraph glow
-- Collectible Pepsi cans with bob, magnet suck, particle pop, combo scoring
-- Chase camera with lag, FOV punch, land shake
-- ACESFilmic tone mapping, shadows, fog, capped DPR
-- WebAudio synth whooshes / pickups / thumps (no asset packs)
-- Pepsi blue/red glossy HUD + start / game over overlays
+- **Endless run:** three lives, increasing speed, and a personal score to beat.
+- **90-second rush:** score as much as possible before time runs out; losing all three lives also ends the run.
+
+Both modes save independent personal bests on the current device. A countdown prepares the player before starting or resuming. The game pauses when the tab becomes hidden or the window loses focus.
+
+## Gameplay
+
+- Collect lines of cans to grow a combo, up to ×12. Keep collecting before the combo expires.
+- Fill the fizz meter through pickups, close calls, and missions. A six-second **Pepsi Rush** grants invincibility, a magnet across lanes, and double points.
+- Three rotating missions award bonus points and fizz. Survival missions reset their unfinished progress on a hit.
+- Collisions cost one life and grant a short recovery window. The first jump and slide lessons offer a forgiving retry.
+- Trucks require a lane change. Low striped barriers and barrels can be jumped. Overhead striped gates require a slide. Ramps launch the runner.
+- Each 600 metres advances through Pacific Coast, Downtown, and Sunset Strip lighting.
+
+## Graphics and sound
+
+The world uses textured buildings and shopfronts, palm fronds, beach views, billboards, street furniture, soft shadows, distance fog, and reflective image-based lighting. The chrome hero has articulated knees and elbows, a grounded running cycle, jumps, slides, and a menu pose. Cans and traffic are complete 3D models.
+
+Textures and geometry are generated locally. City blocks are recycled, static geometry is batched by material, obstacle templates are reused, and collectibles use a fixed pool. Rendering resolution is capped for performance. Music and effects are synthesized with Web Audio after the first player interaction.
+
+The UI supports visible keyboard focus, an instruction dialog, touch controls, audio preferences, reduced camera effects, fullscreen when supported, and responsive layouts. Preferences and scores remain on the device; storage failures do not prevent play.
 
 ## Project layout
 
-```
-index.html
-src/main.js
-src/styles.css
-src/game/
-  constants.js  Game.js  Input.js  CameraRig.js
-  Player.js     World.js Obstacles.js Collectibles.js
-  FX.js         Audio.js UI.js
-docs/
-  SUBWAY_SURFERS_JUICE_BRIEF.md
-  AAA_CRITIC_RUBRIC.md
-```
+- `src/game/Game.js` — game states, scoring, health, modes, and integration
+- `src/game/Player.js`, `CameraRig.js`, `Input.js` — character, camera, and controls
+- `src/game/World.js`, `Art.js`, `ObstacleArt.js` — procedural art and geometry batching
+- `src/game/Obstacles.js`, `Collectibles.js` — obstacle patterns, collision, and pickups
+- `src/game/Fizz.js`, `Missions.js` — boost and mission systems
+- `src/game/Audio.js`, `FX.js`, `UI.js` — feedback, audio, menus, and HUD
+- `scripts/` — automated regression checks
 
-## CDN deps
-
-- three@0.170.0 (jsDelivr ESM)
-- gsap@3.12.5 (jsDelivr ESM)
-
-CDN-first for `file://` play — skip any local package installs.
+A fan-made arcade tribute; not affiliated with or endorsed by PepsiCo.

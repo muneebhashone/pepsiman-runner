@@ -34,8 +34,8 @@ export const COLORS = {
 
 export const PLAYER = {
   runSpeedBase: 18,
-  runSpeedMax: 42,
-  accelPerSec: 0.18,
+  runSpeedMax: 34,
+  accelPerSec: 0.22,
   /** Hold early pace flat so median run stretches toward 30–45s */
   earlySpeedCap: 19,
   earlySpeedCapSec: 16,
@@ -45,12 +45,12 @@ export const PLAYER = {
   laneLeanMax: 0.42,
   laneLeanDamp: 10,
   /** Jump: ~0.45s sin arc apex */
-  jumpDuration: 0.45,
-  jumpHeight: 2.4,
+  jumpDuration: 0.72,
+  jumpHeight: 2.25,
   /** Coyote-ish forgiveness after leaving ground */
   coyoteTime: 0.1,
   /** Slide: ~0.5s flat squash */
-  slideDuration: 0.5,
+  slideDuration: 0.82,
   slideHeight: 0.55,
   invulnAfterHit: 0,
   radius: 0.55,
@@ -148,7 +148,7 @@ export const SPAWN = {
   /** Verb hint fade-out duration (seconds) — runs after hold, not inside it */
   tutorialHintVerbFadeSec: 0.35,
   /** GET READY real-time hold before first verb (seconds) */
-  tutorialHintReadyBeforeVerbSec: 0.9,
+  tutorialHintReadyBeforeVerbSec: 2.1,
   /** AGAIN / GET READY beat before grace-retry verb (seconds) */
   tutorialHintRetryBeatSec: 0.7,
   /** Start GET READY when ttc <= readyStartSec (seconds) */
@@ -171,9 +171,9 @@ export const SCORE = {
   canBase: 25,
   comboMultStep: 0.18,
   comboMax: 12,
-  comboDecay: 1.85,
+  comboDecay: 2.65,
   /** Min seconds between pickups to advance combo */
-  comboSpacing: 0.28,
+  comboSpacing: 0.12,
   /** Combo shout thresholds */
   shoutNice: 3,
   shoutWow: 5,
@@ -198,7 +198,7 @@ export const FIZZ = {
   streakWindow: 1.4,
   streakCap: 0.04,
   perNearMiss: 0.16,
-  rushDuration: 4,
+  rushDuration: 6,
   speedBoost: 1.12,
   magnetAllLanes: true,
   /** Fizz bar pulses when this full — rush is imminent */
@@ -257,8 +257,10 @@ export const CAMERA = {
 };
 
 export const RENDER = {
-  maxPixelRatio: 1.25,
+  maxPixelRatio: 1.5,
   maxPixelRatioLow: 1,
-  shadowMapSize: 512,
-  /** Perf budget: hemi + ambient + 1 directional, 512 shadows, frustum-culled props */
+  shadowMapSize: 1024,
+  /** Image-based lighting strength — realistic reflections on metal/gloss */
+  envIntensity: 1.15,
+  /** Perf budget: hemi + ambient + 1 directional, 1024 shadows, frustum-culled props */
 };

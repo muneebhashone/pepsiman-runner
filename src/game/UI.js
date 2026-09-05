@@ -1,22 +1,43 @@
-import { SPAWN, SCORE, FIZZ } from './constants.js';
+import { SPAWN, SCORE, FIZZ } from "./constants.js";
 
-const STORAGE_KEY = 'pepsiman-runner-v1';
+const STORAGE_KEY = "pepsiman-runner-v1";
 
 export function loadPersisted() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { highScore: 0, bestCombo: 1, totalCans: 0, topScores: [] };
+    if (!raw)
+      return {
+        highScore: 0,
+        timedHighScore: 0,
+        bestCombo: 1,
+        totalCans: 0,
+        topScores: [],
+      };
     const p = JSON.parse(raw);
     return {
-      highScore: Number(p.highScore) || 0,
+      highScore: Number.isFinite(Number(p.highScore))
+        ? Math.max(0, Number(p.highScore))
+        : 0,
+      timedHighScore: Number.isFinite(Number(p.timedHighScore))
+        ? Math.max(0, Number(p.timedHighScore))
+        : 0,
       bestCombo: Number(p.bestCombo) || 1,
       totalCans: Number(p.totalCans) || 0,
       topScores: Array.isArray(p.topScores)
-        ? p.topScores.map((n) => Number(n) || 0).filter((n) => n > 0).slice(0, 3)
+        ? p.topScores
+            .map((n) => Number(n) || 0)
+            .filter((n) => n > 0)
+            .slice(0, 3)
         : [],
     };
   } catch {
-    return { highScore: 0, bestCombo: 1, totalCans: 0, topScores: [] };
+    return {
+      highScore: 0,
+      timedHighScore: 0,
+      bestCombo: 1,
+      totalCans: 0,
+      topScores: [],
+    };
   }
 }
 
@@ -30,35 +51,35 @@ export function savePersisted(data) {
 
 export class UI {
   constructor() {
-    this.hud = document.getElementById('hud');
-    this.scoreEl = document.getElementById('hud-score');
-    this.coinsEl = document.getElementById('hud-coins');
-    this.comboEl = document.getElementById('hud-combo');
-    this.comboWrap = document.getElementById('hud-combo-wrap');
-    this.speedEl = document.getElementById('hud-speed');
-    this.speedBar = document.getElementById('hud-speed-bar');
-    this.startOverlay = document.getElementById('overlay-start');
-    this.gameOverOverlay = document.getElementById('overlay-gameover');
-    this.pauseOverlay = document.getElementById('overlay-pause');
-    this.hitFlash = document.getElementById('hit-flash');
-    this.pickupFlash = document.getElementById('pickup-flash');
-    this.floatLayer = document.getElementById('float-layer');
-    this.tutorialHint = document.getElementById('tutorial-hint');
-    this.fizzFill = document.getElementById('hud-fizz-fill');
-    this.fizzRush = document.getElementById('hud-rush');
-    this.missionsEl = document.getElementById('hud-missions');
-    this.comboShout = document.getElementById('combo-shout');
-    this.finalCompare = document.getElementById('final-compare');
-    this.finalSoClose = document.getElementById('final-so-close');
-    this.finalScore = document.getElementById('final-score');
-    this.finalSub = document.getElementById('final-sub');
-    this.finalStats = document.getElementById('final-stats');
-    this.finalTopScores = document.getElementById('final-top-scores');
-    this.rushWash = document.getElementById('rush-wash');
-    this.btnStart = document.getElementById('btn-start');
-    this.btnRetry = document.getElementById('btn-retry');
-    this.btnResume = document.getElementById('btn-resume');
-    this.btnPause = document.getElementById('btn-pause');
+    this.hud = document.getElementById("hud");
+    this.scoreEl = document.getElementById("hud-score");
+    this.coinsEl = document.getElementById("hud-coins");
+    this.comboEl = document.getElementById("hud-combo");
+    this.comboWrap = document.getElementById("hud-combo-wrap");
+    this.speedEl = document.getElementById("hud-speed");
+    this.speedBar = document.getElementById("hud-speed-bar");
+    this.startOverlay = document.getElementById("overlay-start");
+    this.gameOverOverlay = document.getElementById("overlay-gameover");
+    this.pauseOverlay = document.getElementById("overlay-pause");
+    this.hitFlash = document.getElementById("hit-flash");
+    this.pickupFlash = document.getElementById("pickup-flash");
+    this.floatLayer = document.getElementById("float-layer");
+    this.tutorialHint = document.getElementById("tutorial-hint");
+    this.fizzFill = document.getElementById("hud-fizz-fill");
+    this.fizzRush = document.getElementById("hud-rush");
+    this.missionsEl = document.getElementById("hud-missions");
+    this.comboShout = document.getElementById("combo-shout");
+    this.finalCompare = document.getElementById("final-compare");
+    this.finalSoClose = document.getElementById("final-so-close");
+    this.finalScore = document.getElementById("final-score");
+    this.finalSub = document.getElementById("final-sub");
+    this.finalStats = document.getElementById("final-stats");
+    this.finalTopScores = document.getElementById("final-top-scores");
+    this.rushWash = document.getElementById("rush-wash");
+    this.btnStart = document.getElementById("btn-start");
+    this.btnRetry = document.getElementById("btn-retry");
+    this.btnResume = document.getElementById("btn-resume");
+    this.btnPause = document.getElementById("btn-pause");
     this._onStart = null;
     this._onRetry = null;
     this._onResume = null;
@@ -73,32 +94,144 @@ export class UI {
     this._cueIdleWaiters = [];
     this._onCueComplete = null;
 
-    this.btnStart?.addEventListener('click', (e) => {
+    this.btnStart?.addEventListener("click", (e) => {
       e.stopPropagation();
       this._onStart?.();
     });
-    this.btnRetry?.addEventListener('click', (e) => {
+    this.btnRetry?.addEventListener("click", (e) => {
       e.stopPropagation();
       this._onRetry?.();
     });
-    this.btnResume?.addEventListener('click', (e) => {
+    this.btnResume?.addEventListener("click", (e) => {
       e.stopPropagation();
       this._onResume?.();
     });
-    this.btnPause?.addEventListener('click', (e) => {
+    this.btnPause?.addEventListener("click", (e) => {
       e.stopPropagation();
       this._onPause?.();
     });
 
-    // tap anywhere on start overlay
-    this.startOverlay?.addEventListener('click', () => {
-      if (!this.startOverlay.classList.contains('hidden')) this._onStart?.();
+    this.app = document.getElementById("app");
+    this.mode = "endless";
+    this.help = document.getElementById("help-dialog");
+    this._lastMissionHTML = "";
+    this._lastHealth = -1;
+    this._lastFocus = null;
+    document.querySelectorAll("[data-mode]").forEach((button) =>
+      button.addEventListener("click", () => {
+        this.mode = button.dataset.mode;
+        document
+          .querySelectorAll("[data-mode]")
+          .forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
+        document.getElementById("mode-description").textContent =
+          this.mode === "timed"
+            ? "90 seconds. Three lives. Make every can count."
+            : "Three lives. Open road. One personal best.";
+        this.refreshBest();
+        this._onMode?.(this.mode);
+      }),
+    );
+    document
+      .getElementById("btn-menu")
+      .addEventListener("click", () => this._onMenu?.());
+    document
+      .getElementById("btn-quit")
+      .addEventListener("click", () => this._onMenu?.());
+    document.getElementById("btn-help").addEventListener("click", () => {
+      this.help.showModal();
     });
+    for (const id of ["btn-close-help", "btn-help-done"])
+      document
+        .getElementById(id)
+        .addEventListener("click", () => this.help.close());
+    this.help.addEventListener("click", (e) => {
+      if (
+        e.target === this.help &&
+        (e.clientX < this.help.getBoundingClientRect().left ||
+          e.clientX > this.help.getBoundingClientRect().right ||
+          e.clientY < this.help.getBoundingClientRect().top ||
+          e.clientY > this.help.getBoundingClientRect().bottom)
+      )
+        this.help.close();
+    });
+    document
+      .getElementById("btn-fullscreen")
+      .addEventListener("click", async () => {
+        try {
+          if (document.fullscreenElement) await document.exitFullscreen();
+          else await this.app.requestFullscreen();
+        } catch {
+          this.announce("Fullscreen is unavailable in this browser.");
+        }
+      });
+    if (!this.app.requestFullscreen)
+      document.getElementById("btn-fullscreen").hidden = true;
+    document.addEventListener("fullscreenchange", () =>
+      document
+        .getElementById("btn-fullscreen")
+        .setAttribute(
+          "aria-label",
+          document.fullscreenElement ? "Exit fullscreen" : "Enter fullscreen",
+        ),
+    );
+    document.addEventListener("keydown", (e) => {
+      if (e.code !== "Tab") return;
+      const overlay = [this.pauseOverlay, this.gameOverOverlay].find(
+        (el) => !el.classList.contains("hidden"),
+      );
+      if (!overlay) return;
+      const buttons = [...overlay.querySelectorAll("button, input")].filter(
+        (el) => !el.disabled,
+      );
+      const first = buttons[0],
+        last = buttons[buttons.length - 1];
+      if (
+        e.shiftKey &&
+        (document.activeElement === first || document.activeElement === overlay)
+      ) {
+        e.preventDefault();
+        last?.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first?.focus();
+      }
+    });
+    this.refreshBest();
+  }
 
-    // tap anywhere on game over to retry
-    this.gameOverOverlay?.addEventListener('click', () => {
-      if (!this.gameOverOverlay.classList.contains('hidden')) this._onRetry?.();
-    });
+  ready() {
+    this.btnStart.disabled = false;
+    document.getElementById("start-label").textContent = "Let's run";
+  }
+  setState(state) {
+    this.app.dataset.state = state;
+  }
+  onMenu(fn) {
+    this._onMenu = fn;
+  }
+  onMode(fn) {
+    this._onMode = fn;
+  }
+  refreshBest() {
+    const p = loadPersisted();
+    document.getElementById("menu-best").textContent = Math.floor(
+      this.mode === "timed" ? p.timedHighScore : p.highScore,
+    ).toLocaleString();
+  }
+  countdown(value) {
+    const el = document.getElementById("countdown");
+    el.classList.toggle("hidden", !value);
+    el.textContent = value || "";
+  }
+  announce(text, duration = 2200) {
+    const el = document.getElementById("announcement");
+    el.textContent = text;
+    el.classList.add("visible");
+    clearTimeout(this._announcementTimer);
+    this._announcementTimer = setTimeout(
+      () => el.classList.remove("visible"),
+      duration,
+    );
   }
 
   onStart(fn) {
@@ -122,144 +255,137 @@ export class UI {
   }
 
   showStart() {
-    this.startOverlay?.classList.remove('hidden');
-    this.gameOverOverlay?.classList.add('hidden');
-    this.pauseOverlay?.classList.add('hidden');
-    this.hud?.classList.add('dimmed');
+    clearTimeout(this._announcementTimer);
+    document.getElementById("announcement").classList.remove("visible");
+    this.floatLayer.replaceChildren();
+    this.updateFizz(0, false);
+    this.startOverlay?.classList.remove("hidden");
+    this.gameOverOverlay?.classList.add("hidden");
+    this.pauseOverlay?.classList.add("hidden");
+    this.hud?.classList.add("dimmed");
+    this.setState("menu");
+    this.refreshBest();
+    this.countdown(null);
   }
 
   hideOverlays() {
-    this.startOverlay?.classList.add('hidden');
-    this.gameOverOverlay?.classList.add('hidden');
-    this.pauseOverlay?.classList.add('hidden');
-    this.hud?.classList.remove('dimmed');
+    this.startOverlay?.classList.add("hidden");
+    this.gameOverOverlay?.classList.add("hidden");
+    this.pauseOverlay?.classList.add("hidden");
+    this.hud?.classList.remove("dimmed");
   }
 
   showPause() {
-    this.pauseOverlay?.classList.remove('hidden');
-    this.hud?.classList.add('dimmed');
+    this.pauseOverlay?.classList.remove("hidden");
+    this.hud?.classList.add("dimmed");
+    this.setState("paused");
+    this.btnResume.focus({ preventScroll: true });
   }
 
   hidePause() {
-    this.pauseOverlay?.classList.add('hidden');
-    this.hud?.classList.remove('dimmed');
+    this.pauseOverlay?.classList.add("hidden");
+    this.hud?.classList.remove("dimmed");
   }
 
   showGameOver(score, coins, bestCombo, meta = {}) {
+    this.clearTutorialHint();
+    this.countdown(null);
     const pts = Math.floor(score);
-    const dist = Math.floor(meta.distance ?? 0);
-    const combo = Math.floor(bestCombo);
-    const best = Math.floor(meta.highScore ?? 0);
-    const runBestCombo = Math.floor(meta.allTimeBestCombo ?? combo);
-
-    if (this.finalScore) this.finalScore.textContent = String(pts);
-    if (this.finalSub) {
-      this.finalSub.textContent = `Score ${pts} · ${Math.floor(coins)} cans · combo ×${combo}`;
-    }
-    if (this.finalStats) {
-      this.finalStats.textContent = `${dist} m run · best combo ever ×${runBestCombo} · high ${best}`;
-    }
-    if (this.finalTopScores && meta.topScores?.length) {
-      this.finalTopScores.textContent = `Top 3: ${meta.topScores.map((s) => Math.floor(s)).join(' · ')}`;
-      this.finalTopScores.classList.remove('hidden');
-    } else if (this.finalTopScores) {
-      this.finalTopScores.classList.add('hidden');
-    }
-    if (this.finalCompare) {
-      const high = best;
-      const diff = high - pts;
-      if (high > 0) {
-        this.finalCompare.textContent =
-          diff > 0 ? `${diff} pts from your best (${high})` : 'NEW HIGH SCORE!';
-        this.finalCompare.classList.remove('hidden');
-      } else {
-        this.finalCompare.classList.add('hidden');
-      }
-    }
-    if (this.finalSoClose) {
-      const isNewHigh = best > 0 && pts >= best;
-      const show =
-        !isNewHigh &&
-        (meta.soClose ||
-          meta.diedDuringRush ||
-          (meta.highScore > 0 && score >= meta.highScore * 0.9 && score < meta.highScore));
-      this.finalSoClose.classList.toggle('hidden', !show);
-      if (show && meta.diedDuringRush) {
-        this.finalSoClose.textContent = 'RUSH ENDED — SO CLOSE!';
-      } else if (show) {
-        this.finalSoClose.textContent = 'SO CLOSE!';
-      }
-    }
-    this.gameOverOverlay?.classList.remove('hidden');
-    this.hud?.classList.add('dimmed');
+    this.finalScore.textContent = pts.toLocaleString();
+    document.getElementById("result-title").textContent = meta.finished
+      ? "TIME'S UP!"
+      : "ONE MORE?";
+    document.getElementById("result-kicker").textContent = meta.isNewBest
+      ? "A NEW PERSONAL BEST"
+      : meta.finished
+        ? "90 SECONDS. ALL YOURS."
+        : "THE ROAD IS CALLING";
+    document.getElementById("result-distance").textContent =
+      `${Math.floor(meta.distance || 0).toLocaleString()} m`;
+    document.getElementById("result-cans").textContent = String(coins);
+    document.getElementById("result-combo").textContent = `×${bestCombo}`;
+    this.finalCompare.textContent = meta.isNewBest
+      ? "Personal best. Nicely done."
+      : `${Math.max(0, (meta.highScore || 0) - pts).toLocaleString()} points from your personal best`;
+    document.getElementById("result-tip").textContent =
+      meta.tip ||
+      "Collect a line of cans to build your combo and charge Pepsi Rush.";
+    this.gameOverOverlay.classList.remove("hidden");
+    this.hud.classList.add("dimmed");
+    this.setState("gameover");
+    this.btnRetry.focus({ preventScroll: true });
+    this.refreshBest();
   }
 
   updateFizz(level, rushActive) {
-    if (this.fizzFill) this.fizzFill.style.width = `${Math.round(level * 100)}%`;
-    if (this.fizzRush) this.fizzRush.classList.toggle('hidden', !rushActive);
+    if (this.fizzFill)
+      this.fizzFill.style.width = `${Math.round(level * 100)}%`;
+    if (this.fizzRush) this.fizzRush.classList.toggle("hidden", !rushActive);
     const track = this.fizzFill?.parentElement;
     if (track) {
-      track.classList.toggle('rush-hot', rushActive);
+      track.classList.toggle("rush-hot", rushActive);
       track.classList.toggle(
-        'rush-ready',
-        !rushActive && level >= FIZZ.readyPulseAt
+        "rush-ready",
+        !rushActive && level >= FIZZ.readyPulseAt,
       );
     }
     if (this.rushWash) {
-      this.rushWash.classList.toggle('active', rushActive);
+      this.rushWash.classList.toggle("active", rushActive);
     }
   }
 
   updateMissions(missions) {
     if (!this.missionsEl) return;
-    this.missionsEl.innerHTML = '';
-    for (const m of missions) {
-      const chip = document.createElement('div');
-      chip.className = 'mission-chip' + (m.done ? ' done' : '');
-      const pct = Math.min(100, Math.round((m.progress / m.target) * 100));
-      chip.textContent = m.done ? `✓ ${m.label}` : `${m.label} ${pct}%`;
-      this.missionsEl.appendChild(chip);
+    const html = missions
+      .map(
+        (m) =>
+          `<div class="mission-chip${m.done ? " done" : ""}"><span>${m.label}</span><span>${m.done ? "✓" : `${Math.floor(m.progress)}/${m.target}`}</span></div>`,
+      )
+      .join("");
+    if (html !== this._lastMissionHTML) {
+      this.missionsEl.innerHTML = html;
+      this._lastMissionHTML = html;
     }
   }
 
   shoutCombo(combo) {
     if (!this.comboShout) return;
-    let text = '';
-    if (combo >= SCORE.shoutPerfect) text = 'PEPSI PERFECT';
-    else if (combo >= SCORE.shoutWow) text = 'WOW';
-    else if (combo >= SCORE.shoutNice) text = 'NICE';
+    let text = "";
+    if (combo >= SCORE.shoutPerfect) text = "PEPSI PERFECT";
+    else if (combo >= SCORE.shoutWow) text = "WOW";
+    else if (combo >= SCORE.shoutNice) text = "NICE";
     if (!text) return;
     this.comboShout.textContent = text;
-    this.comboShout.classList.remove('show');
+    this.comboShout.classList.remove("show");
     void this.comboShout.offsetWidth;
-    this.comboShout.classList.add('show');
+    this.comboShout.classList.add("show");
   }
 
   floatMission(label) {
     if (!this.floatLayer) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'float-pickup near-miss';
-    wrap.classList.add('right');
-    const labelEl = document.createElement('div');
-    labelEl.className = 'float-can-label';
+    const wrap = document.createElement("div");
+    wrap.className = "float-pickup near-miss";
+    wrap.classList.add("right");
+    const labelEl = document.createElement("div");
+    labelEl.className = "float-can-label";
     labelEl.textContent = `MISSION: ${label}`;
     wrap.appendChild(labelEl);
     this.floatLayer.appendChild(wrap);
-    requestAnimationFrame(() => wrap.classList.add('rise'));
+    requestAnimationFrame(() => wrap.classList.add("rise"));
     setTimeout(() => wrap.remove(), 900);
   }
 
   floatRush() {
     if (!this.floatLayer) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'float-pickup';
-    wrap.classList.add('left');
-    const label = document.createElement('div');
-    label.className = 'float-can-label hot';
-    label.textContent = 'PEPSI RUSH!';
+    const wrap = document.createElement("div");
+    wrap.className = "float-pickup";
+    wrap.classList.add("left");
+    const label = document.createElement("div");
+    label.className = "float-can-label hot";
+    label.textContent = "PEPSI RUSH!";
     wrap.appendChild(label);
     this.floatLayer.appendChild(wrap);
-    requestAnimationFrame(() => wrap.classList.add('rise'));
+    requestAnimationFrame(() => wrap.classList.add("rise"));
     setTimeout(() => wrap.remove(), 1100);
   }
 
@@ -267,96 +393,96 @@ export class UI {
     if (!this.pickupFlash) return;
     const intensity = 0.12 + Math.min(combo, 8) * 0.02;
     this.pickupFlash.style.opacity = String(intensity);
-    this.pickupFlash.classList.add('active');
+    this.pickupFlash.classList.add("active");
     clearTimeout(this._pickupTimer);
     this._pickupTimer = setTimeout(() => {
-      this.pickupFlash?.classList.remove('active');
-      if (this.pickupFlash) this.pickupFlash.style.opacity = '0';
+      this.pickupFlash?.classList.remove("active");
+      if (this.pickupFlash) this.pickupFlash.style.opacity = "0";
     }, 130);
   }
 
   popCan() {
-    this.coinsEl?.classList.remove('pop');
+    this.coinsEl?.classList.remove("pop");
     void this.coinsEl?.offsetWidth;
-    this.coinsEl?.classList.add('pop');
-    this.coinsEl?.closest('.stat-cans')?.classList.add('glow');
+    this.coinsEl?.classList.add("pop");
+    this.coinsEl?.closest(".stat-cans")?.classList.add("glow");
     clearTimeout(this._canPopTimer);
     this._canPopTimer = setTimeout(() => {
-      this.coinsEl?.classList.remove('pop');
-      this.coinsEl?.closest('.stat-cans')?.classList.remove('glow');
+      this.coinsEl?.classList.remove("pop");
+      this.coinsEl?.closest(".stat-cans")?.classList.remove("glow");
     }, 400);
   }
 
   floatPoints(pts, combo = 1) {
     if (!this.floatLayer) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'float-pickup';
-    const side = Math.random() > 0.5 ? 'right' : 'left';
+    const wrap = document.createElement("div");
+    wrap.className = "float-pickup";
+    const side = Math.random() > 0.5 ? "right" : "left";
     wrap.classList.add(side);
 
-    const label = document.createElement('div');
-    label.className = 'float-can-label';
-    label.textContent = 'CAN!';
+    const label = document.createElement("div");
+    label.className = "float-can-label";
+    label.textContent = "CAN!";
 
-    const ptsEl = document.createElement('div');
-    ptsEl.className = 'float-pts';
+    const ptsEl = document.createElement("div");
+    ptsEl.className = "float-pts";
     ptsEl.textContent = `+${Math.floor(pts)}`;
     if (combo >= 3) {
-      label.classList.add('hot');
-      ptsEl.classList.add('hot');
+      label.classList.add("hot");
+      ptsEl.classList.add("hot");
     }
 
     wrap.appendChild(label);
     wrap.appendChild(ptsEl);
     this.floatLayer.appendChild(wrap);
-    requestAnimationFrame(() => wrap.classList.add('rise'));
+    requestAnimationFrame(() => wrap.classList.add("rise"));
     setTimeout(() => wrap.remove(), 900);
   }
   floatNearMiss(pts) {
     if (!this.floatLayer) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'float-pickup near-miss';
-    wrap.classList.add(Math.random() > 0.5 ? 'right' : 'left');
+    const wrap = document.createElement("div");
+    wrap.className = "float-pickup near-miss";
+    wrap.classList.add(Math.random() > 0.5 ? "right" : "left");
 
-    const label = document.createElement('div');
-    label.className = 'float-can-label';
-    label.textContent = 'CLOSE!';
+    const label = document.createElement("div");
+    label.className = "float-can-label";
+    label.textContent = "CLOSE!";
 
-    const ptsEl = document.createElement('div');
-    ptsEl.className = 'float-pts';
+    const ptsEl = document.createElement("div");
+    ptsEl.className = "float-pts";
     ptsEl.textContent = `+${Math.floor(pts)}`;
 
     wrap.appendChild(label);
     wrap.appendChild(ptsEl);
     this.floatLayer.appendChild(wrap);
-    requestAnimationFrame(() => wrap.classList.add('rise'));
+    requestAnimationFrame(() => wrap.classList.add("rise"));
     setTimeout(() => wrap.remove(), 750);
   }
 
   floatNiceTry() {
     if (!this.floatLayer) return;
-    const wrap = document.createElement('div');
-    wrap.className = 'float-pickup near-miss';
-    wrap.classList.add('left');
+    const wrap = document.createElement("div");
+    wrap.className = "float-pickup near-miss";
+    wrap.classList.add("left");
 
-    const label = document.createElement('div');
-    label.className = 'float-can-label';
-    label.textContent = 'NICE TRY';
+    const label = document.createElement("div");
+    label.className = "float-can-label";
+    label.textContent = "NICE TRY";
 
     wrap.appendChild(label);
     this.floatLayer.appendChild(wrap);
-    requestAnimationFrame(() => wrap.classList.add('rise'));
+    requestAnimationFrame(() => wrap.classList.add("rise"));
     setTimeout(() => wrap.remove(), 900);
   }
 
   flashHit(intensity = 1) {
     if (!this.hitFlash) return;
     this.hitFlash.style.opacity = String(0.35 + intensity * 0.45);
-    this.hitFlash.classList.add('active');
+    this.hitFlash.classList.add("active");
     clearTimeout(this._flashTimer);
     this._flashTimer = setTimeout(() => {
-      this.hitFlash?.classList.remove('active');
-      if (this.hitFlash) this.hitFlash.style.opacity = '0';
+      this.hitFlash?.classList.remove("active");
+      if (this.hitFlash) this.hitFlash.style.opacity = "0";
     }, 120);
   }
 
@@ -366,30 +492,30 @@ export class UI {
 
   /** Queue a tutorial cue — only one owns #tutorial-hint until its lifecycle completes. */
   enqueueTutorialCue(action, kind = null) {
-    if (!action || action === 'fade') return;
-    if (action === 'ready' && this._shouldDropReady()) return;
+    if (!action || action === "fade") return;
+    if (action === "ready" && this._shouldDropReady()) return;
     this._cueQueue.push({ action, kind });
     this._drainCueQueue();
   }
 
   _shouldDropReady() {
-    const verb = (a) => a === 'slide' || a === 'jump';
+    const verb = (a) => a === "slide" || a === "jump";
     if (this._cueActive) {
       const a = this._cueActive.action;
-      if (verb(a) || a === 'again' || a === 'ready') return true;
+      if (verb(a) || a === "again" || a === "ready") return true;
     }
-    if (this._cueQueue.some((c) => c.action === 'ready')) return true;
+    if (this._cueQueue.some((c) => c.action === "ready")) return true;
     if (this._cueQueue.some((c) => verb(c.action))) return true;
     return false;
   }
 
   _isVerb(action) {
-    return action === 'slide' || action === 'jump';
+    return action === "slide" || action === "jump";
   }
 
   _holdMs(action) {
-    if (action === 'ready') return SPAWN.tutorialHintReadyBeforeVerbSec * 1000;
-    if (action === 'again') return SPAWN.tutorialHintRetryBeatSec * 1000;
+    if (action === "ready") return SPAWN.tutorialHintReadyBeforeVerbSec * 1000;
+    if (action === "again") return SPAWN.tutorialHintRetryBeatSec * 1000;
     return SPAWN.tutorialHintVerbVisibleSec * 1000;
   }
 
@@ -414,31 +540,46 @@ export class UI {
     this._tutorialHintAction = action;
     this._tutorialHintDismissed = false;
 
-    const isReady = action === 'ready';
-    const isAgain = action === 'again';
-    const isSlide = action === 'slide';
-    const label = isReady ? 'GET READY' : isAgain ? 'AGAIN' : isSlide ? 'SLIDE' : 'JUMP';
-    const arrow = isReady || isAgain ? '' : isSlide ? '↓' : '↑';
+    const isReady = action === "ready";
+    const isAgain = action === "again";
+    const isSlide = action === "slide";
+    const label = isReady
+      ? "GET READY"
+      : isAgain
+        ? "AGAIN"
+        : isSlide
+          ? "SLIDE"
+          : "JUMP";
+    const arrow = isReady || isAgain ? "" : isSlide ? "↓" : "↑";
     this.tutorialHint.textContent = arrow ? `${arrow} ${label}` : label;
     this.tutorialHint.classList.remove(
-      'hidden',
-      'slide',
-      'jump',
-      'ready',
-      'again',
-      'flash',
-      'hold',
-      'pop',
-      'fade-out'
+      "hidden",
+      "slide",
+      "jump",
+      "ready",
+      "again",
+      "flash",
+      "hold",
+      "pop",
+      "fade-out",
     );
-    const tone = isReady || isAgain ? (isAgain ? 'again' : 'ready') : isSlide ? 'slide' : 'jump';
-    this.tutorialHint.classList.add('hold', tone, 'pop');
-    this.tutorialHint.setAttribute('aria-hidden', 'false');
+    const tone =
+      isReady || isAgain
+        ? isAgain
+          ? "again"
+          : "ready"
+        : isSlide
+          ? "slide"
+          : "jump";
+    this.tutorialHint.classList.add("hold", tone, "pop");
+    this.tutorialHint.setAttribute("aria-hidden", "false");
     void this.tutorialHint.offsetWidth;
 
     const popMs = SPAWN.tutorialHintVerbPopSec * 1000;
     const holdMs = this._holdMs(action);
-    const fadeMs = this._fadeAfter(action) ? SPAWN.tutorialHintVerbFadeSec * 1000 : 0;
+    const fadeMs = this._fadeAfter(action)
+      ? SPAWN.tutorialHintVerbFadeSec * 1000
+      : 0;
 
     this._clearCueTimers();
 
@@ -456,21 +597,21 @@ export class UI {
     const onPopSettled = () => {
       if (holdClockStarted || this._cueActive?.gen !== gen) return;
       holdClockStarted = true;
-      this.tutorialHint?.removeEventListener('animationend', onPopSettled);
+      this.tutorialHint?.removeEventListener("animationend", onPopSettled);
       clearTimeout(this._cueTimers.pop);
       this._cueTimers.pop = null;
       startHoldClock();
     };
 
-    this.tutorialHint.addEventListener('animationend', onPopSettled);
+    this.tutorialHint.addEventListener("animationend", onPopSettled);
     // Wall-clock fallback if animationend does not fire (e.g. reduced motion).
     this._cueTimers.pop = setTimeout(onPopSettled, popMs + 32);
   }
 
   _beginCueFade(gen, fadeMs) {
     if (!this.tutorialHint || this._cueActive?.gen !== gen) return;
-    this.tutorialHint.classList.remove('hold', 'pop');
-    this.tutorialHint.classList.add('fade-out');
+    this.tutorialHint.classList.remove("hold", "pop");
+    this.tutorialHint.classList.add("fade-out");
     clearTimeout(this._cueTimers.fade);
     this._cueTimers.fade = setTimeout(() => this._finishCue(gen), fadeMs + 50);
   }
@@ -487,22 +628,22 @@ export class UI {
 
   _hideCueDOM() {
     if (!this.tutorialHint) return;
-    this.tutorialHint.style.transition = 'none';
-    this.tutorialHint.textContent = '';
-    this.tutorialHint.classList.add('hidden');
+    this.tutorialHint.style.transition = "none";
+    this.tutorialHint.textContent = "";
+    this.tutorialHint.classList.add("hidden");
     this.tutorialHint.classList.remove(
-      'hold',
-      'pop',
-      'flash',
-      'fade-out',
-      'slide',
-      'jump',
-      'ready',
-      'again'
+      "hold",
+      "pop",
+      "flash",
+      "fade-out",
+      "slide",
+      "jump",
+      "ready",
+      "again",
     );
-    this.tutorialHint.setAttribute('aria-hidden', 'true');
+    this.tutorialHint.setAttribute("aria-hidden", "true");
     void this.tutorialHint.offsetWidth;
-    this.tutorialHint.style.transition = '';
+    this.tutorialHint.style.transition = "";
   }
 
   _clearCueTimers() {
@@ -558,8 +699,8 @@ export class UI {
 
   matchesTutorialAction(action) {
     if (!this._cueActive) return false;
-    if (action === 'slide') return this._cueActive.action === 'slide';
-    if (action === 'jump') return this._cueActive.action === 'jump';
+    if (action === "slide") return this._cueActive.action === "slide";
+    if (action === "jump") return this._cueActive.action === "jump";
     return false;
   }
 
@@ -577,48 +718,79 @@ export class UI {
   }
 
   popCombo() {
-    this.comboWrap?.classList.remove('pop');
+    this.comboWrap?.classList.remove("pop");
     void this.comboWrap?.offsetWidth;
-    this.comboWrap?.classList.add('pop');
+    this.comboWrap?.classList.add("pop");
     this._comboPopTimer = 0.35;
   }
 
   pulseScore() {
-    this.scoreEl?.classList.remove('pulse');
+    this.scoreEl?.classList.remove("pulse");
     void this.scoreEl?.offsetWidth;
-    this.scoreEl?.classList.add('pulse');
+    this.scoreEl?.classList.add("pulse");
   }
 
   update(stats, dt = 0) {
-    if (this.scoreEl) this.scoreEl.textContent = String(Math.floor(stats.score));
+    document.getElementById("hud-distance").textContent =
+      `${Math.floor(stats.distance || 0).toLocaleString()} m`;
+    document.getElementById("hud-time").textContent =
+      stats.mode === "timed"
+        ? `${Math.ceil(stats.timeLeft ?? 90)}s LEFT`
+        : "ENDLESS RUN";
+    document.getElementById("hud-zone").textContent = [
+      "PACIFIC COAST",
+      "DOWNTOWN",
+      "SUNSET STRIP",
+    ][stats.zone || 0];
+    document.getElementById("route-progress").style.width =
+      `${((stats.distance || 0) % 600) / 6}%`;
+    document.getElementById("fizz-caption").textContent = stats.rushActive
+      ? `${(stats.rushNorm * 6).toFixed(1)}s OF FULL FIZZ`
+      : "COLLECT CANS TO CHARGE";
+    if (stats.health !== this._lastHealth) {
+      const el = document.getElementById("hud-health");
+      const health = stats.health ?? 3;
+      el.innerHTML = [1, 2, 3]
+        .map(
+          (i) =>
+            `<svg class="${i > health ? "lost" : ""}" aria-hidden="true"><use href="#i-heart"/></svg>`,
+        )
+        .join("");
+      el.setAttribute("aria-label", `${health} lives remaining`);
+      this._lastHealth = stats.health;
+    }
+
+    if (this.scoreEl)
+      this.scoreEl.textContent = Math.floor(stats.score).toLocaleString();
     if (this.coinsEl) this.coinsEl.textContent = String(stats.coins);
     if (this.comboEl) this.comboEl.textContent = `×${stats.combo}`;
     if (this.comboWrap) {
-      this.comboWrap.classList.toggle('hot', stats.combo >= 3);
+      this.comboWrap.classList.toggle("hot", stats.combo >= 3);
       if (stats.combo > this._prevCombo) this.popCombo();
       this._prevCombo = stats.combo;
     }
-    if (this.speedEl) this.speedEl.textContent = String(Math.round(stats.speed));
+    if (this.speedEl)
+      this.speedEl.textContent = String(Math.round(stats.speed * 3.6));
     if (this.speedBar) {
       const pct = Math.max(8, Math.min(100, stats.speedNorm * 100));
       this.speedBar.style.width = `${pct}%`;
-      this.speedBar.classList.toggle('maxed', stats.speedNorm > 0.92);
-      this.speedBar.classList.toggle('rush', stats.rushActive);
+      this.speedBar.classList.toggle("maxed", stats.speedNorm > 0.92);
+      this.speedBar.classList.toggle("rush", stats.rushActive);
     }
 
     if (stats.fizzLevel != null) {
       this.updateFizz(stats.fizzLevel, stats.rushActive);
       if (this.scoreEl && stats.rushActive) {
-        this.scoreEl.classList.add('rush-mult');
+        this.scoreEl.classList.add("rush-mult");
       } else {
-        this.scoreEl?.classList.remove('rush-mult');
+        this.scoreEl?.classList.remove("rush-mult");
       }
     }
     if (stats.missions) this.updateMissions(stats.missions);
 
     if (this._comboPopTimer > 0) {
       this._comboPopTimer -= dt;
-      if (this._comboPopTimer <= 0) this.comboWrap?.classList.remove('pop');
+      if (this._comboPopTimer <= 0) this.comboWrap?.classList.remove("pop");
     }
   }
 

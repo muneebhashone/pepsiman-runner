@@ -1,4 +1,4 @@
-import { INPUT } from './constants.js';
+import { INPUT } from "./constants.js";
 
 /**
  * Keyboard + mobile swipe input for lane / jump / slide.
@@ -23,7 +23,7 @@ export class Input {
     this._boundKeyUp = (e) => this._onKeyUp(e);
     this._boundTouchStart = (e) => this._onTouchStart(e);
     this._boundTouchEnd = (e) => this._onTouchEnd(e);
-    this.enabled = true;
+    this.enabled = false;
     /** @type {((action: 'jump' | 'slide') => void) | null} */
     this.onAction = null;
   }
@@ -33,22 +33,29 @@ export class Input {
   }
 
   attach() {
-    this.target.addEventListener('keydown', this._boundKeyDown);
-    this.target.addEventListener('keyup', this._boundKeyUp);
-    this.target.addEventListener('touchstart', this._boundTouchStart, { passive: true });
-    this.target.addEventListener('touchend', this._boundTouchEnd, { passive: true });
+    this.target.addEventListener("keydown", this._boundKeyDown);
+    this.target.addEventListener("keyup", this._boundKeyUp);
+    this.target.addEventListener("touchstart", this._boundTouchStart, {
+      passive: true,
+    });
+    this.target.addEventListener("touchend", this._boundTouchEnd, {
+      passive: true,
+    });
   }
 
   detach() {
-    this.target.removeEventListener('keydown', this._boundKeyDown);
-    this.target.removeEventListener('keyup', this._boundKeyUp);
-    this.target.removeEventListener('touchstart', this._boundTouchStart);
-    this.target.removeEventListener('touchend', this._boundTouchEnd);
+    this.target.removeEventListener("keydown", this._boundKeyDown);
+    this.target.removeEventListener("keyup", this._boundKeyUp);
+    this.target.removeEventListener("touchstart", this._boundTouchStart);
+    this.target.removeEventListener("touchend", this._boundTouchEnd);
   }
 
   _queueLane(delta) {
     const next = this.laneDelta + this._laneBuffer + delta;
-    const clamped = Math.max(-INPUT.laneBufferMax, Math.min(INPUT.laneBufferMax, next));
+    const clamped = Math.max(
+      -INPUT.laneBufferMax,
+      Math.min(INPUT.laneBufferMax, next),
+    );
     const used = this.laneDelta + this._laneBuffer;
     const remaining = clamped - used;
     if (remaining > 0) this._laneBuffer += remaining;
@@ -56,18 +63,36 @@ export class Input {
   }
 
   _onKeyDown(e) {
-    if (!this.enabled) return;
+    if (
+      !this.enabled ||
+      ["INPUT", "TEXTAREA", "BUTTON", "SELECT"].includes(e.target.tagName)
+    )
+      return;
+    if (
+      [
+        "ArrowLeft",
+        "ArrowRight",
+        "ArrowUp",
+        "ArrowDown",
+        "Space",
+        "KeyA",
+        "KeyD",
+        "KeyW",
+        "KeyS",
+      ].includes(e.code)
+    )
+      e.preventDefault();
     const k = e.code;
     if (this._keys.has(k)) return;
     this._keys.add(k);
-    if (k === 'ArrowLeft' || k === 'KeyA') this._queueLane(1);
-    if (k === 'ArrowRight' || k === 'KeyD') this._queueLane(-1);
-    if (k === 'ArrowUp' || k === 'KeyW' || k === 'Space') {
-      this.onAction?.('jump');
+    if (k === "ArrowLeft" || k === "KeyA") this._queueLane(1);
+    if (k === "ArrowRight" || k === "KeyD") this._queueLane(-1);
+    if (k === "ArrowUp" || k === "KeyW" || k === "Space") {
+      this.onAction?.("jump");
       this.jump = true;
     }
-    if (k === 'ArrowDown' || k === 'KeyS') {
-      this.onAction?.('slide');
+    if (k === "ArrowDown" || k === "KeyS") {
+      this.onAction?.("slide");
       this.slide = true;
     }
   }
@@ -77,6 +102,7 @@ export class Input {
   }
 
   _onTouchStart(e) {
+    if (e.target.closest("button")) return;
     if (!this.enabled || !e.changedTouches?.length) return;
     const t = e.changedTouches[0];
     this._touchStart = { x: t.clientX, y: t.clientY, t: performance.now() };
@@ -99,10 +125,10 @@ export class Input {
       this._queueLane(dx > 0 ? -1 : 1);
     } else {
       if (dy < 0) {
-        this.onAction?.('jump');
+        this.onAction?.("jump");
         this.jump = true;
       } else {
-        this.onAction?.('slide');
+        this.onAction?.("slide");
         this.slide = true;
       }
     }
@@ -129,6 +155,19 @@ export class Input {
     this.jump = false;
     this.slide = false;
     return out;
+  }
+
+  action(action) {
+    if (!this.enabled) return;
+    if (action === "left") this._queueLane(1);
+    else if (action === "right") this._queueLane(-1);
+    else if (action === "jump") {
+      this.jump = true;
+      this.onAction?.("jump");
+    } else if (action === "slide") {
+      this.slide = true;
+      this.onAction?.("slide");
+    }
   }
 
   hasBufferedLane() {

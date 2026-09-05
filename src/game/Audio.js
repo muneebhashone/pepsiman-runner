@@ -9,18 +9,93 @@ export class AudioSys {
     this._started = false;
     this._rushLoop = null;
     this._rushGain = null;
+    this._musicT = 0;
+    this._musicBeat = 0;
   }
 
   async ensure() {
-    if (this._started) return;
+    if (this._started) {
+      if (this.ctx?.state === "suspended") await this.ctx.resume();
+      return;
+    }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.38;
+    this.master.gain.value = this.enabled ? 0.25 : 0;
     this.master.connect(this.ctx.destination);
-    if (this.ctx.state === 'suspended') await this.ctx.resume();
+    if (this.ctx.state === "suspended") await this.ctx.resume();
     this._started = true;
+  }
+
+  setEnabled(enabled) {
+    this.enabled = enabled;
+    if (this.master)
+      this.master.gain.setTargetAtTime(
+        enabled ? 0.25 : 0,
+        this.ctx.currentTime,
+        0.04,
+      );
+  }
+
+  countdown(n) {
+    this._note(n <= 0 ? 880 : 440, 0.09, 0.13, "sine");
+  }
+
+  _note(frequency, duration, volume = 0.1, type = "triangle") {
+    if (!this._started || !this.enabled || this.ctx.state !== "running") return;
+    const t = this._t(),
+      o = this.ctx.createOscillator(),
+      g = this.ctx.createGain();
+    o.type = type;
+    o.frequency.value = frequency;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(volume, t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    o.connect(g);
+    g.connect(this.master);
+    o.start(t);
+    o.stop(t + duration + 0.01);
+    o.onended = () => {
+      o.disconnect();
+      g.disconnect();
+    };
+  }
+
+  updateMusic(dt, rush = false) {
+    this._musicT += dt;
+    const step = rush ? 0.107 : 0.12;
+    if (this._musicT < step) return;
+    this._musicT %= step;
+    const beat = this._musicBeat++ % 64;
+    const bass = [110, 110, 146.83, 130.81][Math.floor(beat / 16)];
+    if (beat % 4 === 0) {
+      this._note(bass, 0.18, 0.22);
+      if (this._started && this.enabled) {
+        const t = this._t(),
+          o = this.ctx.createOscillator(),
+          g = this.ctx.createGain();
+        o.frequency.setValueAtTime(125, t);
+        o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+        g.gain.setValueAtTime(0.35, t);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.14);
+        o.connect(g);
+        g.connect(this.master);
+        o.start(t);
+        o.stop(t + 0.15);
+        o.onended = () => {
+          o.disconnect();
+          g.disconnect();
+        };
+      }
+    }
+    if (beat % 2 === 0)
+      this._note(
+        bass * [4, 6, 8, 6, 5, 6, 4, 3][(beat / 2) % 8],
+        0.065,
+        rush ? 0.055 : 0.035,
+        "sine",
+      );
   }
 
   _t() {
@@ -32,7 +107,10 @@ export class AudioSys {
     gain.gain.cancelScheduledValues(t);
     gain.gain.setValueAtTime(0.0001, t);
     gain.gain.exponentialRampToValueAtTime(peak, t + a);
-    gain.gain.exponentialRampToValueAtTime(Math.max(0.0001, peak * s), t + a + d);
+    gain.gain.exponentialRampToValueAtTime(
+      Math.max(0.0001, peak * s),
+      t + a + d,
+    );
     gain.gain.exponentialRampToValueAtTime(0.0001, t + a + d + r);
   }
 
@@ -46,11 +124,11 @@ export class AudioSys {
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     const f = this.ctx.createBiquadFilter();
-    f.type = 'bandpass';
+    f.type = "bandpass";
     f.frequency.setValueAtTime(280, t);
     f.frequency.exponentialRampToValueAtTime(2600, t + 0.08);
     f.Q.value = 4;
-    osc.type = 'sawtooth';
+    osc.type = "sawtooth";
     osc.frequency.setValueAtTime(160, t);
     osc.frequency.exponentialRampToValueAtTime(48, t + 0.16);
     this._env(g, 0.006, 0.03, 0.4, 0.12, 0.38);
@@ -59,11 +137,12 @@ export class AudioSys {
     const bufLen = Math.floor(this.ctx.sampleRate * 0.14);
     const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
     const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+    for (let i = 0; i < bufLen; i++)
+      ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
     const noise = this.ctx.createBufferSource();
     noise.buffer = buf;
     const nf = this.ctx.createBiquadFilter();
-    nf.type = 'highpass';
+    nf.type = "highpass";
     nf.frequency.value = 800;
     const ng = this.ctx.createGain();
     this._env(ng, 0.004, 0.02, 0.3, 0.1, 0.18);
@@ -94,11 +173,11 @@ export class AudioSys {
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     const f = this.ctx.createBiquadFilter();
-    f.type = 'bandpass';
+    f.type = "bandpass";
     f.frequency.setValueAtTime(680, t);
     f.frequency.exponentialRampToValueAtTime(2200, t + 0.08);
     f.Q.value = 4.2;
-    osc.type = 'sawtooth';
+    osc.type = "sawtooth";
     osc.frequency.setValueAtTime(280, t);
     osc.frequency.exponentialRampToValueAtTime(90, t + 0.14);
     this._env(g, 0.003, 0.03, 0.42, 0.12, 0.38);
@@ -114,7 +193,7 @@ export class AudioSys {
     const t = this._t();
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.type = 'triangle';
+    osc.type = "triangle";
     osc.frequency.setValueAtTime(180, t);
     osc.frequency.exponentialRampToValueAtTime(680, t + 0.09);
     this._env(g, 0.003, 0.04, 0.32, 0.09, 0.32);
@@ -127,11 +206,11 @@ export class AudioSys {
     const wOsc = this.ctx.createOscillator();
     const wg = this.ctx.createGain();
     const wf = this.ctx.createBiquadFilter();
-    wf.type = 'bandpass';
+    wf.type = "bandpass";
     wf.frequency.setValueAtTime(400, t);
     wf.frequency.exponentialRampToValueAtTime(1800, t + 0.1);
     wf.Q.value = 2;
-    wOsc.type = 'sine';
+    wOsc.type = "sine";
     wOsc.frequency.setValueAtTime(300, t);
     wOsc.frequency.exponentialRampToValueAtTime(900, t + 0.1);
     this._env(wg, 0.004, 0.03, 0.25, 0.08, 0.16);
@@ -152,7 +231,7 @@ export class AudioSys {
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
     const f = this.ctx.createBiquadFilter();
-    f.type = 'lowpass';
+    f.type = "lowpass";
     f.frequency.setValueAtTime(1100, t);
     f.frequency.exponentialRampToValueAtTime(180, t + 0.2);
     const g = this.ctx.createGain();
@@ -169,7 +248,7 @@ export class AudioSys {
     const t = this._t();
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.type = 'sine';
+    osc.type = "sine";
     osc.frequency.setValueAtTime(95, t);
     osc.frequency.exponentialRampToValueAtTime(38, t + 0.14);
     this._env(g, 0.002, 0.04, 0.22, 0.14, 0.38);
@@ -182,7 +261,8 @@ export class AudioSys {
     const bufLen = Math.floor(this.ctx.sampleRate * 0.06);
     const buf = this.ctx.createBuffer(1, bufLen, this.ctx.sampleRate);
     const ch = buf.getChannelData(0);
-    for (let i = 0; i < bufLen; i++) ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
+    for (let i = 0; i < bufLen; i++)
+      ch[i] = (Math.random() * 2 - 1) * (1 - i / bufLen);
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
     const ng = this.ctx.createGain();
@@ -205,7 +285,7 @@ export class AudioSys {
     // percussive pop
     const popOsc = this.ctx.createOscillator();
     const popG = this.ctx.createGain();
-    popOsc.type = 'sine';
+    popOsc.type = "sine";
     popOsc.frequency.setValueAtTime(880 + combo * 30, t);
     popOsc.frequency.exponentialRampToValueAtTime(220, t + 0.06);
     this._env(popG, 0.001, 0.02, 0.15, 0.05, 0.28);
@@ -219,10 +299,13 @@ export class AudioSys {
     for (let i = 0; i < notes.length; i++) {
       const osc = this.ctx.createOscillator();
       const g = this.ctx.createGain();
-      osc.type = i < 2 ? 'sine' : 'triangle';
+      osc.type = i < 2 ? "sine" : "triangle";
       const freq = base * notes[i];
       osc.frequency.setValueAtTime(freq, t + i * 0.022);
-      osc.frequency.exponentialRampToValueAtTime(freq * 1.7, t + i * 0.022 + 0.1);
+      osc.frequency.exponentialRampToValueAtTime(
+        freq * 1.7,
+        t + i * 0.022 + 0.1,
+      );
       this._env(g, 0.002, 0.025, 0.28, 0.06, 0.2 - i * 0.035);
       osc.connect(g);
       g.connect(this.master);
@@ -243,13 +326,13 @@ export class AudioSys {
     const src = this.ctx.createBufferSource();
     src.buffer = buffer;
     const f = this.ctx.createBiquadFilter();
-    f.type = 'lowpass';
+    f.type = "lowpass";
     f.frequency.value = 620;
     const g = this.ctx.createGain();
     this._env(g, 0.004, 0.1, 0.35, 0.22, 0.48);
     const osc = this.ctx.createOscillator();
     const og = this.ctx.createGain();
-    osc.type = 'sawtooth';
+    osc.type = "sawtooth";
     osc.frequency.setValueAtTime(120, t);
     osc.frequency.exponentialRampToValueAtTime(32, t + 0.32);
     this._env(og, 0.004, 0.07, 0.28, 0.22, 0.28);
@@ -269,12 +352,12 @@ export class AudioSys {
     const t = this._t();
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.type = 'sawtooth';
+    osc.type = "sawtooth";
     osc.frequency.setValueAtTime(220, t);
     osc.frequency.exponentialRampToValueAtTime(55, t + 0.55);
     this._env(g, 0.01, 0.15, 0.4, 0.35, 0.3);
     const f = this.ctx.createBiquadFilter();
-    f.type = 'lowpass';
+    f.type = "lowpass";
     f.frequency.setValueAtTime(900, t);
     f.frequency.exponentialRampToValueAtTime(120, t + 0.55);
     osc.connect(f);
@@ -288,7 +371,7 @@ export class AudioSys {
     for (let i = 0; i < chord.length; i++) {
       const o = this.ctx.createOscillator();
       const cg = this.ctx.createGain();
-      o.type = 'sine';
+      o.type = "sine";
       o.frequency.value = 110 * chord[i];
       this._env(cg, 0.05, 0.2, 0.3, 0.4, 0.08);
       o.connect(cg);
@@ -305,12 +388,12 @@ export class AudioSys {
     for (let i = 0; i < notes.length; i++) {
       const osc = this.ctx.createOscillator();
       const g = this.ctx.createGain();
-      osc.type = 'square';
+      osc.type = "square";
       const freq = notes[i];
       osc.frequency.setValueAtTime(freq, t + i * 0.05);
       this._env(g, 0.004, 0.06, 0.35, 0.14, 0.22);
       const f = this.ctx.createBiquadFilter();
-      f.type = 'lowpass';
+      f.type = "lowpass";
       f.frequency.value = 2400;
       osc.connect(f);
       f.connect(g);
@@ -329,12 +412,12 @@ export class AudioSys {
 
     const oscA = this.ctx.createOscillator();
     const oscB = this.ctx.createOscillator();
-    oscA.type = 'square';
-    oscB.type = 'triangle';
+    oscA.type = "square";
+    oscB.type = "triangle";
     oscA.frequency.value = 110;
     oscB.frequency.value = 165;
     const f = this.ctx.createBiquadFilter();
-    f.type = 'lowpass';
+    f.type = "lowpass";
     f.frequency.value = 900;
     const lfo = this.ctx.createOscillator();
     const lfoG = this.ctx.createGain();
@@ -378,7 +461,7 @@ export class AudioSys {
     const t = this._t();
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.type = 'sawtooth';
+    osc.type = "sawtooth";
     osc.frequency.setValueAtTime(180, t);
     osc.frequency.exponentialRampToValueAtTime(48, t + 0.1);
     this._env(g, 0.002, 0.03, 0.2, 0.08, 0.28);
@@ -393,7 +476,7 @@ export class AudioSys {
     const t = this._t();
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.type = 'triangle';
+    osc.type = "triangle";
     osc.frequency.setValueAtTime(660, t);
     osc.frequency.exponentialRampToValueAtTime(990, t + 0.12);
     this._env(g, 0.003, 0.04, 0.3, 0.1, 0.2);
@@ -408,7 +491,7 @@ export class AudioSys {
     const t = this._t();
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.type = 'triangle';
+    osc.type = "triangle";
     const base = 320 + level * 90;
     osc.frequency.setValueAtTime(base, t);
     osc.frequency.exponentialRampToValueAtTime(base * 1.6, t + 0.08);
@@ -424,12 +507,12 @@ export class AudioSys {
     const t = this._t();
     const osc = this.ctx.createOscillator();
     const g = this.ctx.createGain();
-    osc.type = 'square';
+    osc.type = "square";
     osc.frequency.setValueAtTime(180, t);
     osc.frequency.exponentialRampToValueAtTime(420, t + 0.08);
     this._env(g, 0.005, 0.04, 0.2, 0.08, 0.12);
     const f = this.ctx.createBiquadFilter();
-    f.type = 'bandpass';
+    f.type = "bandpass";
     f.frequency.value = 600;
     f.Q.value = 1.2;
     osc.connect(f);

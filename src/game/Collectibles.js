@@ -1,9 +1,10 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { COLORS, LANES, SPAWN, WORLD, PLAYER, FIZZ } from './constants.js';
+import * as THREE from "three";
+import { makeCan } from "./Art.js";
+import { COLORS, LANES, SPAWN, WORLD, PLAYER, FIZZ } from "./constants.js";
 
 const POOL_SIZE = 64;
 const CAN_SCALE = 1.05;
-const CAN_FLOAT_Y = 1.4;
+const CAN_FLOAT_Y = 1.05;
 /** Half lane spacing is 1.1 — stay well inside one lane for pickup */
 const LANE_PICKUP_DX = 0.95;
 const SUCK_COLLECT_DIST = 1.2;
@@ -12,7 +13,10 @@ const MAX_SUCKING_VISUALS = 2;
 const POP_DURATION = 0.16;
 
 function speedNorm(speed) {
-  return Math.min(1, (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase));
+  return Math.min(
+    1,
+    (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase),
+  );
 }
 
 function sameLane(playerLane, canLane, dx) {
@@ -32,37 +36,6 @@ export class Collectibles {
     this.magnetRangeMax = 1.6;
     this.rushActive = false;
 
-    this.canGeo = new THREE.CylinderGeometry(0.24, 0.24, 0.52, 14);
-    this.canMat = new THREE.MeshStandardMaterial({
-      color: COLORS.canBody,
-      metalness: 0.82,
-      roughness: 0.12,
-      emissive: COLORS.canBody,
-      emissiveIntensity: 0.85,
-    });
-    this.topMat = new THREE.MeshStandardMaterial({
-      color: COLORS.canTop,
-      metalness: 0.94,
-      roughness: 0.06,
-      emissive: COLORS.canTop,
-      emissiveIntensity: 0.35,
-    });
-    this.bandMat = new THREE.MeshStandardMaterial({
-      color: COLORS.canBand,
-      emissive: COLORS.canBand,
-      emissiveIntensity: 1.05,
-      metalness: 0.65,
-      roughness: 0.18,
-    });
-    this.logoMat = new THREE.MeshStandardMaterial({
-      color: COLORS.pepsiWhite,
-      emissive: COLORS.pepsiWhite,
-      emissiveIntensity: 0.55,
-    });
-    this.topGeo = new THREE.CylinderGeometry(0.22, 0.22, 0.06, 14);
-    this.bandGeo = new THREE.CylinderGeometry(0.245, 0.245, 0.1, 14, 1, true);
-    this.logoGeo = new THREE.CircleGeometry(0.1, 16);
-
     for (let i = 0; i < POOL_SIZE; i++) {
       const g = this._createCanMesh();
       g.visible = false;
@@ -78,49 +51,39 @@ export class Collectibles {
   _pickOpenLane(z, preferred = -1) {
     // Prefer cycling across all three lanes rather than center-only chains.
     const cycle =
-      preferred >= 0 ? preferred : (((this._laneCursor = (this._laneCursor || 0) + 1) - 1) % 3);
+      preferred >= 0
+        ? preferred
+        : ((this._laneCursor = (this._laneCursor || 0) + 1) - 1) % 3;
     if (this.obstacles?.openLanesNear) {
       const open = this.obstacles.openLanesNear(z, 6);
       if (open.includes(cycle)) return cycle;
       // Prefer any open non-center lane if available, else any open
       const nonCenter = open.filter((l) => l !== 1);
-      if (nonCenter.length) return nonCenter[(Math.random() * nonCenter.length) | 0];
+      if (nonCenter.length)
+        return nonCenter[(Math.random() * nonCenter.length) | 0];
       return open[(Math.random() * open.length) | 0];
     }
     return cycle >= 0 ? cycle : (Math.random() * 3) | 0;
   }
 
   _createCanMesh() {
-    const g = new THREE.Group();
-    g.scale.set(CAN_SCALE, CAN_SCALE, CAN_SCALE);
-
-    const body = new THREE.Mesh(this.canGeo, this.canMat.clone());
-    body.castShadow = true;
-    g.add(body);
-
-    const band = new THREE.Mesh(this.bandGeo, this.bandMat.clone());
-    g.add(band);
-
-    const top = new THREE.Mesh(this.topGeo, this.topMat.clone());
-    top.position.y = 0.28;
-    g.add(top);
-
-    const logo = new THREE.Mesh(this.logoGeo, this.logoMat.clone());
-    logo.position.set(0, 0.04, 0.26);
-    g.add(logo);
-
-    const logoBack = logo.clone();
-    logoBack.position.z = -0.26;
-    logoBack.rotation.y = Math.PI;
-    g.add(logoBack);
-
+    const g = makeCan();
+    g.scale.setScalar(CAN_SCALE);
+    // Opacity is animated per can; materials stay independent within the fixed pool.
+    g.traverse((child) => {
+      if (child.isMesh) {
+        child.material = child.material.clone();
+        child.material.userData.baseTransparent = child.material.transparent;
+      }
+    });
     return g;
   }
 
   _setCanOpacity(mesh, opacity) {
     mesh.traverse((child) => {
       if (child.isMesh && child.material) {
-        child.material.transparent = opacity < 1;
+        child.material.transparent =
+          child.material.userData.baseTransparent || opacity < 1;
         child.material.opacity = opacity;
       }
     });
@@ -177,35 +140,16 @@ export class Collectibles {
   }
 
   _spawnCluster(z, diff, forceLane = -1) {
-    // Bias across all three lanes (not only center chains).
     const lane =
-      forceLane >= 0 ? forceLane : this._pickOpenLane(z, (Math.random() * 3) | 0);
-    const chain = forceLane < 0 && Math.random() < SPAWN.chainChance + diff * 0.04;
-    const chainId = chain ? (z * 100 + lane) | 0 : -1;
-
-    if (chain) {
-      const len = SPAWN.chainLength + ((Math.random() * 1.5) | 0);
-      const spacing = 3.8 - diff * 0.2;
-      // Spread chain across lanes: stay preferred ~50%, else hop to another open lane
-      for (let i = 0; i < len; i++) {
-        const lz = z + i * spacing;
-        let useLane = lane;
-        if (Math.random() < 0.5) {
-          useLane = this._pickOpenLane(lz, -1);
-        } else {
-          useLane = this._pickOpenLane(lz, lane);
-        }
-        if (!this._acquire(useLane, lz, chainId)) break;
-      }
-    } else {
-      const n = 1 + ((Math.random() * (SPAWN.collectibleCluster + 1)) | 0);
-      for (let i = 0; i < n; i++) {
-        const lz = z + i * 4.2;
-        // Each can independently biased across lanes
-        const useLane =
-          forceLane >= 0 ? forceLane : this._pickOpenLane(lz, -1);
-        if (!this._acquire(useLane, lz)) break;
-      }
+      forceLane >= 0
+        ? forceLane
+        : this._pickOpenLane(z, (Math.random() * 3) | 0);
+    const count = 4 + (diff > 0.5 ? 1 : 0);
+    for (let i = 0; i < count; i++) {
+      const lz = z + i * 4.4;
+      if (this.obstacles && !this.obstacles.openLanesNear(lz, 6).includes(lane))
+        continue;
+      if (!this._acquire(lane, lz)) break;
     }
   }
 
@@ -214,7 +158,7 @@ export class Collectibles {
   }
 
   /** Snake cans through a jump arc or slide gutter — greed is a choice */
-  spawnGreedTrail(z, lane, verb = 'jump') {
+  spawnGreedTrail(z, lane, verb = "jump") {
     const len = 5 + ((Math.random() * 2) | 0);
     const spacing = 3.6;
     for (let i = 0; i < len; i++) {
@@ -223,8 +167,8 @@ export class Collectibles {
       if (!item) continue;
       const t = i / (len - 1);
       let y = CAN_FLOAT_Y;
-      if (verb === 'jump') y = 0.9 + Math.sin(t * Math.PI) * 2.1;
-      else if (verb === 'slide') y = 0.55 + (1 - t) * 0.25;
+      if (verb === "jump") y = 0.9 + Math.sin(t * Math.PI) * 2.1;
+      else if (verb === "slide") y = 0.55 + (1 - t) * 0.25;
       item.mesh.position.y = y;
     }
   }
@@ -233,7 +177,7 @@ export class Collectibles {
     const startZ = 10;
     // Starter cans across all three lanes, not center-only
     for (let i = 0; i < SPAWN.starterCanCount; i++) {
-      const lane = i % 3;
+      const lane = 1;
       this._acquire(lane, startZ + i * SPAWN.starterCanSpacing);
     }
     this.nextZ = startZ + SPAWN.starterCanCount * SPAWN.starterCanSpacing + 8;
@@ -256,13 +200,14 @@ export class Collectibles {
     const inWarmup = playerZ < SPAWN.collectibleWarmupZ;
     const magnet = this.rushActive
       ? 3.8
-      : (inWarmup ? 1.4 : this.magnetRange) + diff * (this.magnetRangeMax - this.magnetRange);
-    const horizon = playerZ + WORLD.segmentLength * WORLD.segmentsAhead * 0.9;
+      : (inWarmup ? 1.4 : this.magnetRange) +
+        diff * (this.magnetRangeMax - this.magnetRange);
+    const horizon = playerZ + 100;
 
     while (this.nextZ < horizon) {
       // Never force center-only; bias across all three lanes even in warmup
       this._spawnCluster(this.nextZ, diff, -1);
-      this.nextZ += (inWarmup ? 14 : 18) + Math.random() * (inWarmup ? 10 : 14) - diff * 0.8;
+      this.nextZ += 24 + Math.random() * 9;
     }
 
     for (const it of this.items) {
@@ -355,7 +300,7 @@ export class Collectibles {
     this.items = this.items.filter((it) => {
       if (!it.alive && !it.popping) return false;
       const z = it.mesh.position.z;
-      if (!it.popping && z < playerZ - 10 && !it.sucking) {
+      if (!it.popping && z < playerZ - 2.5 && !it.sucking) {
         this._release(it);
         return false;
       }
@@ -386,7 +331,10 @@ export class Collectibles {
       const dist2d = Math.hypot(dx, dz);
       const suckedIn = it.sucking && inLane && dist2d < SUCK_COLLECT_DIST;
       const poppedNear =
-        it.popping && it.readyCollect && inLane && dist2d < SUCK_COLLECT_DIST + 0.35;
+        it.popping &&
+        it.readyCollect &&
+        inLane &&
+        dist2d < SUCK_COLLECT_DIST + 0.35;
       const instant = it.popping && it.instantCollect && inLane;
 
       if (

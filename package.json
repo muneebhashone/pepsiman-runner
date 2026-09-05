@@ -1,15 +1,15 @@
 {
   "name": "pepsiman-runner",
   "private": true,
-  "version": "0.1.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node scripts/syntax-check.mjs && node scripts/test-game-systems.mjs && node scripts/sim-spawn-contact.mjs && node scripts/test-cue-queue.mjs"
   },
   "dependencies": {
-    "gsap": "^3.12.5",
     "three": "^0.170.0"
   },
   "devDependencies": {

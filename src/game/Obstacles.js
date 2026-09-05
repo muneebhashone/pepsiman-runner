@@ -1,44 +1,57 @@
-import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js';
-import { COLORS, LANES, SPAWN, WORLD, PLAYER, NEAR_MISS } from './constants.js';
+import * as THREE from "three";
+import { buildObstacle } from "./ObstacleArt.js";
+import { COLORS, LANES, SPAWN, WORLD, PLAYER, NEAR_MISS } from "./constants.js";
 
-const TYPES = ['barrier', 'rail', 'sign', 'truck', 'barrel', 'pepsiWide', 'mover', 'ramp'];
-const WARMUP_TYPES = ['rail', 'sign'];
-const BLOCK_TYPES = ['truck', 'pepsiWide', 'mover'];
+const TYPES = [
+  "barrier",
+  "rail",
+  "sign",
+  "truck",
+  "barrel",
+  "pepsiWide",
+  "mover",
+  "ramp",
+];
+const WARMUP_TYPES = ["rail", "sign"];
+const BLOCK_TYPES = ["truck", "pepsiWide", "mover"];
 const POOL_SIZE = 48;
 
 /** Forced post-tutorial rotation — every colliding verb appears before weights matter */
 const ROTATION_TABLE = [
-  { kind: 'single', type: 'truck' },
-  { kind: 'single', type: 'mover' },
-  { kind: 'barrelChain' },
-  { kind: 'pepsiWide' },
-  { kind: 'single', type: 'ramp' },
-  { kind: 'single', type: 'barrier' },
-  { kind: 'single', type: 'rail' },
-  { kind: 'single', type: 'sign' },
-  { kind: 'combo', types: ['rail', 'barrier'], gap: 0.25 },
-  { kind: 'single', type: 'barrier' },
-  { kind: 'single', type: 'sign' },
-  { kind: 'single', type: 'truck' },
-  { kind: 'barrelChain' },
-  { kind: 'single', type: 'mover' },
-  { kind: 'single', type: 'sign' },
-  { kind: 'combo', types: ['sign', 'rail'], gap: 5.8 },
-  { kind: 'pepsiWide' },
-  { kind: 'single', type: 'rail' },
-  { kind: 'single', type: 'truck' },
-  { kind: 'combo', types: ['ramp', 'barrel'], gap: 0.2 },
+  { kind: "single", type: "truck" },
+  { kind: "single", type: "mover" },
+  { kind: "barrelChain" },
+  { kind: "pepsiWide" },
+  { kind: "single", type: "ramp" },
+  { kind: "single", type: "barrier" },
+  { kind: "single", type: "rail" },
+  { kind: "single", type: "sign" },
+  { kind: "combo", types: ["rail", "barrier"], gap: 0.25 },
+  { kind: "single", type: "barrier" },
+  { kind: "single", type: "sign" },
+  { kind: "single", type: "truck" },
+  { kind: "barrelChain" },
+  { kind: "single", type: "mover" },
+  { kind: "single", type: "sign" },
+  { kind: "combo", types: ["sign", "rail"], gap: 5.8 },
+  { kind: "pepsiWide" },
+  { kind: "single", type: "rail" },
+  { kind: "single", type: "truck" },
+  { kind: "combo", types: ["ramp", "barrel"], gap: 0.2 },
 ];
 
 function actionMode(type) {
-  if (type === 'rail') return 'slide';
-  if (type === 'ramp') return 'ramp';
-  if (BLOCK_TYPES.includes(type)) return 'block';
-  return 'jump';
+  if (type === "rail") return "slide";
+  if (type === "ramp") return "ramp";
+  if (BLOCK_TYPES.includes(type)) return "block";
+  return "jump";
 }
 
 function speedNorm(speed) {
-  return Math.min(1, (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase));
+  return Math.min(
+    1,
+    (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase),
+  );
 }
 
 function pickLanes(n, rng) {
@@ -52,13 +65,22 @@ function pickLanes(n, rng) {
 
 function pickVerticalType(rng) {
   const roll = rng();
-  if (roll < 0.5) return 'rail';
-  if (roll < 0.82) return 'sign';
-  return 'barrier';
+  if (roll < 0.5) return "rail";
+  if (roll < 0.82) return "sign";
+  return "barrier";
 }
 
 const TUTORIAL_LANE = 1;
-const POST_WARMUP_SEQUENCE = ['rail', 'sign', 'rail', 'sign', 'rail', 'sign', 'rail', 'sign'];
+const POST_WARMUP_SEQUENCE = [
+  "rail",
+  "sign",
+  "rail",
+  "sign",
+  "rail",
+  "sign",
+  "rail",
+  "sign",
+];
 
 function typeForLane(lane, openLane, rng, warmup, warmupIndex = 0) {
   if (warmup) return WARMUP_TYPES[warmupIndex % WARMUP_TYPES.length];
@@ -67,16 +89,18 @@ function typeForLane(lane, openLane, rng, warmup, warmupIndex = 0) {
     return TYPES[(rng() * TYPES.length) | 0];
   }
   if (rng() < SPAWN.verticalObstacleBias * 0.85) return pickVerticalType(rng);
-  const blockTypes = ['barrier', 'truck', 'sign', 'rail'];
+  const blockTypes = ["barrier", "truck", "sign", "rail"];
   return blockTypes[(rng() * blockTypes.length) | 0];
 }
 
-const SLIDE_TYPES = ['rail'];
+const SLIDE_TYPES = ["rail"];
 
 /** Red telegraph only for hazards that kill on contact; slide rails use magenta accent */
 function telegraphColorsFor(type) {
-  const core = COLORS.pepsiRed;
-  const glow = SLIDE_TYPES.includes(type) ? COLORS.telegraphSlideGlow : COLORS.telegraphGlow;
+  const core = type === "rail" ? 0xffbd46 : COLORS.pepsiBlue;
+  const glow = SLIDE_TYPES.includes(type)
+    ? COLORS.telegraphSlideGlow
+    : COLORS.telegraphGlow;
   return { core, glow };
 }
 
@@ -150,8 +174,8 @@ export class Obstacles {
     this._getReadySignShown = false;
     this._spawnedFirstTutorialRail = false;
     this._spawnedFirstTutorialSign = false;
-    this._railHintState = 'idle';
-    this._signHintState = 'idle';
+    this._railHintState = "idle";
+    this._signHintState = "idle";
     this._railReadyStartMs = 0;
     this._signReadyStartMs = 0;
     this._railVerbStartMs = 0;
@@ -171,123 +195,18 @@ export class Obstacles {
     this._cueGate = null;
 
     this._geo = {
-      barrier: new THREE.BoxGeometry(1.75, 1.25, 0.55),
-      rail: new THREE.BoxGeometry(2.1, 0.28, 1.15),
-      sign: new THREE.BoxGeometry(1.85, 1.05, 0.5),
-      truckCab: new THREE.BoxGeometry(2.05, 1.75, 1.55),
-      truckBody: new THREE.BoxGeometry(2.15, 2.25, 3.6),
-      barrelRoll: new THREE.CylinderGeometry(0.42, 0.42, 1.1, 10),
-      wideBody: new THREE.BoxGeometry(3.2, 2.1, 1.2),
-      ramp: new THREE.BoxGeometry(2.2, 0.35, 2.4),
-      wheel: new THREE.CylinderGeometry(0.32, 0.32, 0.22, 8),
-      tel: new THREE.PlaneGeometry(SPAWN.telegraphStripWidth, SPAWN.telegraphStripLength),
+      tel: new THREE.PlaneGeometry(
+        SPAWN.telegraphStripWidth,
+        SPAWN.telegraphStripLength,
+      ),
       telOuter: new THREE.PlaneGeometry(
         SPAWN.telegraphStripWidth * 1.18,
-        SPAWN.telegraphStripLength * 1.12
+        SPAWN.telegraphStripLength * 1.12,
       ),
       shadow: new THREE.PlaneGeometry(1.3, 1.8),
       chevron: chevronGeometry(),
     };
     this._mats = {
-      barrier: new THREE.MeshStandardMaterial({
-        color: COLORS.barrier,
-        emissive: COLORS.barrier,
-        emissiveIntensity: 0.35,
-        metalness: 0.35,
-        roughness: 0.4,
-      }),
-      railDark: new THREE.MeshStandardMaterial({
-        color: 0x1a2228,
-        metalness: 0.55,
-        roughness: 0.45,
-        emissive: 0x0a1018,
-        emissiveIntensity: 0.15,
-      }),
-      rail: new THREE.MeshStandardMaterial({
-        color: COLORS.rail,
-        metalness: 0.7,
-        roughness: 0.3,
-        emissive: 0x334455,
-        emissiveIntensity: 0.2,
-      }),
-      sign: new THREE.MeshStandardMaterial({
-        color: COLORS.sign,
-        emissive: COLORS.sign,
-        emissiveIntensity: 0.25,
-        metalness: 0.15,
-        roughness: 0.55,
-      }),
-      signFrame: new THREE.MeshStandardMaterial({
-        color: COLORS.signFrame,
-        emissive: COLORS.signFrame,
-        emissiveIntensity: 0.55,
-        metalness: 0.35,
-        roughness: 0.4,
-      }),
-      truckCab: new THREE.MeshStandardMaterial({
-        color: COLORS.truckCab,
-        metalness: 0.55,
-        roughness: 0.3,
-      }),
-      truckBody: new THREE.MeshStandardMaterial({
-        color: 0xd8e4f8,
-        emissive: COLORS.pepsiBlue,
-        emissiveIntensity: 0.15,
-        metalness: 0.5,
-        roughness: 0.35,
-      }),
-      barrel: new THREE.MeshStandardMaterial({
-        color: COLORS.pepsiRed,
-        emissive: COLORS.pepsiRed,
-        emissiveIntensity: 0.35,
-        metalness: 0.45,
-        roughness: 0.35,
-      }),
-      wideTruck: new THREE.MeshStandardMaterial({
-        color: COLORS.truckTrailer,
-        emissive: COLORS.pepsiRed,
-        emissiveIntensity: 0.28,
-        metalness: 0.5,
-        roughness: 0.32,
-      }),
-      ramp: new THREE.MeshStandardMaterial({
-        color: COLORS.neonCyan,
-        emissive: COLORS.neonCyan,
-        emissiveIntensity: 0.55,
-        metalness: 0.35,
-        roughness: 0.28,
-      }),
-      wheel: new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.9 }),
-      stripe: new THREE.MeshStandardMaterial({ color: 0x111111 }),
-      railStripe: new THREE.MeshStandardMaterial({
-        color: 0xffcc00,
-        emissive: 0xffaa00,
-        emissiveIntensity: 0.85,
-      }),
-      railStripeDark: new THREE.MeshStandardMaterial({
-        color: 0x111111,
-        emissive: 0x050505,
-        emissiveIntensity: 0.2,
-      }),
-      signTop: new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0xffffff,
-        emissiveIntensity: 0.65,
-      }),
-      signFace: new THREE.MeshStandardMaterial({
-        color: 0xf8fbff,
-        emissive: 0xd0e8ff,
-        emissiveIntensity: 0.55,
-        metalness: 0.05,
-        roughness: 0.35,
-      }),
-      signPole: new THREE.MeshStandardMaterial({
-        color: 0x556677,
-        metalness: 0.6,
-        roughness: 0.35,
-      }),
-      telegraph: makeTelegraphMat(COLORS.telegraph),
-      telegraphOuter: makeTelegraphGlowMat(COLORS.telegraphGlow),
       shadow: new THREE.MeshBasicMaterial({
         color: 0x000000,
         transparent: true,
@@ -302,7 +221,10 @@ export class Obstacles {
       this.scene.add(mesh);
       this.pool.push(mesh);
 
-      const tel = new THREE.Mesh(this._geo.tel, makeTelegraphMat(COLORS.pepsiRed));
+      const tel = new THREE.Mesh(
+        this._geo.tel,
+        makeTelegraphMat(COLORS.pepsiRed),
+      );
       layFlatOnRoad(tel);
       tel.visible = false;
       tel.frustumCulled = false;
@@ -310,7 +232,10 @@ export class Obstacles {
       this.scene.add(tel);
       this.telPool.push(tel);
 
-      const telOuter = new THREE.Mesh(this._geo.telOuter, makeTelegraphGlowMat(COLORS.telegraphGlow));
+      const telOuter = new THREE.Mesh(
+        this._geo.telOuter,
+        makeTelegraphGlowMat(COLORS.telegraphGlow),
+      );
       layFlatOnRoad(telOuter);
       telOuter.visible = false;
       telOuter.frustumCulled = false;
@@ -328,7 +253,10 @@ export class Obstacles {
 
     const chevCount = POOL_SIZE * SPAWN.telegraphChevronCount;
     for (let i = 0; i < chevCount; i++) {
-      const chev = new THREE.Mesh(this._geo.chevron, makeTelegraphMat(COLORS.pepsiRed));
+      const chev = new THREE.Mesh(
+        this._geo.chevron,
+        makeTelegraphMat(COLORS.pepsiRed),
+      );
       layFlatOnRoad(chev);
       chev.visible = false;
       chev.frustumCulled = false;
@@ -352,44 +280,44 @@ export class Obstacles {
 
   /** Advance per-kind state when the UI cue queue finishes a beat. */
   onTutorialCueComplete(action, kind) {
-    const isRail = kind === 'rail';
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
-    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
+    const isRail = kind === "rail";
+    const stateKey = isRail ? "_railHintState" : "_signHintState";
+    const fadeKey = isRail ? "_railVerbFading" : "_signVerbFading";
 
-    if (action === 'ready' && this[stateKey] === 'ready') {
+    if (action === "ready" && this[stateKey] === "ready") {
       this._enterTutorialVerb(isRail);
       if (isRail) this._hintSlideShown = true;
       else this._hintJumpShown = true;
       return;
     }
-    if (action === 'again' && this[stateKey] === 'retryBeat') {
+    if (action === "again" && this[stateKey] === "retryBeat") {
       this._enterTutorialVerb(isRail);
       return;
     }
-    if (action === 'slide' && isRail && this[stateKey] === 'verb') {
-      this[stateKey] = 'done';
+    if (action === "slide" && isRail && this[stateKey] === "verb") {
+      this[stateKey] = "done";
       this[fadeKey] = false;
       return;
     }
-    if (action === 'jump' && !isRail && this[stateKey] === 'verb') {
-      this[stateKey] = 'done';
+    if (action === "jump" && !isRail && this[stateKey] === "verb") {
+      this[stateKey] = "done";
       this[fadeKey] = false;
     }
   }
 
   _emitTutorialHint(action, kind) {
-    if (action != null && action !== 'fade') {
-      const isRail = kind === 'rail';
-      const isSign = kind === 'sign';
-      if (action === 'slide' || (action === 'ready' && isRail)) {
-        if (this._railHintState === 'done') return;
+    if (action != null && action !== "fade") {
+      const isRail = kind === "rail";
+      const isSign = kind === "sign";
+      if (action === "slide" || (action === "ready" && isRail)) {
+        if (this._railHintState === "done") return;
       }
-      if (action === 'jump' || (action === 'ready' && isSign)) {
-        if (this._signHintState === 'done') return;
+      if (action === "jump" || (action === "ready" && isSign)) {
+        if (this._signHintState === "done") return;
       }
-      if (action === 'again') {
-        const forRail = isRail && this._railHintState === 'retryBeat';
-        const forSign = isSign && this._signHintState === 'retryBeat';
+      if (action === "again") {
+        const forRail = isRail && this._railHintState === "retryBeat";
+        const forSign = isSign && this._signHintState === "retryBeat";
         if (!forRail && !forSign) return;
       }
     }
@@ -398,15 +326,15 @@ export class Obstacles {
 
   /** Re-flash verb hint after tutorial grace (bypasses one-shot shown guard). */
   _scheduleGraceRetry(kind) {
-    const isRail = kind === 'rail';
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
-    const readyMsKey = isRail ? '_railReadyStartMs' : '_signReadyStartMs';
-    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
+    const isRail = kind === "rail";
+    const stateKey = isRail ? "_railHintState" : "_signHintState";
+    const readyMsKey = isRail ? "_railReadyStartMs" : "_signReadyStartMs";
+    const fadeKey = isRail ? "_railVerbFading" : "_signVerbFading";
 
-    this[stateKey] = 'retryBeat';
+    this[stateKey] = "retryBeat";
     this[readyMsKey] = performance.now();
     this[fadeKey] = false;
-    this._emitTutorialHint('again', kind);
+    this._emitTutorialHint("again", kind);
   }
 
   /** Let the current cue finish before showing AGAIN. */
@@ -444,51 +372,51 @@ export class Obstacles {
   }
 
   _markTutorialDone(isRail) {
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
-    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
-    this[stateKey] = 'done';
+    const stateKey = isRail ? "_railHintState" : "_signHintState";
+    const fadeKey = isRail ? "_railVerbFading" : "_signVerbFading";
+    this[stateKey] = "done";
     this[fadeKey] = false;
     return true;
   }
 
   /** True when correct input should dismiss the on-screen tutorial cue. */
   canDismissTutorialOnInput(kind) {
-    const isRail = kind === 'slide';
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const isRail = kind === "slide";
+    const stateKey = isRail ? "_railHintState" : "_signHintState";
     const state = this[stateKey];
-    return state === 'verb' || state === 'ready' || state === 'retryBeat';
+    return state === "verb" || state === "ready" || state === "retryBeat";
   }
 
   markTutorialDismissed(kind) {
-    const isRail = kind === 'slide';
+    const isRail = kind === "slide";
     return this._markTutorialDone(isRail);
   }
 
   /** Dismiss when correct input or pose during any active first-tutorial window. */
   _tryDismissTutorial(kind) {
-    const isRail = kind === 'slide';
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
+    const isRail = kind === "slide";
+    const stateKey = isRail ? "_railHintState" : "_signHintState";
     const state = this[stateKey];
-    if (state === 'verb') return this._markTutorialDone(isRail);
+    if (state === "verb") return this._markTutorialDone(isRail);
     return false;
   }
 
   /** Timed GET READY → verb sequence for first tutorial rail/sign. */
   _updateFirstTutorialHint(kind, ttc) {
-    const isRail = kind === 'rail';
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
-    const readyMsKey = isRail ? '_railReadyStartMs' : '_signReadyStartMs';
+    const isRail = kind === "rail";
+    const stateKey = isRail ? "_railHintState" : "_signHintState";
+    const readyMsKey = isRail ? "_railReadyStartMs" : "_signReadyStartMs";
     let state = this[stateKey];
 
-    if (state === 'done') return;
+    if (state === "done") return;
 
-    if (state === 'idle') {
+    if (state === "idle") {
       if (ttc > this._tutorialHintStartTtc()) return;
-      this[stateKey] = 'ready';
+      this[stateKey] = "ready";
       this[readyMsKey] = performance.now();
       if (isRail) this._getReadyRailShown = true;
       else this._getReadySignShown = true;
-      this._emitTutorialHint('ready', kind);
+      this._emitTutorialHint("ready", kind);
       return;
     }
 
@@ -496,14 +424,14 @@ export class Obstacles {
   }
 
   _enterTutorialVerb(isRail) {
-    const stateKey = isRail ? '_railHintState' : '_signHintState';
-    const verbMsKey = isRail ? '_railVerbStartMs' : '_signVerbStartMs';
-    const fadeKey = isRail ? '_railVerbFading' : '_signVerbFading';
-    const kind = isRail ? 'rail' : 'sign';
-    this[stateKey] = 'verb';
+    const stateKey = isRail ? "_railHintState" : "_signHintState";
+    const verbMsKey = isRail ? "_railVerbStartMs" : "_signVerbStartMs";
+    const fadeKey = isRail ? "_railVerbFading" : "_signVerbFading";
+    const kind = isRail ? "rail" : "sign";
+    this[stateKey] = "verb";
     this[verbMsKey] = performance.now();
     this[fadeKey] = false;
-    this._emitTutorialHint(isRail ? 'slide' : 'jump', kind);
+    this._emitTutorialHint(isRail ? "slide" : "jump", kind);
   }
 
   /** Dismiss on consumed input — only correct verb while its beat is active. */
@@ -519,8 +447,8 @@ export class Obstacles {
   checkTutorialPoseDismiss(sliding, jumping, playerZ, speed) {
     this._lastPlayerZ = playerZ;
     this._lastSpeed = speed;
-    if (sliding && this._railHintState === 'verb') return 'slide';
-    if (jumping && this._signHintState === 'verb') return 'jump';
+    if (sliding && this._railHintState === "verb") return "slide";
+    if (jumping && this._signHintState === "verb") return "jump";
     return null;
   }
 
@@ -533,7 +461,7 @@ export class Obstacles {
   }
 
   _jumpClearY(type) {
-    return type === 'sign' ? 0.95 : 0.85;
+    return type === "sign" ? 0.95 : 0.85;
   }
 
   _inTutorial(playerZ) {
@@ -568,7 +496,7 @@ export class Obstacles {
     for (const it of this.items) {
       if (!it.alive) continue;
       if (it.isFirstTutorialRail || it.isFirstTutorialSign) continue;
-      if (it.type !== 'rail' && it.type !== 'sign') continue;
+      if (it.type !== "rail" && it.type !== "sign") continue;
       if (it.z <= playerZ) continue;
       const lead = it.z - playerZ;
       if (lead < nearestLead) {
@@ -580,7 +508,7 @@ export class Obstacles {
       const it = this.items[i];
       if (!it.alive) continue;
       if (it.isFirstTutorialRail || it.isFirstTutorialSign) continue;
-      if (it.type !== 'rail' && it.type !== 'sign') continue;
+      if (it.type !== "rail" && it.type !== "sign") continue;
       if (it.z <= playerZ) continue;
       if (it === nearestTeach && it.z <= recycleZ) continue;
       if (it.z > recycleZ) {
@@ -620,13 +548,14 @@ export class Obstacles {
     const blocked = this._pickBlockedLane(rng);
     const placed = this._acquire(type, blocked, z);
     if (!placed) return z;
-    if (type === 'mover') this._initMoverSweep(placed, blocked, rng);
+    if (type === "mover") this._initMoverSweep(placed, blocked, rng);
     this._recordSpawn(z, type);
     return z;
   }
 
   _initMoverSweep(item, startLane, rng) {
-    const endLane = startLane === 0 ? 2 : startLane === 2 ? 0 : rng() > 0.5 ? 2 : 0;
+    const endLane =
+      startLane === 0 ? 2 : startLane === 2 ? 0 : rng() > 0.5 ? 2 : 0;
     item.moverStartLane = startLane;
     item.moverEndLane = endLane;
     item.moverPhase = 0;
@@ -640,10 +569,10 @@ export class Obstacles {
     let maxZ = z;
     for (let i = 0; i < count; i++) {
       const zz = z + i * spacing;
-      const p = this._acquire('barrel', blocked, zz);
+      const p = this._acquire("barrel", blocked, zz);
       if (p) {
         maxZ = Math.max(maxZ, zz);
-        this._recordSpawn(zz, 'barrel');
+        this._recordSpawn(zz, "barrel");
       }
     }
     return maxZ;
@@ -655,10 +584,10 @@ export class Obstacles {
     let maxZ = z;
     for (let lane = 0; lane < 3; lane++) {
       if (lane === open) continue;
-      const p = this._acquire('pepsiWide', lane, z);
+      const p = this._acquire("pepsiWide", lane, z);
       if (p) {
         maxZ = Math.max(maxZ, z);
-        this._recordSpawn(z, 'pepsiWide');
+        this._recordSpawn(z, "pepsiWide");
       }
     }
     return maxZ;
@@ -672,7 +601,7 @@ export class Obstacles {
       const p = this._acquire(types[i], blocked, zz);
       if (p) {
         maxZ = Math.max(maxZ, zz);
-        if (types[i] === 'mover') this._initMoverSweep(p, blocked, rng);
+        if (types[i] === "mover") this._initMoverSweep(p, blocked, rng);
         this._recordSpawn(zz, types[i]);
       }
     }
@@ -681,9 +610,10 @@ export class Obstacles {
 
   _spawnRotationEntry(z, entry) {
     const rng = this._rng;
-    if (entry.kind === 'barrelChain') return this._spawnBarrelChain(z, rng);
-    if (entry.kind === 'pepsiWide') return this._spawnPepsiWideGap(z, rng);
-    if (entry.kind === 'combo') return this._spawnCombo(z, entry.types, entry.gap ?? 0.25, rng);
+    if (entry.kind === "barrelChain") return this._spawnBarrelChain(z, rng);
+    if (entry.kind === "pepsiWide") return this._spawnPepsiWideGap(z, rng);
+    if (entry.kind === "combo")
+      return this._spawnCombo(z, entry.types, entry.gap ?? 0.25, rng);
     return this._placeSingle(z, entry.type, rng);
   }
 
@@ -691,9 +621,9 @@ export class Obstacles {
     if (this._rotationLogged) return;
     const recent = this.spawnHistory.slice(-SPAWN.rotationTableLength);
     const types = new Set(recent.map((h) => h.type));
-    console.info(
+    console.debug(
       `[Obstacles] Post-tutorial rotation — ${types.size} distinct types in ${recent.length} spawns:`,
-      [...types].sort().join(', ')
+      [...types].sort().join(", "),
     );
     this._rotationLogged = true;
   }
@@ -706,21 +636,23 @@ export class Obstacles {
   /** Force jump/slide/block variety within rolling window */
   _varietyType(rng, playerZ, speed) {
     const modes = this._recentModes();
-    const needSlide = !modes.has('slide');
-    const needJump = !modes.has('jump');
-    const needBlock = !modes.has('block');
-    if (needSlide && needJump) return rng() < 0.5 ? 'rail' : rng() < 0.6 ? 'sign' : 'barrel';
-    if (needSlide) return 'rail';
-    if (needJump) return rng() < 0.55 ? 'sign' : 'barrel';
-    if (needBlock) return rng() < 0.45 ? 'truck' : rng() < 0.7 ? 'pepsiWide' : 'mover';
+    const needSlide = !modes.has("slide");
+    const needJump = !modes.has("jump");
+    const needBlock = !modes.has("block");
+    if (needSlide && needJump)
+      return rng() < 0.5 ? "rail" : rng() < 0.6 ? "sign" : "barrel";
+    if (needSlide) return "rail";
+    if (needJump) return rng() < 0.55 ? "sign" : "barrel";
+    if (needBlock)
+      return rng() < 0.45 ? "truck" : rng() < 0.7 ? "pepsiWide" : "mover";
     const roll = rng();
-    if (roll < 0.2) return 'rail';
-    if (roll < 0.38) return 'sign';
-    if (roll < 0.52) return 'barrel';
-    if (roll < 0.66) return 'barrier';
-    if (roll < 0.8) return 'truck';
-    if (roll < 0.9) return 'pepsiWide';
-    return rng() < 0.6 ? 'mover' : 'ramp';
+    if (roll < 0.2) return "rail";
+    if (roll < 0.38) return "sign";
+    if (roll < 0.52) return "barrel";
+    if (roll < 0.66) return "barrier";
+    if (roll < 0.8) return "truck";
+    if (roll < 0.9) return "pepsiWide";
+    return rng() < 0.6 ? "mover" : "ramp";
   }
 
   /** Lanes without an obstacle near z (for collectible placement). */
@@ -771,7 +703,13 @@ export class Obstacles {
     const laneX = LANES[it.lane];
 
     if (!it.tel) {
-      it.tel = this._ensureTelMesh(this.telPool, this._geo.tel, colors.core, 48, false);
+      it.tel = this._ensureTelMesh(
+        this.telPool,
+        this._geo.tel,
+        colors.core,
+        48,
+        false,
+      );
       it.tel.visible = false;
       this._applyTelColors(it.tel, colors);
     }
@@ -781,7 +719,7 @@ export class Obstacles {
         this._geo.telOuter,
         colors.glow,
         47,
-        true
+        true,
       );
       it.telOuter.visible = false;
       this._applyTelOuterColors(it.telOuter, colors);
@@ -799,13 +737,19 @@ export class Obstacles {
   }
 
   _ensureMoverDestTelegraphs(it) {
-    if (it.type !== 'mover') return;
+    if (it.type !== "mover") return;
     const colors = it.telColors ?? telegraphColorsFor(it.type);
     const endLane = it.moverEndLane ?? it.lane;
     const destX = LANES[endLane];
 
     if (!it.destTel) {
-      it.destTel = this._ensureTelMesh(this.telPool, this._geo.tel, colors.core, 48, false);
+      it.destTel = this._ensureTelMesh(
+        this.telPool,
+        this._geo.tel,
+        colors.core,
+        48,
+        false,
+      );
       it.destTel.visible = false;
       this._applyTelColors(it.destTel, colors);
     }
@@ -815,7 +759,7 @@ export class Obstacles {
         this._geo.telOuter,
         colors.glow,
         47,
-        true
+        true,
       );
       it.destTelOuter.visible = false;
       this._applyTelOuterColors(it.destTelOuter, colors);
@@ -832,7 +776,22 @@ export class Obstacles {
     }
   }
 
-  _layoutTelegraphStrip(it, laneX, tel, telOuter, chevrons, dist, showStrip, alpha, colors, pulse, rampDist, minAlpha, stripLen, gap) {
+  _layoutTelegraphStrip(
+    it,
+    laneX,
+    tel,
+    telOuter,
+    chevrons,
+    dist,
+    showStrip,
+    alpha,
+    colors,
+    pulse,
+    rampDist,
+    minAlpha,
+    stripLen,
+    gap,
+  ) {
     const stripEndZ = it.z - gap;
     const stripStartZ = stripEndZ - stripLen;
     const stripCenterZ = stripStartZ + stripLen * 0.5;
@@ -846,7 +805,9 @@ export class Obstacles {
 
     layFlatOnRoad(telOuter);
     telOuter.visible = showStrip && alpha > 0.02;
-    telOuter.material.opacity = showStrip ? Math.min(1, alpha * 0.32 * pulse) : 0;
+    telOuter.material.opacity = showStrip
+      ? Math.min(1, alpha * 0.32 * pulse)
+      : 0;
     telOuter.material.color.setHex(colors.glow);
     telOuter.position.set(laneX, 0.07, stripCenterZ);
     telOuter.scale.set(1.02, 1.02, 1);
@@ -859,7 +820,8 @@ export class Obstacles {
       const chevDist = it.z - chevZ;
       const chevRamp = chevDist <= rampDist ? 1 - chevDist / rampDist : 0;
       const chevPulse = 0.75 + Math.sin(this._pulseT * 13 + ci * 0.85) * 0.25;
-      const chevVisible = showStrip && chevZ >= stripStartZ && chevZ <= stripEndZ;
+      const chevVisible =
+        showStrip && chevZ >= stripStartZ && chevZ <= stripEndZ;
       chev.visible = chevVisible && alpha > 0.02;
       chev.material.opacity = chevVisible
         ? Math.min(1, (minAlpha + (1 - minAlpha) * chevRamp ** 0.5) * chevPulse)
@@ -905,249 +867,105 @@ export class Obstacles {
   }
 
   _buildMesh(type) {
-    const g = new THREE.Group();
-    let hit = { w: 1.0, h: 0.95, d: 0.45, y: 0.55, mode: 'block' };
-
-    if (type === 'barrier') {
-      // Striped mid-height block — jump over; never cylinder-shaped
-      const base = new THREE.Mesh(new THREE.BoxGeometry(1.85, 0.35, 0.58), this._mats.stripe);
-      base.position.y = 0.18;
-      g.add(base);
-      const m = new THREE.Mesh(this._geo.barrier, this._mats.barrier);
-      m.position.y = 0.95;
-      m.castShadow = true;
-      g.add(m);
-      const s = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.22, 0.6), this._mats.stripe);
-      s.position.y = 1.15;
-      g.add(s);
-      const s2 = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.14, 0.6), this._mats.railStripe);
-      s2.position.y = 0.72;
-      g.add(s2);
-      hit = { w: 1.2, h: 1.05, d: 0.48, y: 0.95, mode: 'jump' };
-    } else if (type === 'rail') {
-      // Overhead hazard — tall posts + thick striped bar reads from far away
-      const postL = new THREE.Mesh(new THREE.BoxGeometry(0.24, 2.85, 0.24), this._mats.railDark);
-      postL.position.set(-1.18, 1.42, 0);
-      const postR = postL.clone();
-      postR.position.x = 1.18;
-      g.add(postL, postR);
-      const bar = new THREE.Mesh(new THREE.BoxGeometry(2.75, 0.58, 0.38), this._mats.railDark);
-      bar.position.y = 2.72;
-      bar.castShadow = true;
-      g.add(bar);
-      for (let si = 0; si < 7; si++) {
-        const stripeMat = si % 2 === 0 ? this._mats.railStripe : this._mats.railStripeDark;
-        const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.5, 0.14), stripeMat);
-        stripe.position.set(-1.02 + si * 0.34, 2.72, 0.24);
-        g.add(stripe);
-      }
-      const hang = new THREE.Mesh(new THREE.BoxGeometry(2.55, 0.12, 0.16), this._mats.railDark);
-      hang.position.y = 2.38;
-      g.add(hang);
-      hit = { w: 2.15, h: 0.52, d: 1.1, y: 2.72, mode: 'slide' };
-    } else if (type === 'sign') {
-      // Low vault sign — short poles, bright face, orange frame; distinct from overhead rail
-      const poleL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.88, 0.18), this._mats.signPole);
-      poleL.position.set(-0.92, 0.44, 0);
-      const poleR = poleL.clone();
-      poleR.position.x = 0.92;
-      g.add(poleL, poleR);
-      const frame = new THREE.Mesh(new THREE.BoxGeometry(2.35, 1.28, 0.18), this._mats.signFrame);
-      frame.position.y = 0.98;
-      g.add(frame);
-      const m = new THREE.Mesh(new THREE.BoxGeometry(2.15, 1.1, 0.12), this._mats.sign);
-      m.position.set(0, 0.98, 0.12);
-      m.castShadow = true;
-      g.add(m);
-      const face = new THREE.Mesh(new THREE.BoxGeometry(1.95, 0.95, 0.08), this._mats.signFace);
-      face.position.set(0, 0.98, 0.2);
-      g.add(face);
-      const top = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.18, 0.14), this._mats.signTop);
-      top.position.y = 1.58;
-      g.add(top);
-      const base = new THREE.Mesh(new THREE.BoxGeometry(2.25, 0.14, 0.6), this._mats.signPole);
-      base.position.y = 0.07;
-      g.add(base);
-      hit = { w: 1.85, h: 1.1, d: 0.45, y: 0.95, mode: 'jump' };
-    } else if (type === 'barrel') {
-      const barrel = new THREE.Mesh(this._geo.barrelRoll, this._mats.barrel);
-      barrel.rotation.z = Math.PI / 2;
-      barrel.position.y = 0.42;
-      barrel.castShadow = false;
-      g.add(barrel);
-      const band = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.44, 0.44, 0.12, 10),
-        this._mats.railStripe
-      );
-      band.rotation.z = Math.PI / 2;
-      band.position.y = 0.42;
-      g.add(band);
-      hit = { w: 1.05, h: 0.9, d: 1.05, y: 0.42, mode: 'jump' };
-    } else if (type === 'pepsiWide') {
-      const body = new THREE.Mesh(this._geo.wideBody, this._mats.wideTruck);
-      body.position.set(0, 1.15, 0);
-      body.castShadow = false;
-      g.add(body);
-      const logo = new THREE.Mesh(
-        new THREE.BoxGeometry(1.8, 0.9, 0.08),
-        this._mats.truckBody
-      );
-      logo.position.set(0, 1.2, 0.62);
-      g.add(logo);
-      for (const [wx, wz] of [
-        [-1.2, 0.35],
-        [1.2, 0.35],
-        [-1.2, -0.35],
-        [1.2, -0.35],
-      ]) {
-        const w = new THREE.Mesh(this._geo.wheel, this._mats.wheel);
-        w.rotation.z = Math.PI / 2;
-        w.position.set(wx, 0.32, wz);
-        g.add(w);
-      }
-      hit = { w: 2.4, h: 2.0, d: 1.15, y: 1.15, mode: 'block' };
-    } else if (type === 'mover') {
-      const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
-      cab.position.set(0, 1.15, 0.8);
-      g.add(cab);
-      const body = new THREE.Mesh(this._geo.truckBody, this._mats.truckBody);
-      body.position.set(0, 1.35, -0.35);
-      g.add(body);
-      for (const [wx, wz] of [
-        [-0.85, 0.9],
-        [0.85, 0.9],
-        [-0.85, -1.1],
-        [0.85, -1.1],
-      ]) {
-        const w = new THREE.Mesh(this._geo.wheel, this._mats.wheel);
-        w.rotation.z = Math.PI / 2;
-        w.position.set(wx, 0.32, wz);
-        g.add(w);
-      }
-      hit = { w: 1.65, h: 1.95, d: 2.35, y: 1.15, mode: 'block' };
-      g.userData.mover = true;
-    } else if (type === 'ramp') {
-      const ramp = new THREE.Mesh(this._geo.ramp, this._mats.ramp);
-      ramp.position.set(0, 0.18, 0);
-      ramp.rotation.x = -0.22;
-      g.add(ramp);
-      const lip = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.08, 0.35), this._mats.signFrame);
-      lip.position.set(0, 0.32, 1.1);
-      g.add(lip);
-      hit = { w: 2.0, h: 0.35, d: 2.2, y: 0.2, mode: 'ramp' };
-    } else {
-      // Boxy delivery truck — lane change only; no cylinder silhouettes
-      const cab = new THREE.Mesh(this._geo.truckCab, this._mats.truckCab);
-      cab.position.set(0, 1.15, 1.55);
-      cab.castShadow = true;
-      g.add(cab);
-      const body = new THREE.Mesh(this._geo.truckBody, this._mats.truckBody);
-      body.position.set(0, 1.35, -0.55);
-      body.castShadow = true;
-      g.add(body);
-      const wheelGeo = this._geo.wheel;
-      const wheelMat = this._mats.wheel;
-      for (const [wx, wz] of [
-        [-0.85, 1.2],
-        [0.85, 1.2],
-        [-0.85, -1.4],
-        [0.85, -1.4],
-      ]) {
-        const w = new THREE.Mesh(wheelGeo, wheelMat);
-        w.rotation.z = Math.PI / 2;
-        w.position.set(wx, 0.32, wz);
-        g.add(w);
-      }
-      hit = { w: 1.65, h: 1.95, d: 2.35, y: 1.15, mode: 'block' };
-    }
-    g.userData.hit = hit;
-    return g;
+    return buildObstacle(type);
   }
 
   _acquire(type, lane, z) {
     try {
-    let mesh = this.pool.pop();
-    if (!mesh) {
-      mesh = this._buildMesh(type);
-      this.scene.add(mesh);
-    } else {
-      mesh.clear();
-      const built = this._buildMesh(type);
-      built.children.forEach((c) => mesh.add(c));
-      mesh.userData.hit = built.userData.hit;
-    }
+      let mesh = this.pool.pop();
+      if (!mesh) {
+        mesh = this._buildMesh(type);
+        this.scene.add(mesh);
+      } else {
+        mesh.clear();
+        const built = this._buildMesh(type);
+        [...built.children].forEach((c) => mesh.add(c));
+        mesh.userData.hit = built.userData.hit;
+      }
 
-    const colors = telegraphColorsFor(type);
+      const colors = telegraphColorsFor(type);
 
-    const tel = this._ensureTelMesh(this.telPool, this._geo.tel, colors.core, 48, false);
-    tel.visible = false;
-    layFlatOnRoad(tel);
-    tel.position.set(LANES[lane], 0.08, z);
-    tel.scale.set(1, 1, 1);
-    this._applyTelColors(tel, colors);
+      const tel = this._ensureTelMesh(
+        this.telPool,
+        this._geo.tel,
+        colors.core,
+        48,
+        false,
+      );
+      tel.visible = false;
+      layFlatOnRoad(tel);
+      tel.position.set(LANES[lane], 0.08, z);
+      tel.scale.set(1, 1, 1);
+      this._applyTelColors(tel, colors);
 
-    const telOuter = this._ensureTelMesh(
-      this.telOuterPool,
-      this._geo.telOuter,
-      colors.glow,
-      47,
-      true
-    );
-    telOuter.visible = false;
-    layFlatOnRoad(telOuter);
-    telOuter.position.set(LANES[lane], 0.07, z);
-    telOuter.scale.set(1, 1, 1);
-    this._applyTelOuterColors(telOuter, colors);
+      const telOuter = this._ensureTelMesh(
+        this.telOuterPool,
+        this._geo.telOuter,
+        colors.glow,
+        47,
+        true,
+      );
+      telOuter.visible = false;
+      layFlatOnRoad(telOuter);
+      telOuter.position.set(LANES[lane], 0.07, z);
+      telOuter.scale.set(1, 1, 1);
+      this._applyTelOuterColors(telOuter, colors);
 
-    const shadow = this.shadowPool.pop();
-    if (shadow) {
-      shadow.visible = false;
-      shadow.material.opacity = 0;
-      shadow.rotation.set(-Math.PI / 2, 0, 0);
-      shadow.scale.set(1, 1, 1);
-      shadow.position.set(LANES[lane], 0.06, z);
-      const scale =
-        type === 'sign' ? 1.05 : type === 'rail' ? 0.55 : type === 'truck' ? 1.25 : 0.9;
-      shadow.scale.set(scale, scale * (type === 'sign' ? 0.85 : 1), 1);
-    }
+      const shadow = this.shadowPool.pop();
+      if (shadow) {
+        shadow.visible = false;
+        shadow.material.opacity = 0;
+        shadow.rotation.set(-Math.PI / 2, 0, 0);
+        shadow.scale.set(1, 1, 1);
+        shadow.position.set(LANES[lane], 0.06, z);
+        const scale =
+          type === "sign"
+            ? 1.05
+            : type === "rail"
+              ? 0.55
+              : type === "truck"
+                ? 1.25
+                : 0.9;
+        shadow.scale.set(scale, scale * (type === "sign" ? 0.85 : 1), 1);
+      }
 
-    const chevrons = [];
-    for (let ci = 0; ci < SPAWN.telegraphChevronCount; ci++) {
-      const chev = this._ensureChevron(colors.core);
-      chev.visible = false;
-      layFlatOnRoad(chev);
-      chev.position.set(LANES[lane], 0.09, z);
-      chev.scale.set(1, 1, 1);
-      this._applyTelColors(chev, colors);
-      chevrons.push(chev);
-    }
+      const chevrons = [];
+      for (let ci = 0; ci < SPAWN.telegraphChevronCount; ci++) {
+        const chev = this._ensureChevron(colors.core);
+        chev.visible = false;
+        layFlatOnRoad(chev);
+        chev.position.set(LANES[lane], 0.09, z);
+        chev.scale.set(1, 1, 1);
+        this._applyTelColors(chev, colors);
+        chevrons.push(chev);
+      }
 
-    mesh.position.set(LANES[lane], 0, z);
-    mesh.visible = true;
-    const hit = mesh.userData.hit;
+      mesh.position.set(LANES[lane], 0, z);
+      mesh.visible = true;
+      const hit = mesh.userData.hit;
 
-    const item = {
-      type,
-      lane,
-      z,
-      mesh,
-      hit,
-      alive: true,
-      collisionDisabled: false,
-      tel,
-      telOuter,
-      shadow,
-      chevrons,
-      telColors: colors,
-      moverPhase: type === 'mover' ? 0 : 0,
-      moverStartLane: type === 'mover' ? lane : undefined,
-      moverEndLane: undefined,
-      moverLane: lane,
-    };
-    this.items.push(item);
-    return item;
+      const item = {
+        type,
+        lane,
+        z,
+        mesh,
+        hit,
+        alive: true,
+        collisionDisabled: false,
+        tel,
+        telOuter,
+        shadow,
+        chevrons,
+        telColors: colors,
+        moverPhase: type === "mover" ? 0 : 0,
+        moverStartLane: type === "mover" ? lane : undefined,
+        moverEndLane: undefined,
+        moverLane: lane,
+      };
+      this.items.push(item);
+      return item;
     } catch (e) {
-      console.error('_acquire failed', type, lane, z, e);
+      console.error("_acquire failed", type, lane, z, e);
       return null;
     }
   }
@@ -1212,15 +1030,15 @@ export class Obstacles {
     }
 
     const pastEarlyDoubles =
-      this.patternsSpawned >= SPAWN.warmupPatternCount + SPAWN.earlyNoDoublePatterns;
+      this.patternsSpawned >=
+      SPAWN.warmupPatternCount + SPAWN.earlyNoDoublePatterns;
     const doubleChance =
       warmup || tutorial || !pastEarlyDoubles
         ? 0
-        : SPAWN.doubleChanceBase + (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
+        : SPAWN.doubleChanceBase +
+          (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
     const count = warmup || tutorial ? 1 : rng() < doubleChance ? 2 : 1;
-    const blocked = tutorial
-      ? [TUTORIAL_LANE]
-      : pickLanes(count, rng);
+    const blocked = tutorial ? [TUTORIAL_LANE] : pickLanes(count, rng);
     const open = [0, 1, 2].find((l) => !blocked.includes(l));
 
     const placedTypes = [];
@@ -1231,7 +1049,10 @@ export class Obstacles {
         if (warmup) {
           type = WARMUP_TYPES[this.patternsSpawned % WARMUP_TYPES.length];
         } else {
-          type = POST_WARMUP_SEQUENCE[this.postWarmupPatterns % POST_WARMUP_SEQUENCE.length];
+          type =
+            POST_WARMUP_SEQUENCE[
+              this.postWarmupPatterns % POST_WARMUP_SEQUENCE.length
+            ];
         }
       } else if (!warmup && bi === 0) {
         type = this._varietyType(rng, playerZ, speed);
@@ -1240,21 +1061,23 @@ export class Obstacles {
       }
       if (!warmup && count === 2 && blocked.length === 2) {
         const other = blocked.find((l) => l !== lane);
-        const otherType = placedTypes[0] ?? typeForLane(other, open, rng, false);
-        if (otherType === 'barrier' && type === 'barrier') {
-          type = rng() > 0.5 ? 'sign' : 'rail';
+        const otherType =
+          placedTypes[0] ?? typeForLane(other, open, rng, false);
+        if (otherType === "barrier" && type === "barrier") {
+          type = rng() > 0.5 ? "sign" : "rail";
         }
-        if (otherType === 'truck' && type === 'truck') {
-          type = rng() > 0.5 ? 'sign' : 'rail';
+        if (otherType === "truck" && type === "truck") {
+          type = rng() > 0.5 ? "sign" : "rail";
         }
-        if (otherType === 'rail' && type === 'rail') {
-          type = rng() > 0.5 ? 'barrier' : 'sign';
+        if (otherType === "rail" && type === "rail") {
+          type = rng() > 0.5 ? "barrier" : "sign";
         }
-        if (otherType === 'sign' && type === 'sign') {
-          type = rng() > 0.5 ? 'rail' : 'barrier';
+        if (otherType === "sign" && type === "sign") {
+          type = rng() > 0.5 ? "rail" : "barrier";
         }
       }
-      const zOff = !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
+      const zOff =
+        !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
       let spawnZ = z + zOff;
       if (tutorial && warmup && lane === TUTORIAL_LANE) {
         spawnZ = Math.max(spawnZ, this._minTutorialSpawnZ(playerZ, speed));
@@ -1264,10 +1087,10 @@ export class Obstacles {
       maxSpawnZ = Math.max(maxSpawnZ, spawnZ);
       placed.nearMissed = false;
       if (tutorial && warmup && lane === TUTORIAL_LANE) {
-        if (type === 'rail' && !this._spawnedFirstTutorialRail) {
+        if (type === "rail" && !this._spawnedFirstTutorialRail) {
           placed.isFirstTutorialRail = true;
           this._spawnedFirstTutorialRail = true;
-        } else if (type === 'sign' && !this._spawnedFirstTutorialSign) {
+        } else if (type === "sign" && !this._spawnedFirstTutorialSign) {
           placed.isFirstTutorialSign = true;
           this._spawnedFirstTutorialSign = true;
         }
@@ -1275,7 +1098,11 @@ export class Obstacles {
       placedTypes.push(type);
       this._recordSpawn(spawnZ, type);
     }
-    if (!warmup && tutorial && this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns) {
+    if (
+      !warmup &&
+      tutorial &&
+      this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns
+    ) {
       this.postWarmupPatterns += 1;
     }
     this.patternsSpawned += 1;
@@ -1285,7 +1112,8 @@ export class Obstacles {
   /** Readable pattern kit: gate, combo verbs, barrel timing, ramp */
   _spawnSpecialPattern(z, playerZ, speed) {
     const rng = this._rng;
-    if (this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers) return null;
+    if (this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers)
+      return null;
     const blocked = pickLanes(1, rng)[0];
     const roll = rng();
     let maxZ = z;
@@ -1299,20 +1127,20 @@ export class Obstacles {
     };
 
     if (roll < 0.26) {
-      place('rail', blocked, z);
-      place('barrier', blocked, z + 0.2);
+      place("rail", blocked, z);
+      place("barrier", blocked, z + 0.2);
     } else if (roll < 0.5) {
-      place('sign', blocked, z);
-      place('rail', blocked, z + 5.8);
+      place("sign", blocked, z);
+      place("rail", blocked, z + 5.8);
     } else if (roll < 0.72) {
-      place('rail', blocked, z);
-      place('sign', blocked, z + 5.8);
+      place("rail", blocked, z);
+      place("sign", blocked, z + 5.8);
     } else if (roll < 0.86) {
-      place('barrel', blocked, z);
+      place("barrel", blocked, z);
     } else if (roll < 0.93) {
-      place('mover', blocked, z);
+      place("mover", blocked, z);
     } else {
-      place('ramp', blocked, z);
+      place("ramp", blocked, z);
     }
     return maxZ;
   }
@@ -1337,7 +1165,10 @@ export class Obstacles {
           this._rng() * (SPAWN.rotationRampGapMax - SPAWN.rotationRampGapMin)
         );
       }
-      return SPAWN.rotationGapMin + this._rng() * (SPAWN.rotationGapMax - SPAWN.rotationGapMin);
+      return (
+        SPAWN.rotationGapMin +
+        this._rng() * (SPAWN.rotationGapMax - SPAWN.rotationGapMin)
+      );
     }
     const wideCutoff = SPAWN.warmupPatternCount + SPAWN.postWarmupWideGapCount;
     if (
@@ -1347,7 +1178,8 @@ export class Obstacles {
     ) {
       return (
         SPAWN.obstacleTutorialGapMin +
-        this._rng() * (SPAWN.obstacleTutorialGapMax - SPAWN.obstacleTutorialGapMin)
+        this._rng() *
+          (SPAWN.obstacleTutorialGapMax - SPAWN.obstacleTutorialGapMin)
       );
     }
     const min = SPAWN.obstacleMinGap - diff * SPAWN.obstacleGapTighten * 12;
@@ -1371,7 +1203,7 @@ export class Obstacles {
     return THREE.MathUtils.clamp(
       segmentLead + diff * 8,
       SPAWN.obstacleSpawnAheadMin,
-      SPAWN.obstacleSpawnAheadMax
+      SPAWN.obstacleSpawnAheadMax,
     );
   }
 
@@ -1382,7 +1214,7 @@ export class Obstacles {
     return THREE.MathUtils.clamp(
       SPAWN.obstacleSpawnAheadMin + diff * 10,
       SPAWN.obstacleSpawnAheadMin,
-      70
+      70,
     );
   }
 
@@ -1416,7 +1248,10 @@ export class Obstacles {
     // obstacles from runwayZ onward into the horizon so threats exist on arrival.
     if (playerZ < runwayZ - 5) {
       this.nextZ = Math.max(this.nextZ, runwayZ);
-    } else if (this._rotationBandPack && this.rotationIndex < SPAWN.rotationPackCount) {
+    } else if (
+      this._rotationBandPack &&
+      this.rotationIndex < SPAWN.rotationPackCount
+    ) {
       this.nextZ = Math.max(this.nextZ, runwayZ);
     } else {
       this.nextZ = Math.max(this.nextZ, Math.max(runwayZ, playerZ + minAhead));
@@ -1424,7 +1259,10 @@ export class Obstacles {
 
     // Fill only the contact-time horizon (~80–140m), not the full world pool (~360m).
     while (this.nextZ < playerZ + horizonDist) {
-      if (this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers + 1) {
+      if (
+        this._countActiveBlockers(playerZ) >=
+        SPAWN.maxConcurrentBlockers + 1
+      ) {
         break;
       }
       if (this.nextZ < runwayZ) {
@@ -1446,9 +1284,9 @@ export class Obstacles {
       this.items.filter((i) => i.alive).length === 0
     ) {
       try {
-        this._acquire('barrier', 1, playerZ + 25);
-        this._acquire('rail', 0, playerZ + 40);
-        this._acquire('sign', 2, playerZ + 55);
+        this._acquire("barrier", 1, playerZ + 25);
+        this._acquire("rail", 0, playerZ + 40);
+        this._acquire("sign", 2, playerZ + 55);
         this.nextZ = Math.max(this.nextZ, playerZ + 75);
       } catch (e) {
         console.error(e);
@@ -1473,7 +1311,7 @@ export class Obstacles {
       const colors = it.telColors;
 
       // Lane-sweeping truck — telegraphed cross-lane hazard
-      if (it.type === 'mover') {
+      if (it.type === "mover") {
         it.moverPhase += dt * 0.92;
         const start = it.moverStartLane ?? it.lane;
         const end = it.moverEndLane ?? (start === 0 ? 2 : 0);
@@ -1495,20 +1333,28 @@ export class Obstacles {
         it.mesh.position.set(laneX, 0, it.z);
       }
 
-      if (it.type === 'barrel') {
+      if (it.type === "barrel") {
         it.mesh.children[0].rotation.x += dt * 7;
       }
 
       if (dist > 0 && speed > 0.1) {
         const ttc = dist / speed;
-        if (it.isFirstTutorialRail) this._updateFirstTutorialHint('rail', ttc);
-        if (it.isFirstTutorialSign) this._updateFirstTutorialHint('sign', ttc);
+        if (it.isFirstTutorialRail) this._updateFirstTutorialHint("rail", ttc);
+        if (it.isFirstTutorialSign) this._updateFirstTutorialHint("sign", ttc);
       } else {
-        if (it.isFirstTutorialRail && this._railHintState !== 'idle' && this._railHintState !== 'done') {
-          this._updateFirstTutorialHint('rail', 0);
+        if (
+          it.isFirstTutorialRail &&
+          this._railHintState !== "idle" &&
+          this._railHintState !== "done"
+        ) {
+          this._updateFirstTutorialHint("rail", 0);
         }
-        if (it.isFirstTutorialSign && this._signHintState !== 'idle' && this._signHintState !== 'done') {
-          this._updateFirstTutorialHint('sign', 0);
+        if (
+          it.isFirstTutorialSign &&
+          this._signHintState !== "idle" &&
+          this._signHintState !== "done"
+        ) {
+          this._updateFirstTutorialHint("sign", 0);
         }
       }
 
@@ -1540,18 +1386,22 @@ export class Obstacles {
         rampDist,
         minAlpha,
         stripLen,
-        gap
+        gap,
       );
 
       if (it.shadow) {
         layFlatOnRoad(it.shadow);
-        const shadowUrg = showStrip ? 1 - Math.min(dist, rampDist) / rampDist : 0;
+        const shadowUrg = showStrip
+          ? 1 - Math.min(dist, rampDist) / rampDist
+          : 0;
         it.shadow.visible = showStrip && alpha > 0.02;
-        it.shadow.material.opacity = showStrip ? 0.08 + 0.16 * Math.max(0, shadowUrg) : 0;
+        it.shadow.material.opacity = showStrip
+          ? 0.08 + 0.16 * Math.max(0, shadowUrg)
+          : 0;
         it.shadow.position.set(laneX, 0.06, stripEndZ - stripLen * 0.12);
       }
 
-      if (it.type === 'mover') {
+      if (it.type === "mover") {
         const start = it.moverStartLane ?? it.lane;
         const end = it.moverEndLane ?? (start === 0 ? 2 : 0);
         if (start !== end) {
@@ -1559,7 +1409,7 @@ export class Obstacles {
           const destLeadDist = THREE.MathUtils.clamp(
             speed * SPAWN.moverDestTelegraphLeadSec,
             SPAWN.moverDestTelegraphMinDist,
-            SPAWN.moverDestTelegraphMaxDist
+            SPAWN.moverDestTelegraphMaxDist,
           );
           const showDestStrip = dist > 0 && dist <= destLeadDist;
           let destAlpha = 0;
@@ -1589,7 +1439,7 @@ export class Obstacles {
             rampDist,
             minAlpha,
             stripLen,
-            gap
+            gap,
           );
         }
       }
@@ -1602,7 +1452,7 @@ export class Obstacles {
 
   checkRamp(playerBox, playerLane) {
     for (const it of this.items) {
-      if (!it.alive || it.type !== 'ramp') continue;
+      if (!it.alive || it.type !== "ramp") continue;
       const hx = it.mesh.position.x;
       const dx = Math.abs(playerBox.x - hx);
       const dz = Math.abs(playerBox.z - it.z);
@@ -1636,31 +1486,36 @@ export class Obstacles {
       const hh = it.hit.h * shrink;
       const hd = it.hit.d * shrink;
       const dx = Math.abs(playerBox.x - hx);
-      const dz = Math.abs(playerBox.z - hz);
+      const sweptZ = THREE.MathUtils.clamp(
+        hz,
+        playerBox.previousZ ?? playerBox.z,
+        playerBox.z,
+      );
+      const dz = Math.abs(sweptZ - hz);
       if (dx >= (pw + hw) * 0.5 || dz >= (pd + hd) * 0.5) continue;
 
-      if (it.hit.mode === 'slide') {
+      if (it.hit.mode === "slide") {
         if (sliding) continue;
         if (it.isFirstTutorialRail === true && !this._graceSlideUsed) {
           this._graceSlideUsed = true;
           it.collisionDisabled = true;
-          this._queueGraceRetry('rail');
-          this._onTutorialGrace?.('slide');
+          this._queueGraceRetry("rail");
+          this._onTutorialGrace?.("slide");
           continue;
         }
         return it;
       }
 
-      if (it.hit.mode === 'ramp') continue;
+      if (it.hit.mode === "ramp") continue;
 
-      if (it.hit.mode === 'jump') {
+      if (it.hit.mode === "jump") {
         const clearY = this._jumpClearY(it.type);
         if (jumping && playerBox.y > clearY) continue;
         if (it.isFirstTutorialSign === true && !this._graceJumpUsed) {
           this._graceJumpUsed = true;
           it.collisionDisabled = true;
-          this._queueGraceRetry('sign');
-          this._onTutorialGrace?.('jump');
+          this._queueGraceRetry("sign");
+          this._onTutorialGrace?.("jump");
           continue;
         }
         return it;
@@ -1694,9 +1549,11 @@ export class Obstacles {
       if (it.lane !== playerLane) continue;
 
       const avoided =
-        (it.hit.mode === 'slide' && sliding) ||
-        (it.hit.mode === 'jump' && jumping && playerBox.y > this._jumpClearY(it.type)) ||
-        (it.hit.mode === 'block' && it.lane !== playerLane);
+        (it.hit.mode === "slide" && sliding) ||
+        (it.hit.mode === "jump" &&
+          jumping &&
+          playerBox.y > this._jumpClearY(it.type)) ||
+        (it.hit.mode === "block" && it.lane !== playerLane);
       if (!avoided) continue;
 
       const hw = it.hit.w * shrink;
@@ -1714,8 +1571,8 @@ export class Obstacles {
     clearTimeout(this._graceRetryTimer);
     this._graceRetryTimer = null;
     this._pendingGraceRetry = null;
-    this._railHintState = 'idle';
-    this._signHintState = 'idle';
+    this._railHintState = "idle";
+    this._signHintState = "idle";
     this._railVerbFading = false;
     this._signVerbFading = false;
     this._onTutorialHint?.(null);
@@ -1738,8 +1595,8 @@ export class Obstacles {
     this._getReadySignShown = false;
     this._spawnedFirstTutorialRail = false;
     this._spawnedFirstTutorialSign = false;
-    this._railHintState = 'idle';
-    this._signHintState = 'idle';
+    this._railHintState = "idle";
+    this._signHintState = "idle";
     this._railReadyStartMs = 0;
     this._signReadyStartMs = 0;
     this._railVerbStartMs = 0;

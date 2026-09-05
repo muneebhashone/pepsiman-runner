@@ -1,13 +1,62 @@
-import { MISSIONS, FIZZ } from './constants.js';
+import { MISSIONS, FIZZ } from "./constants.js";
 
 const POOL = [
-  { id: 'cans20', label: '20 cans', type: 'cans', target: 20, score: 120, fizz: 0.12 },
-  { id: 'cans35', label: '35 cans', type: 'cans', target: 35, score: 200, fizz: 0.15 },
-  { id: 'slides5', label: '5 slides', type: 'slides', target: 5, score: 100, fizz: 0.1 },
-  { id: 'jumps8', label: '8 jumps', type: 'jumps', target: 8, score: 90, fizz: 0.1 },
-  { id: 'nohit8', label: '8s no-hit', type: 'nohit', target: 8, score: 150, fizz: 0.14 },
-  { id: 'near3', label: '3 near-miss', type: 'nearmiss', target: 3, score: 110, fizz: 0.12 },
-  { id: 'combo5', label: '×5 combo', type: 'combo', target: 5, score: 130, fizz: 0.13 },
+  {
+    id: "cans20",
+    label: "Collect 20 cans",
+    type: "cans",
+    target: 20,
+    score: 120,
+    fizz: 0.12,
+  },
+  {
+    id: "cans35",
+    label: "Collect 35 cans",
+    type: "cans",
+    target: 35,
+    score: 200,
+    fizz: 0.15,
+  },
+  {
+    id: "slides5",
+    label: "Slide 5 times",
+    type: "slides",
+    target: 5,
+    score: 100,
+    fizz: 0.1,
+  },
+  {
+    id: "jumps8",
+    label: "Jump 8 times",
+    type: "jumps",
+    target: 8,
+    score: 90,
+    fizz: 0.1,
+  },
+  {
+    id: "nohit8",
+    label: "20s without a hit",
+    type: "nohit",
+    target: 20,
+    score: 150,
+    fizz: 0.14,
+  },
+  {
+    id: "near3",
+    label: "3 close calls",
+    type: "nearmiss",
+    target: 3,
+    score: 110,
+    fizz: 0.12,
+  },
+  {
+    id: "combo5",
+    label: "Reach a ×5 combo",
+    type: "combo",
+    target: 5,
+    score: 130,
+    fizz: 0.13,
+  },
 ];
 
 function shufflePick(n, rng = Math.random) {
@@ -39,18 +88,24 @@ export class Missions {
   }
 
   update(dt, hitThisFrame = false) {
+    const rewards = [];
     if (!hitThisFrame) {
       this._nohitT += dt;
       for (const m of this.active) {
-        if (m.done || m.type !== 'nohit') continue;
+        if (m.done || m.type !== "nohit") continue;
         m.progress = Math.min(m.target, this._nohitT);
+        if (m.progress >= m.target) {
+          m.done = true;
+          rewards.push({ score: m.score, fizz: m.fizz, label: m.label });
+        }
       }
     } else {
       this._nohitT = 0;
       for (const m of this.active) {
-        if (m.type === 'nohit' && !m.done) m.progress = 0;
+        if (m.type === "nohit" && !m.done) m.progress = 0;
       }
     }
+    return rewards;
   }
 
   bump(type, amount = 1) {
@@ -69,7 +124,7 @@ export class Missions {
   checkCombo(combo) {
     const rewards = [];
     for (const m of this.active) {
-      if (m.done || m.type !== 'combo') continue;
+      if (m.done || m.type !== "combo") continue;
       if (combo >= m.target) {
         m.progress = m.target;
         m.done = true;
