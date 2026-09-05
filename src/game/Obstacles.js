@@ -1,44 +1,11 @@
 import * as THREE from "three";
 import { buildObstacle } from "./ObstacleArt.js";
-import { COLORS, LANES, SPAWN, WORLD, PLAYER, NEAR_MISS } from "./constants.js";
+import { ChallengeDirector, patternGap } from "./Difficulty.js";
+import { COLORS, LANES, SPAWN, WORLD, PLAYER } from "./constants.js";
 
-const TYPES = [
-  "barrier",
-  "rail",
-  "sign",
-  "truck",
-  "barrel",
-  "pepsiWide",
-  "mover",
-  "ramp",
-];
 const WARMUP_TYPES = ["rail", "sign"];
 const BLOCK_TYPES = ["truck", "pepsiWide", "mover"];
 const POOL_SIZE = 48;
-
-/** Forced post-tutorial rotation — every colliding verb appears before weights matter */
-const ROTATION_TABLE = [
-  { kind: "single", type: "truck" },
-  { kind: "single", type: "mover" },
-  { kind: "barrelChain" },
-  { kind: "pepsiWide" },
-  { kind: "single", type: "ramp" },
-  { kind: "single", type: "barrier" },
-  { kind: "single", type: "rail" },
-  { kind: "single", type: "sign" },
-  { kind: "combo", types: ["rail", "barrier"], gap: 0.25 },
-  { kind: "single", type: "barrier" },
-  { kind: "single", type: "sign" },
-  { kind: "single", type: "truck" },
-  { kind: "barrelChain" },
-  { kind: "single", type: "mover" },
-  { kind: "single", type: "sign" },
-  { kind: "combo", types: ["sign", "rail"], gap: 5.8 },
-  { kind: "pepsiWide" },
-  { kind: "single", type: "rail" },
-  { kind: "single", type: "truck" },
-  { kind: "combo", types: ["ramp", "barrel"], gap: 0.2 },
-];
 
 function actionMode(type) {
   if (type === "rail") return "slide";
@@ -54,44 +21,7 @@ function speedNorm(speed) {
   );
 }
 
-function pickLanes(n, rng) {
-  const lanes = [0, 1, 2];
-  for (let i = lanes.length - 1; i > 0; i--) {
-    const j = (rng() * (i + 1)) | 0;
-    [lanes[i], lanes[j]] = [lanes[j], lanes[i]];
-  }
-  return lanes.slice(0, n);
-}
-
-function pickVerticalType(rng) {
-  const roll = rng();
-  if (roll < 0.5) return "rail";
-  if (roll < 0.82) return "sign";
-  return "barrier";
-}
-
 const TUTORIAL_LANE = 1;
-const POST_WARMUP_SEQUENCE = [
-  "rail",
-  "sign",
-  "rail",
-  "sign",
-  "rail",
-  "sign",
-  "rail",
-  "sign",
-];
-
-function typeForLane(lane, openLane, rng, warmup, warmupIndex = 0) {
-  if (warmup) return WARMUP_TYPES[warmupIndex % WARMUP_TYPES.length];
-  if (lane === openLane) {
-    if (rng() < SPAWN.verticalObstacleBias) return pickVerticalType(rng);
-    return TYPES[(rng() * TYPES.length) | 0];
-  }
-  if (rng() < SPAWN.verticalObstacleBias * 0.85) return pickVerticalType(rng);
-  const blockTypes = ["barrier", "truck", "sign", "rail"];
-  return blockTypes[(rng() * blockTypes.length) | 0];
-}
 
 const SLIDE_TYPES = ["rail"];
 
@@ -161,13 +91,10 @@ export class Obstacles {
     this.chevronPool = [];
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
-    this.postWarmupPatterns = 0;
-    this.rotationIndex = 0;
     this.spawnHistory = [];
-    this._rotationLogged = false;
-    this._nearMissCooldown = 0;
     this._pulseT = 0;
     this._rng = Math.random;
+    this.director = new ChallengeDirector();
     this._hintSlideShown = false;
     this._hintJumpShown = false;
     this._getReadyRailShown = false;
@@ -189,7 +116,6 @@ export class Obstacles {
     this._lastPlayerZ = 0;
     this._lastSpeed = 0;
     this._wasInWarmup = true;
-    this._rotationBandPack = false;
     this._onTutorialHint = null;
     this._onTutorialGrace = null;
     this._cueGate = null;
@@ -460,15 +386,8 @@ export class Obstacles {
     return playerZ + speed * SPAWN.tutorialHintMinSpawnTtcSec;
   }
 
-  _jumpClearY(type) {
-    return type === "sign" ? 0.95 : 0.85;
-  }
-
-  _inTutorial(playerZ) {
-    return (
-      this._inWarmup(playerZ) ||
-      this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns
-    );
+  _jumpClearY(item) {
+    return item.hit.y + item.hit.h * 0.5 - 0.18;
   }
 
   _countActiveBlockers(playerZ, range = 90) {
@@ -484,53 +403,14 @@ export class Obstacles {
     return playerZ < SPAWN.runwayZ || playerZ < SPAWN.obstacleWarmupZ;
   }
 
-  _inRotation(playerZ) {
-    return !this._inWarmup(playerZ) && !this._inTutorial(playerZ);
-  }
-
-  /** Drop leftover warmup rail/sign so rotation kit can pack the contact band. */
+  /** Keep the two lessons; recycle the unused tutorial preview. */
   _recycleWarmupBand(playerZ) {
-    const recycleZ = playerZ + SPAWN.warmupRecycleAhead;
-    let nearestTeach = null;
-    let nearestLead = Infinity;
-    for (const it of this.items) {
-      if (!it.alive) continue;
-      if (it.isFirstTutorialRail || it.isFirstTutorialSign) continue;
-      if (it.type !== "rail" && it.type !== "sign") continue;
-      if (it.z <= playerZ) continue;
-      const lead = it.z - playerZ;
-      if (lead < nearestLead) {
-        nearestLead = lead;
-        nearestTeach = it;
-      }
-    }
     for (let i = this.items.length - 1; i >= 0; i--) {
       const it = this.items[i];
-      if (!it.alive) continue;
-      if (it.isFirstTutorialRail || it.isFirstTutorialSign) continue;
-      if (it.type !== "rail" && it.type !== "sign") continue;
-      if (it.z <= playerZ) continue;
-      if (it === nearestTeach && it.z <= recycleZ) continue;
-      if (it.z > recycleZ) {
-        this._release(it);
-        this.items.splice(i, 1);
-      }
+      if (it.isFirstTutorialRail || it.isFirstTutorialSign || it.z <= playerZ) continue;
+      this._release(it);
+      this.items.splice(i, 1);
     }
-  }
-
-  _pruneSpawnHistory(playerZ, speed) {
-    const windowZ = speed * SPAWN.varietyWindowSec;
-    const cutoff = playerZ - windowZ * 0.25;
-    this.spawnHistory = this.spawnHistory.filter((h) => h.z > cutoff);
-    while (this.spawnHistory.length > SPAWN.varietyHistorySize) {
-      this.spawnHistory.shift();
-    }
-  }
-
-  _recentModes() {
-    const modes = new Set();
-    for (const h of this.spawnHistory) modes.add(h.mode);
-    return modes;
   }
 
   _recordSpawn(z, type) {
@@ -538,121 +418,6 @@ export class Obstacles {
     while (this.spawnHistory.length > SPAWN.varietyHistorySize) {
       this.spawnHistory.shift();
     }
-  }
-
-  _pickBlockedLane(rng) {
-    return pickLanes(1, rng)[0];
-  }
-
-  _placeSingle(z, type, rng) {
-    const blocked = this._pickBlockedLane(rng);
-    const placed = this._acquire(type, blocked, z);
-    if (!placed) return z;
-    if (type === "mover") this._initMoverSweep(placed, blocked, rng);
-    this._recordSpawn(z, type);
-    return z;
-  }
-
-  _initMoverSweep(item, startLane, rng) {
-    const endLane =
-      startLane === 0 ? 2 : startLane === 2 ? 0 : rng() > 0.5 ? 2 : 0;
-    item.moverStartLane = startLane;
-    item.moverEndLane = endLane;
-    item.moverPhase = 0;
-    item.lane = startLane;
-  }
-
-  _spawnBarrelChain(z, rng) {
-    const blocked = this._pickBlockedLane(rng);
-    const count = 2 + (rng() > 0.45 ? 1 : 0);
-    const spacing = 4.2;
-    let maxZ = z;
-    for (let i = 0; i < count; i++) {
-      const zz = z + i * spacing;
-      const p = this._acquire("barrel", blocked, zz);
-      if (p) {
-        maxZ = Math.max(maxZ, zz);
-        this._recordSpawn(zz, "barrel");
-      }
-    }
-    return maxZ;
-  }
-
-  /** Block two lanes — one open gap forces a lane read */
-  _spawnPepsiWideGap(z, rng) {
-    const open = (rng() * 3) | 0;
-    let maxZ = z;
-    for (let lane = 0; lane < 3; lane++) {
-      if (lane === open) continue;
-      const p = this._acquire("pepsiWide", lane, z);
-      if (p) {
-        maxZ = Math.max(maxZ, z);
-        this._recordSpawn(z, "pepsiWide");
-      }
-    }
-    return maxZ;
-  }
-
-  _spawnCombo(z, types, gap, rng) {
-    const blocked = this._pickBlockedLane(rng);
-    let maxZ = z;
-    for (let i = 0; i < types.length; i++) {
-      const zz = z + (i === 0 ? 0 : gap);
-      const p = this._acquire(types[i], blocked, zz);
-      if (p) {
-        maxZ = Math.max(maxZ, zz);
-        if (types[i] === "mover") this._initMoverSweep(p, blocked, rng);
-        this._recordSpawn(zz, types[i]);
-      }
-    }
-    return maxZ;
-  }
-
-  _spawnRotationEntry(z, entry) {
-    const rng = this._rng;
-    if (entry.kind === "barrelChain") return this._spawnBarrelChain(z, rng);
-    if (entry.kind === "pepsiWide") return this._spawnPepsiWideGap(z, rng);
-    if (entry.kind === "combo")
-      return this._spawnCombo(z, entry.types, entry.gap ?? 0.25, rng);
-    return this._placeSingle(z, entry.type, rng);
-  }
-
-  _logRotationDebug() {
-    if (this._rotationLogged) return;
-    const recent = this.spawnHistory.slice(-SPAWN.rotationTableLength);
-    const types = new Set(recent.map((h) => h.type));
-    console.debug(
-      `[Obstacles] Post-tutorial rotation — ${types.size} distinct types in ${recent.length} spawns:`,
-      [...types].sort().join(", "),
-    );
-    this._rotationLogged = true;
-  }
-
-  getRotationDistinctCount() {
-    const recent = this.spawnHistory.slice(-SPAWN.rotationTableLength);
-    return new Set(recent.map((h) => h.type)).size;
-  }
-
-  /** Force jump/slide/block variety within rolling window */
-  _varietyType(rng, playerZ, speed) {
-    const modes = this._recentModes();
-    const needSlide = !modes.has("slide");
-    const needJump = !modes.has("jump");
-    const needBlock = !modes.has("block");
-    if (needSlide && needJump)
-      return rng() < 0.5 ? "rail" : rng() < 0.6 ? "sign" : "barrel";
-    if (needSlide) return "rail";
-    if (needJump) return rng() < 0.55 ? "sign" : "barrel";
-    if (needBlock)
-      return rng() < 0.45 ? "truck" : rng() < 0.7 ? "pepsiWide" : "mover";
-    const roll = rng();
-    if (roll < 0.2) return "rail";
-    if (roll < 0.38) return "sign";
-    if (roll < 0.52) return "barrel";
-    if (roll < 0.66) return "barrier";
-    if (roll < 0.8) return "truck";
-    if (roll < 0.9) return "pepsiWide";
-    return rng() < 0.6 ? "mover" : "ramp";
   }
 
   /** Lanes without an obstacle near z (for collectible placement). */
@@ -666,7 +431,7 @@ export class Obstacles {
     for (let i = 0; i < LANES.length; i++) {
       if (!blocked.has(i)) open.push(i);
     }
-    return open.length ? open : [1];
+    return open;
   }
 
   _ensureTelMesh(pool, geo, color, renderOrder, glow = false) {
@@ -1003,188 +768,45 @@ export class Obstacles {
     this._releaseMoverDestTelegraphs(item);
   }
 
-  _spawnPattern(z, diff, playerZ, speed) {
-    const rng = this._rng;
-    const warmup = this._inWarmup(playerZ);
-    const tutorial = this._inTutorial(playerZ);
-    this._pruneSpawnHistory(playerZ, speed);
-    let maxSpawnZ = z;
-
-    if (
-      !tutorial &&
-      this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers
-    ) {
-      return maxSpawnZ;
+  _spawnPattern(z, playerZ, speed) {
+    if (!this._inWarmup(playerZ)) {
+      const row = this.director.next(speed, this._rng);
+      for (const hazard of row.hazards) {
+        const placed = this._acquire(hazard.type, hazard.lane, z);
+        if (!placed) continue;
+        if (hazard.type === "mover") {
+          placed.moverStartLane = hazard.lane;
+          placed.moverEndLane = hazard.endLane;
+        }
+        this._recordSpawn(z, hazard.type);
+      }
+      this.patternsSpawned++;
+      return z;
     }
 
-    // After center tutorial: cycle the full obstacle kit in a fixed table
-    if (!warmup && !tutorial) {
-      const entry = ROTATION_TABLE[this.rotationIndex % ROTATION_TABLE.length];
-      this.rotationIndex += 1;
-      maxSpawnZ = Math.max(maxSpawnZ, this._spawnRotationEntry(z, entry));
-      this.patternsSpawned += 1;
-      if (this.rotationIndex >= SPAWN.rotationTableLength) {
-        this._logRotationDebug();
+    const type = WARMUP_TYPES[this.patternsSpawned % WARMUP_TYPES.length];
+    const spawnZ = Math.max(z, this._minTutorialSpawnZ(playerZ, speed));
+    const placed = this._acquire(type, TUTORIAL_LANE, spawnZ);
+    if (placed) {
+      if (type === "rail" && !this._spawnedFirstTutorialRail) {
+        placed.isFirstTutorialRail = true;
+        this._spawnedFirstTutorialRail = true;
+      } else if (type === "sign" && !this._spawnedFirstTutorialSign) {
+        placed.isFirstTutorialSign = true;
+        this._spawnedFirstTutorialSign = true;
       }
-      return maxSpawnZ;
-    }
-
-    const pastEarlyDoubles =
-      this.patternsSpawned >=
-      SPAWN.warmupPatternCount + SPAWN.earlyNoDoublePatterns;
-    const doubleChance =
-      warmup || tutorial || !pastEarlyDoubles
-        ? 0
-        : SPAWN.doubleChanceBase +
-          (SPAWN.doubleChanceMax - SPAWN.doubleChanceBase) * diff;
-    const count = warmup || tutorial ? 1 : rng() < doubleChance ? 2 : 1;
-    const blocked = tutorial ? [TUTORIAL_LANE] : pickLanes(count, rng);
-    const open = [0, 1, 2].find((l) => !blocked.includes(l));
-
-    const placedTypes = [];
-    for (let bi = 0; bi < blocked.length; bi++) {
-      const lane = blocked[bi];
-      let type;
-      if (tutorial) {
-        if (warmup) {
-          type = WARMUP_TYPES[this.patternsSpawned % WARMUP_TYPES.length];
-        } else {
-          type =
-            POST_WARMUP_SEQUENCE[
-              this.postWarmupPatterns % POST_WARMUP_SEQUENCE.length
-            ];
-        }
-      } else if (!warmup && bi === 0) {
-        type = this._varietyType(rng, playerZ, speed);
-      } else {
-        type = typeForLane(lane, open, rng, warmup, this.patternsSpawned);
-      }
-      if (!warmup && count === 2 && blocked.length === 2) {
-        const other = blocked.find((l) => l !== lane);
-        const otherType =
-          placedTypes[0] ?? typeForLane(other, open, rng, false);
-        if (otherType === "barrier" && type === "barrier") {
-          type = rng() > 0.5 ? "sign" : "rail";
-        }
-        if (otherType === "truck" && type === "truck") {
-          type = rng() > 0.5 ? "sign" : "rail";
-        }
-        if (otherType === "rail" && type === "rail") {
-          type = rng() > 0.5 ? "barrier" : "sign";
-        }
-        if (otherType === "sign" && type === "sign") {
-          type = rng() > 0.5 ? "rail" : "barrier";
-        }
-      }
-      const zOff =
-        !warmup && count === 2 && rng() > 0.7 ? (rng() - 0.5) * 1.5 : 0;
-      let spawnZ = z + zOff;
-      if (tutorial && warmup && lane === TUTORIAL_LANE) {
-        spawnZ = Math.max(spawnZ, this._minTutorialSpawnZ(playerZ, speed));
-      }
-      const placed = this._acquire(type, lane, spawnZ);
-      if (!placed) continue;
-      maxSpawnZ = Math.max(maxSpawnZ, spawnZ);
-      placed.nearMissed = false;
-      if (tutorial && warmup && lane === TUTORIAL_LANE) {
-        if (type === "rail" && !this._spawnedFirstTutorialRail) {
-          placed.isFirstTutorialRail = true;
-          this._spawnedFirstTutorialRail = true;
-        } else if (type === "sign" && !this._spawnedFirstTutorialSign) {
-          placed.isFirstTutorialSign = true;
-          this._spawnedFirstTutorialSign = true;
-        }
-      }
-      placedTypes.push(type);
       this._recordSpawn(spawnZ, type);
     }
-    if (
-      !warmup &&
-      tutorial &&
-      this.postWarmupPatterns < SPAWN.postWarmupTutorialPatterns
-    ) {
-      this.postWarmupPatterns += 1;
-    }
-    this.patternsSpawned += 1;
-    return maxSpawnZ;
-  }
-
-  /** Readable pattern kit: gate, combo verbs, barrel timing, ramp */
-  _spawnSpecialPattern(z, playerZ, speed) {
-    const rng = this._rng;
-    if (this._countActiveBlockers(playerZ) >= SPAWN.maxConcurrentBlockers)
-      return null;
-    const blocked = pickLanes(1, rng)[0];
-    const roll = rng();
-    let maxZ = z;
-
-    const place = (type, lane, zz) => {
-      const p = this._acquire(type, lane, zz);
-      if (p) {
-        maxZ = Math.max(maxZ, zz);
-        this._recordSpawn(zz, type);
-      }
-    };
-
-    if (roll < 0.26) {
-      place("rail", blocked, z);
-      place("barrier", blocked, z + 0.2);
-    } else if (roll < 0.5) {
-      place("sign", blocked, z);
-      place("rail", blocked, z + 5.8);
-    } else if (roll < 0.72) {
-      place("rail", blocked, z);
-      place("sign", blocked, z + 5.8);
-    } else if (roll < 0.86) {
-      place("barrel", blocked, z);
-    } else if (roll < 0.93) {
-      place("mover", blocked, z);
-    } else {
-      place("ramp", blocked, z);
-    }
-    return maxZ;
+    this.patternsSpawned++;
+    return spawnZ;
   }
 
   _gapForSpeed(speed, playerZ) {
-    const diff = speedNorm(speed);
     if (this._inWarmup(playerZ)) {
-      return (
-        SPAWN.obstacleWarmupGapMin +
-        this._rng() * (SPAWN.obstacleWarmupGapMax - SPAWN.obstacleWarmupGapMin)
-      );
+      return SPAWN.obstacleWarmupGapMin +
+        this._rng() * (SPAWN.obstacleWarmupGapMax - SPAWN.obstacleWarmupGapMin);
     }
-    if (
-      this._rotationBandPack &&
-      this._inRotation(playerZ) &&
-      this.rotationIndex > 0 &&
-      this.rotationIndex < SPAWN.rotationPackCount
-    ) {
-      if (this.rotationIndex === 4) {
-        return (
-          SPAWN.rotationRampGapMin +
-          this._rng() * (SPAWN.rotationRampGapMax - SPAWN.rotationRampGapMin)
-        );
-      }
-      return (
-        SPAWN.rotationGapMin +
-        this._rng() * (SPAWN.rotationGapMax - SPAWN.rotationGapMin)
-      );
-    }
-    const wideCutoff = SPAWN.warmupPatternCount + SPAWN.postWarmupWideGapCount;
-    if (
-      this._inTutorial(playerZ) &&
-      (this.patternsSpawned <= SPAWN.obstacleTutorialWideGapCount ||
-        this.patternsSpawned <= wideCutoff)
-    ) {
-      return (
-        SPAWN.obstacleTutorialGapMin +
-        this._rng() *
-          (SPAWN.obstacleTutorialGapMax - SPAWN.obstacleTutorialGapMin)
-      );
-    }
-    const min = SPAWN.obstacleMinGap - diff * SPAWN.obstacleGapTighten * 12;
-    const max = SPAWN.obstacleMaxGap - diff * SPAWN.obstacleGapTighten * 10;
-    return min + this._rng() * Math.max(6, max - min);
+    return patternGap(speed, this._rng);
   }
 
   _minAhead(speed) {
@@ -1194,9 +816,7 @@ export class Obstacles {
     return Math.max(SPAWN.minSpawnAhead + diff * 12, leadDist + reaction);
   }
 
-  /** Spawn fill horizon — contact-time band, not WORLD.segmentsAhead (360m).
-   *  At speed 19: horizon ≈120m → first rotation truck ~110m ahead at warmup end (z≈105)
-   *  → contact t≈11s; ramp (5th entry, ~43m gaps) contact t≈20s. */
+  /** Preview upcoming decisions independently of the scenery pool. */
   _spawnHorizon(speed) {
     const diff = speedNorm(speed);
     const segmentLead = WORLD.segmentLength * SPAWN.patternLookahead;
@@ -1207,10 +827,9 @@ export class Obstacles {
     );
   }
 
-  /** Target lead for first post-warmup rotation entry when warmup ends. */
+  /** Warning distance before the first challenge row. */
   _spawnAheadLead(speed) {
     const diff = speedNorm(speed);
-    // ~55–70m so truck+mover+barrel fit inside the ~120m contact horizon.
     return THREE.MathUtils.clamp(
       SPAWN.obstacleSpawnAheadMin + diff * 10,
       SPAWN.obstacleSpawnAheadMin,
@@ -1222,46 +841,27 @@ export class Obstacles {
     this._lastPlayerZ = playerZ;
     this._lastSpeed = speed;
     this._pulseT += dt;
-    if (this._nearMissCooldown > 0) this._nearMissCooldown -= dt;
-    const diff = speedNorm(speed);
     const horizonDist = this._spawnHorizon(speed);
     const minAhead = this._minAhead(speed);
     const runwayZ = SPAWN.runwayZ;
     const inWarmup = this._inWarmup(playerZ);
 
-    // Pull spawn cursor into contact-time band when rotation phase begins.
+    // Start challenge rows after the two teaching obstacles.
     if (this._wasInWarmup && !inWarmup) {
       this._recycleWarmupBand(playerZ);
       this.nextZ = playerZ + this._spawnAheadLead(speed);
-      this._rotationBandPack = true;
     }
     this._wasInWarmup = inWarmup;
 
-    if (
-      this._rotationBandPack &&
-      this.rotationIndex >= SPAWN.rotationPackCount
-    ) {
-      this._rotationBandPack = false;
-    }
-
-    // Keep runway empty until near its end, but always allow pre-seeding
-    // obstacles from runwayZ onward into the horizon so threats exist on arrival.
-    if (playerZ < runwayZ - 5) {
-      this.nextZ = Math.max(this.nextZ, runwayZ);
-    } else if (
-      this._rotationBandPack &&
-      this.rotationIndex < SPAWN.rotationPackCount
-    ) {
-      this.nextZ = Math.max(this.nextZ, runwayZ);
-    } else {
-      this.nextZ = Math.max(this.nextZ, Math.max(runwayZ, playerZ + minAhead));
-    }
+    // Pre-seed the teaching runway, then maintain a readable preview distance.
+    this.nextZ = Math.max(this.nextZ, playerZ < runwayZ - 5
+      ? runwayZ : Math.max(runwayZ, playerZ + minAhead));
 
     // Fill only the contact-time horizon (~80–140m), not the full world pool (~360m).
     while (this.nextZ < playerZ + horizonDist) {
       if (
         this._countActiveBlockers(playerZ) >=
-        SPAWN.maxConcurrentBlockers + 1
+        SPAWN.maxConcurrentBlockers
       ) {
         break;
       }
@@ -1270,7 +870,7 @@ export class Obstacles {
         if (this.nextZ >= playerZ + horizonDist) break;
       }
       try {
-        const placedZ = this._spawnPattern(this.nextZ, diff, playerZ, speed);
+        const placedZ = this._spawnPattern(this.nextZ, playerZ, speed);
         this.nextZ = placedZ + this._gapForSpeed(speed, playerZ);
       } catch (e) {
         console.error(e);
@@ -1469,7 +1069,7 @@ export class Obstacles {
     if (idx >= 0) this.items.splice(idx, 1);
   }
 
-  collide(playerBox, jumping, sliding) {
+  collide(playerBox, jumping, sliding, { allowGrace = true, trackClears = true } = {}) {
     const shrink = SPAWN.hitboxShrink;
     const pw = playerBox.w * shrink;
     const ph = playerBox.h * shrink;
@@ -1495,8 +1095,11 @@ export class Obstacles {
       if (dx >= (pw + hw) * 0.5 || dz >= (pd + hd) * 0.5) continue;
 
       if (it.hit.mode === "slide") {
-        if (sliding) continue;
-        if (it.isFirstTutorialRail === true && !this._graceSlideUsed) {
+        if (sliding) {
+          if (trackClears) it.pendingClear = { action: "slides", closeCall: true };
+          continue;
+        }
+        if (allowGrace && it.isFirstTutorialRail === true && !this._graceSlideUsed) {
           this._graceSlideUsed = true;
           it.collisionDisabled = true;
           this._queueGraceRetry("rail");
@@ -1509,9 +1112,16 @@ export class Obstacles {
       if (it.hit.mode === "ramp") continue;
 
       if (it.hit.mode === "jump") {
-        const clearY = this._jumpClearY(it.type);
-        if (jumping && playerBox.y > clearY) continue;
-        if (it.isFirstTutorialSign === true && !this._graceJumpUsed) {
+        const clearY = this._jumpClearY(it);
+        const feetY = playerBox.y - playerBox.h * 0.5;
+        if (jumping && feetY >= clearY) {
+          if (trackClears) it.pendingClear = {
+            action: "jumps",
+            closeCall: it.pendingClear?.closeCall || feetY < clearY + 0.4,
+          };
+          continue;
+        }
+        if (allowGrace && it.isFirstTutorialSign === true && !this._graceJumpUsed) {
           this._graceJumpUsed = true;
           it.collisionDisabled = true;
           this._queueGraceRetry("sign");
@@ -1528,43 +1138,20 @@ export class Obstacles {
     return null;
   }
 
-  /**
-   * Detect narrow avoids — player used correct action in same lane, just cleared obstacle.
-   * Returns bonus points or 0.
-   */
-  checkNearMiss(playerBox, jumping, sliding, playerZ, playerLane) {
-    if (this._nearMissCooldown > 0) return 0;
-    const shrink = SPAWN.hitboxShrink;
-    const pw = playerBox.w * shrink;
-    const pd = playerBox.d * shrink;
-
+  /** Pay once, only after the player has completely passed a cleared hazard. */
+  collectClears(playerBox, protectedRun = false) {
+    const clears = [];
     for (const it of this.items) {
-      if (!it.alive || it.nearMissed) continue;
-      const dz = playerZ - it.z;
-      if (dz < 0.3 || dz > NEAR_MISS.proximityZ) continue;
-
-      const hx = it.mesh.position.x;
-      const dx = Math.abs(playerBox.x - hx);
-      if (dx > NEAR_MISS.proximityX) continue;
-      if (it.lane !== playerLane) continue;
-
-      const avoided =
-        (it.hit.mode === "slide" && sliding) ||
-        (it.hit.mode === "jump" &&
-          jumping &&
-          playerBox.y > this._jumpClearY(it.type)) ||
-        (it.hit.mode === "block" && it.lane !== playerLane);
-      if (!avoided) continue;
-
-      const hw = it.hit.w * shrink;
-      const hd = it.hit.d * shrink;
-      if (dx >= (pw + hw) * 0.42 || dz > (pd + hd) * 0.55) continue;
-
-      it.nearMissed = true;
-      this._nearMissCooldown = NEAR_MISS.cooldown;
-      return NEAR_MISS.scoreBonus;
+      if (!it.alive || it.clearChecked) continue;
+      const rear = it.z + (it.hit.d + playerBox.d) * SPAWN.hitboxShrink * 0.5;
+      if (playerBox.z <= rear) continue;
+      it.clearChecked = true;
+      if (!protectedRun && !it.collisionDisabled && it.pendingClear) {
+        clears.push(it.pendingClear);
+      }
+      it.pendingClear = null;
     }
-    return 0;
+    return clears;
   }
 
   clearAllTutorialHints() {
@@ -1582,13 +1169,10 @@ export class Obstacles {
     while (this.items.length) this._release(this.items.shift());
     this.nextZ = SPAWN.runwayZ;
     this.patternsSpawned = 0;
-    this.postWarmupPatterns = 0;
-    this.rotationIndex = 0;
     this.spawnHistory = [];
-    this._rotationLogged = false;
-    this._nearMissCooldown = 0;
     this._pulseT = 0;
     this._rng = Math.random;
+    this.director = new ChallengeDirector();
     this._hintSlideShown = false;
     this._hintJumpShown = false;
     this._getReadyRailShown = false;
@@ -1609,7 +1193,6 @@ export class Obstacles {
     clearTimeout(this._graceRetryTimer);
     this._graceRetryTimer = null;
     this._wasInWarmup = true;
-    this._rotationBandPack = false;
     this._onTutorialHint?.(null);
   }
 }

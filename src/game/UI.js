@@ -1,6 +1,7 @@
 import { SPAWN, SCORE, FIZZ } from "./constants.js";
 
-const STORAGE_KEY = "pepsiman-runner-v1";
+// Keep the old score table intact; its scoring rules are not comparable.
+const STORAGE_KEY = "pepsiman-runner-v2";
 
 export function loadPersisted() {
   try {
@@ -745,8 +746,10 @@ export class UI {
     document.getElementById("route-progress").style.width =
       `${((stats.distance || 0) % 600) / 6}%`;
     document.getElementById("fizz-caption").textContent = stats.rushActive
-      ? `${(stats.rushNorm * 6).toFixed(1)}s OF FULL FIZZ`
-      : "COLLECT CANS TO CHARGE";
+      ? `${(stats.rushNorm * FIZZ.rushDuration).toFixed(1)}s OF FULL FIZZ`
+      : stats.fizzCooldown > 0
+        ? `RECHARGING · ${stats.fizzCooldown.toFixed(1)}s`
+        : "COLLECT CANS TO CHARGE";
     if (stats.health !== this._lastHealth) {
       const el = document.getElementById("hud-health");
       const health = stats.health ?? 3;

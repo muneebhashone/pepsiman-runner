@@ -5,6 +5,7 @@ export class FizzMeter {
   constructor() {
     this.level = 0;
     this.rushT = 0;
+    this.cooldownT = 0;
     this._streakT = 0;
     this._streakCount = 0;
   }
@@ -18,7 +19,7 @@ export class FizzMeter {
   }
 
   add(amount) {
-    if (this.isRush) return false;
+    if (this.isRush || this.cooldownT > 0) return false;
     this.level = Math.min(FIZZ.max, this.level + amount);
     if (this.level >= FIZZ.max) {
       this.startRush();
@@ -28,7 +29,7 @@ export class FizzMeter {
   }
 
   onCanPickup() {
-    if (this.isRush) return false;
+    if (this.isRush || this.cooldownT > 0) return false;
     this._streakCount += 1;
     this._streakT = FIZZ.streakWindow;
     const bonus = Math.min(FIZZ.streakCap, this._streakCount * FIZZ.perCanStreak);
@@ -41,7 +42,7 @@ export class FizzMeter {
   }
 
   startRush() {
-    if (this.isRush) return false;
+    if (this.isRush || this.cooldownT > 0) return false;
     this.level = FIZZ.max;
     this.rushT = FIZZ.rushDuration;
     this._streakCount = 0;
@@ -51,6 +52,7 @@ export class FizzMeter {
 
   endRush() {
     this.rushT = 0;
+    this.cooldownT = FIZZ.rechargeDelay;
     this.level = FIZZ.emptyAfterRush;
     this._streakCount = 0;
     this._streakT = 0;
@@ -64,6 +66,8 @@ export class FizzMeter {
       return;
     }
 
+    this.cooldownT = Math.max(0, this.cooldownT - dt);
+
     if (this._streakT > 0) {
       this._streakT -= dt;
       if (this._streakT <= 0) this._streakCount = 0;
@@ -73,6 +77,14 @@ export class FizzMeter {
   reset() {
     this.level = 0;
     this.rushT = 0;
+    this.cooldownT = 0;
+    this._streakT = 0;
+    this._streakCount = 0;
+  }
+
+  onHit() {
+    if (this.isRush) return;
+    this.level = Math.max(0, this.level - FIZZ.hitPenalty);
     this._streakT = 0;
     this._streakCount = 0;
   }

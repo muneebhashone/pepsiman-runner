@@ -44,7 +44,7 @@ export class Game {
     this.combo = 1;
     this.bestCombo = 1;
     this.comboTimer = 0;
-    this.lastPickupAt = -99;
+    this._streakCans = 0;
     this.distance = 0;
     this.hitStopT = 0;
     this._graceSlideFired = false;
@@ -251,6 +251,7 @@ export class Game {
       fizzLevel: this.fizz.level,
       rushActive: this.fizz.isRush,
       rushNorm: this.fizz.rushNorm,
+      fizzCooldown: this.fizz.cooldownT,
       missions: this.missions.snapshot(),
     };
   }
@@ -322,7 +323,7 @@ export class Game {
     this.combo = 1;
     this.bestCombo = 1;
     this.comboTimer = 0;
-    this.lastPickupAt = -99;
+    this._streakCans = 0;
     this.distance = 0;
     this.hitStopT = 0;
     this._graceSlideFired = false;
@@ -483,7 +484,9 @@ export class Game {
   }
 
   _addScore(pts) {
-    this.score += pts * this._scoreMult();
+    const awarded = pts * this._scoreMult();
+    this.score += awarded;
+    return awarded;
   }
 
   _startRush() {
@@ -505,14 +508,22 @@ export class Game {
     this.player.setGhost(false);
   }
 
+  _resetCombo() {
+    this.combo = 1;
+    this.comboTimer = 0;
+    this._streakCans = 0;
+  }
+
   _collectPickup(c) {
-    const now = this._runTime;
-    const spaced = now - this.lastPickupAt >= SCORE.comboSpacing;
-    this.lastPickupAt = now;
-    this.comboTimer = SCORE.comboDecay;
-    if (spaced) {
+    if (!this.fizz.isRush) this.comboTimer = SCORE.comboDecay;
+    // Collectibles already guarantees one award per can. Count fast pickups too.
+    if (!this.fizz.isRush) {
       const prev = this.combo;
-      this.combo = Math.min(SCORE.comboMax, this.combo + 1);
+      this._streakCans++;
+      this.combo = Math.min(
+        SCORE.comboMax,
+        1 + Math.floor(this._streakCans / SCORE.cansPerCombo),
+      );
       if (this.combo > prev) {
         if (this.combo >= SCORE.shoutNice) {
           this.ui.shoutCombo(this.combo);
@@ -528,7 +539,7 @@ export class Game {
     }
     this.bestCombo = Math.max(this.bestCombo, this.combo);
     const pts = SCORE.canBase * this.combo;
-    this._addScore(pts);
+    const awarded = this._addScore(pts);
     this.coins += 1;
 
     this.fizz.onCanPickup();
@@ -548,7 +559,7 @@ export class Game {
     this.ui.flashPickup(this.combo);
     this.ui.popCan();
     this.ui.pulseScore();
-    this.ui.floatPoints(pts * this._scoreMult(), this.combo);
+    this.ui.floatPoints(awarded, this.combo);
   }
 
   _gameOver(finished = false, tip = null) {
@@ -639,14 +650,13 @@ export class Game {
     if (action === "slide") {
       if (this._graceSlideFired) return;
       this._graceSlideFired = true;
-      this._applyMissionRewards(this.missions.bump("slides", 1));
     } else if (action === "jump") {
       if (this._graceJumpFired) return;
       this._graceJumpFired = true;
-      this._applyMissionRewards(this.missions.bump("jumps", 1));
     }
-    this.combo = 1;
-    this.comboTimer = 0;
+    this._resetCombo();
+    this.fizz.onHit();
+    this.missions.update(0, true);
     this.ui.announce(
       action === "slide"
         ? "Slide under the striped gates. ↓ / S"
@@ -760,7 +770,6 @@ export class Game {
         if (jumped) {
           this._jumpBufferT = 0;
           this.audio.jump();
-          this._applyMissionRewards(this.missions.bump("jumps", 1));
         }
       }
       if (inp.slide) {
@@ -769,7 +778,6 @@ export class Game {
         const slid = this.player.trySlide();
         if (slid) {
           this.audio.slide();
-          this._applyMissionRewards(this.missions.bump("slides", 1));
         }
       }
 
@@ -783,8 +791,7 @@ export class Game {
       this._previousZ = this.player.z;
       this.player.z += this.player.speed * dt;
       this.distance += this.player.speed * dt;
-      const comboMeter = 1 + (this.combo - 1) * 0.04;
-      this._addScore(this.player.speed * dt * SCORE.perMeter * comboMeter);
+      this.score += this.player.speed * dt * SCORE.perMeter;
 
       this.player.update(dt);
 
@@ -803,6 +810,7 @@ export class Game {
           box,
           this.player.jumping,
           this.player.sliding,
+          { allowGrace: false, trackClears: false },
         );
         if (smashHit) {
           const pos = smashHit.mesh.position.clone();
@@ -810,7 +818,7 @@ export class Game {
           this.obstacles.destroyObstacle(smashHit);
           this.fx.smashBurst(pos);
           this.audio.rushSmash();
-          this._addScore(35);
+          this._addScore(SCORE.smashBase);
         }
       }
 
@@ -825,8 +833,6 @@ export class Game {
         this.audio.land();
         this.fx.landDust(this.player.group.position, stats.speedNorm);
       }
-
-      this._applyMissionRewards(this.missions.update(dt, false));
 
       this.world.update(this.player.z, this.player.speed, dt);
       this.obstacles.update(dt, this.player.z, this.player.speed);
@@ -849,7 +855,8 @@ export class Game {
               this.player.sliding,
             );
       if (hit) {
-        this.missions.update(0, true);
+        this._resetCombo();
+        this.fizz.onHit();
         this.health--;
         const tip =
           hit.hit.mode === "slide"
@@ -860,9 +867,7 @@ export class Game {
         this.obstacles.destroyObstacle(hit);
         if (this.health <= 0) this._gameOver(false, tip);
         else {
-          this.invulnerableT = 2.2;
-          this.combo = 1;
-          this.comboTimer = 0;
+          this.invulnerableT = PLAYER.invulnAfterHit;
           this.audio.crash();
           this.ui.flashHit(0.45);
           this.rig.deathShake(0.12, 0.22);
@@ -871,15 +876,16 @@ export class Game {
           );
           this.fx.crashBurst(this.player.group.position.clone());
         }
-      } else {
-        const nearBonus = this.obstacles.checkNearMiss(
-          box,
-          this.player.jumping,
-          this.player.sliding,
-          this.player.z,
-          this.player.lane,
-        );
-        if (nearBonus > 0) this._nearMiss(nearBonus);
+      }
+      this._applyMissionRewards(this.missions.update(dt, Boolean(hit)));
+      const clears = this.obstacles.collectClears(
+        box,
+        Boolean(hit) || this.fizz.isRush || this.invulnerableT > 0,
+      );
+      for (const clear of clears) {
+        this._addScore(SCORE.clearBase);
+        this._applyMissionRewards(this.missions.bump(clear.action, 1));
+        if (clear.closeCall) this._nearMiss(NEAR_MISS.scoreBonus);
       }
 
       if (this.state !== "playing") return;
@@ -890,9 +896,9 @@ export class Game {
       }
       for (const c of got) this._collectPickup(c);
 
-      if (this.comboTimer > 0) {
+      if (this.comboTimer > 0 && !this.fizz.isRush) {
         this.comboTimer -= dt;
-        if (this.comboTimer <= 0) this.combo = 1;
+        if (this.comboTimer <= 0) this._resetCombo();
       }
     } else if (this.state === "menu" || gameover) {
       this.player.update(dt);

@@ -1,216 +1,120 @@
-/**
- * Headless sim: post-warmup rotation hazards reached at contact-time.
- * Models leftover warmup rail/sign, blocker cap, and rotation-pack gaps.
- * Run: node scripts/sim-spawn-contact.mjs
- */
-import { PLAYER, SPAWN, WORLD } from '../src/game/constants.js';
+/** Exercise the real spawner, movement, and collision code without WebGL. */
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+import { ChallengeDirector, patternGap } from '../src/game/Difficulty.js';
+import { Obstacles } from '../src/game/Obstacles.js';
+import { Player } from '../src/game/Player.js';
+import { seeded } from '../src/game/Art.js';
+import { PLAYER, SPAWN, LANES } from '../src/game/constants.js';
 
-const ROTATION = ['truck', 'mover', 'barrel', 'pepsiWide', 'ramp'];
-const WARMUP_TYPES = ['rail', 'sign'];
-const BLOCKER_RANGE = 90;
-const BLOCKER_CAP = SPAWN.maxConcurrentBlockers;
+// Only texture painting is stubbed. Geometry, hitboxes, spawning, and motion are real.
+const paint = new Proxy({}, { get: (_, key) => key === 'measureText'
+  ? text => ({ width: text.length * 20 })
+  : key.includes('Gradient') ? () => ({ addColorStop() {} }) : () => {} });
+globalThis.document = { createElement: () => ({ getContext: () => paint }) };
 
-function speedNorm(speed) {
-  return Math.min(1, (speed - PLAYER.runSpeedBase) / (PLAYER.runSpeedMax - PLAYER.runSpeedBase));
-}
-
-function spawnHorizon(speed) {
-  const diff = speedNorm(speed);
-  const segmentLead = WORLD.segmentLength * SPAWN.patternLookahead;
-  return Math.max(
-    SPAWN.obstacleSpawnAheadMin,
-    Math.min(SPAWN.obstacleSpawnAheadMax, segmentLead + diff * 8)
-  );
-}
-
-function spawnAheadLead(speed) {
-  const diff = speedNorm(speed);
-  return Math.max(SPAWN.obstacleSpawnAheadMin, Math.min(70, SPAWN.obstacleSpawnAheadMin + diff * 10));
-}
-
-function minAhead(speed) {
-  const diff = speedNorm(speed);
-  const leadDist = speed * SPAWN.telegraphLead;
-  const reaction = SPAWN.telegraphReactionMargin + diff * 6;
-  return Math.max(SPAWN.minSpawnAhead + diff * 12, leadDist + reaction);
-}
-
-function warmupGap() {
-  return (SPAWN.obstacleWarmupGapMin + SPAWN.obstacleWarmupGapMax) * 0.5;
-}
-
-function rotationGap(rotationIndex) {
-  if (rotationIndex === 4) {
-    return (SPAWN.rotationRampGapMin + SPAWN.rotationRampGapMax) * 0.5;
-  }
-  return (SPAWN.rotationGapMin + SPAWN.rotationGapMax) * 0.5;
-}
-
-function gap(speed, playerZ, warmup, rotationBandPack, rotationIndex) {
-  if (warmup) return warmupGap();
-  if (
-    rotationBandPack &&
-    rotationIndex > 0 &&
-    rotationIndex < SPAWN.rotationPackCount
-  ) {
-    return rotationGap(rotationIndex);
-  }
-  return SPAWN.obstacleMinGap + 5;
-}
-
-function countBlockers(items, playerZ) {
-  let n = 0;
-  for (const it of items) {
-    if (it.z > playerZ - 8 && it.z < playerZ + BLOCKER_RANGE) n++;
-  }
-  return n;
-}
-
-function recycleWarmupBand(items, playerZ) {
-  const recycleZ = playerZ + SPAWN.warmupRecycleAhead;
-  let nearest = null;
-  let nearestLead = Infinity;
-  for (const it of items) {
-    if (it.tutorial) continue;
-    if (it.type !== 'rail' && it.type !== 'sign') continue;
-    if (it.z <= playerZ) continue;
-    const lead = it.z - playerZ;
-    if (lead < nearestLead) {
-      nearestLead = lead;
-      nearest = it;
+for (let seed = 1; seed <= 100; seed++) {
+  const director = new ChallengeDirector();
+  const rng = seeded(seed);
+  let previousRoute = 1;
+  let stationaryRows = 0;
+  for (let i = 0; i < 120; i++) {
+    const speed = Math.min(40, 20 + i * .3);
+    const row = director.next(speed, rng);
+    assert.ok(Math.abs(row.routeLane - previousRoute) <= 1, 'Routes never require an abrupt two-lane reversal');
+    const onRoute = row.hazards.filter(h => h.lane === row.routeLane);
+    assert.ok(onRoute.every(h => !['truck', 'pepsiWide', 'mover'].includes(h.type)), 'Every row has a passable route');
+    for (const h of row.hazards.filter(h => h.type === 'mover')) {
+      assert.ok(row.routeLane < Math.min(h.lane, h.endLane) || row.routeLane > Math.max(h.lane, h.endLane), 'Sweeping trucks stay outside the safe route');
     }
+    assert.equal(new Set(row.hazards.map(h => h.lane)).size, row.hazards.length, 'No incompatible actions stacked in one lane');
+    stationaryRows = row.routeLane === previousRoute ? stationaryRows + 1 : 0;
+    if (i > 6) assert.ok(stationaryRows <= 2, 'The route changes before camping becomes viable');
+    previousRoute = row.routeLane;
+    const gapSeconds = patternGap(speed, rng) / speed;
+    assert.ok(gapSeconds >= 1.05, 'Top-speed patterns retain a reaction window');
   }
-  return items.filter((it) => {
-    if (it.tutorial) return true;
-    if (it.type !== 'rail' && it.type !== 'sign') return true;
-    if (it.z <= playerZ) return true;
-    if (it === nearest && it.z <= recycleZ) return true;
-    return it.z <= recycleZ;
-  });
 }
+assert.ok(patternGap(40, () => 0) / 40 < patternGap(20, () => 0) / 20, 'Pressure increases with speed');
+console.log('PASS 12,000 generated rows: safe routes, lane pressure, and reaction spacing');
 
-function inWarmup(playerZ) {
-  return playerZ < SPAWN.runwayZ || playerZ < SPAWN.obstacleWarmupZ;
-}
+const scene = new THREE.Scene();
+const obstacles = new Obstacles(scene);
+const player = new Player(scene);
+const box = (z, feet = 0) => ({ x: 0, y: 1.125 + feet, z, w: .62, h: 2.25, d: .64 });
+let hazard = obstacles._acquire('barrier', 1, 10);
+assert.equal(obstacles.collide(box(10, .02), true, false), hazard, 'Pressing jump at contact does not bypass a barrier');
+assert.equal(obstacles.collide(box(10, 1.2), true, false), null);
+assert.deepEqual(obstacles.collectClears(box(10, 1.2)), [], 'Wait until the entire hitbox clears');
+assert.equal(obstacles.collectClears(box(11, 1.2))[0].action, 'jumps');
+assert.deepEqual(obstacles.collectClears(box(12, 1.2)), [], 'A hazard only pays once');
+obstacles.reset();
+hazard = obstacles._acquire('barrier', 1, 10);
+assert.equal(obstacles.collide({ ...box(12), previousZ: 8 }, false, false), hazard, 'Low frame rates cannot tunnel through a hazard');
+obstacles.reset();
+hazard = obstacles._acquire('rail', 1, 10);
+hazard.isFirstTutorialRail = true;
+assert.equal(obstacles.collide(box(10), false, false), null);
+assert.deepEqual(obstacles.collectClears(box(11)), [], 'Tutorial grace cannot count as a clear');
+obstacles.reset();
+obstacles._acquire('barrier', 1, 10);
+obstacles.collide(box(10, 1.2), true, false);
+assert.deepEqual(obstacles.collectClears(box(11), true), [], 'Protection cannot award skill clears');
+assert.deepEqual(obstacles.collectClears(box(12)), [], 'Ending protection cannot collect an old reward');
+console.log('PASS feet clearance, swept collision, completed clears, and reward gating');
 
-function simulate() {
-  let playerZ = 0;
-  let speed = PLAYER.runSpeedBase;
-  let t = 0;
-  const dt = 1 / 60;
-  let nextZ = SPAWN.runwayZ;
-  let rot = 0;
-  let wasWarmup = true;
-  let rotationBandPack = false;
-  let warmupPattern = 0;
-  const items = [];
-  const first = {};
-
-  while (t < 35) {
-    speed = Math.min(PLAYER.runSpeedMax, speed + PLAYER.accelPerSec * dt);
-    if (t < PLAYER.earlySpeedCapSec) speed = Math.min(speed, PLAYER.earlySpeedCap);
-    playerZ += speed * dt;
-    t += dt;
-
-    const warmup = inWarmup(playerZ);
-    const horizon = spawnHorizon(speed);
-
-    if (wasWarmup && !warmup) {
-      const kept = recycleWarmupBand(items, playerZ);
-      items.length = 0;
-      items.push(...kept);
-      nextZ = playerZ + spawnAheadLead(speed);
-      rotationBandPack = true;
-    }
-    wasWarmup = warmup;
-
-    if (rotationBandPack && rot >= SPAWN.rotationPackCount) {
-      rotationBandPack = false;
-    }
-
-    if (playerZ >= SPAWN.runwayZ - 5) {
-      if (rotationBandPack && rot < SPAWN.rotationPackCount) {
-        nextZ = Math.max(nextZ, SPAWN.runwayZ);
-      } else {
-        nextZ = Math.max(nextZ, Math.max(SPAWN.runwayZ, playerZ + minAhead(speed)));
+const allTypes = new Set();
+let totalClears = 0;
+const originalRandom = Math.random;
+for (const dt of [1 / 60, 1 / 20]) {
+  for (const seed of [17, 43, 91, 137, 251, 389]) {
+    Math.random = seeded(seed);
+    obstacles.reset();
+    player.reset();
+    const seen = new WeakSet();
+    for (let t = 0; t < 90; t += dt) {
+      const upcoming = obstacles.items.filter(it => it.alive &&
+        it.z + (it.hit.d + .64) * SPAWN.hitboxShrink * .5 >= player.z)
+        .sort((a, b) => a.z - b.z);
+      if (upcoming.length) {
+        const first = upcoming[0];
+        const row = obstacles.items.filter(it => it.alive && Math.abs(it.z - first.z) < 1);
+        const routes = [0, 1, 2].filter(lane => !row.some(it => {
+          if (it.type === 'mover') return lane >= Math.min(it.moverStartLane, it.moverEndLane) && lane <= Math.max(it.moverStartLane, it.moverEndLane);
+          return it.lane === lane && it.hit.mode === 'block';
+        })).sort((a, b) => Math.abs(a - player.targetLane) - Math.abs(b - player.targetLane));
+        assert.ok(routes.length, 'Actual spawned rows retain their safe route');
+        const lane = routes[0];
+        const ttc = (first.z - player.z) / player.speed;
+        if (ttc < 1 && ttc > 0 && lane !== player.targetLane && player.canQueueLane()) player.tryLane(Math.sign(lane - player.targetLane));
+        const action = row.find(it => it.lane === lane)?.hit.mode;
+        if (ttc > 0 && ttc < .35 && action === 'jump' && !player.jumping) player.tryJump();
+        if (ttc > 0 && ttc < .42 && action === 'slide' && !player.sliding) player.trySlide();
       }
-    }
-
-    while (nextZ < playerZ + horizon) {
-      if (countBlockers(items, playerZ) >= BLOCKER_CAP + 1) break;
-      if (nextZ < SPAWN.runwayZ) {
-        nextZ = SPAWN.runwayZ;
-        if (nextZ >= playerZ + horizon) break;
-      }
-
-      if (warmup) {
-        const type = WARMUP_TYPES[warmupPattern % WARMUP_TYPES.length];
-        warmupPattern++;
-        items.push({ type, z: nextZ, tutorial: warmupPattern <= 2 });
-      } else {
-        const type = ROTATION[rot % ROTATION.length];
-        rot++;
-        if (!first[type]) {
-          first[type] = { z: nextZ, spawnT: t, lead: nextZ - playerZ };
+      player.speed = Math.min(PLAYER.runSpeedMax, player.speed + PLAYER.accelPerSec * dt);
+      if (t < PLAYER.earlySpeedCapSec) player.speed = Math.min(player.speed, PLAYER.earlySpeedCap);
+      const previousZ = player.z;
+      player.z += player.speed * dt;
+      player.update(dt);
+      const hitbox = { ...player.getHitBox(), previousZ };
+      if (obstacles.checkRamp(hitbox, player.lane) && !player.jumping) player.tryJump();
+      obstacles.update(dt, player.z, player.speed);
+      for (const it of obstacles.items) {
+        allTypes.add(it.type);
+        if (!seen.has(it)) {
+          seen.add(it);
+          assert.ok(it.z - player.z >= SPAWN.minSpawnAhead - 1, 'New hazards have visible warning distance');
         }
-        items.push({ type, z: nextZ, tutorial: false });
       }
-
-      nextZ += gap(speed, playerZ, warmup, rotationBandPack, rot);
-    }
-
-    // Despawn passed items (matches Obstacles shift threshold)
-    while (items.length && items[0].z < playerZ - 14) items.shift();
-  }
-
-  let z = 0;
-  let ct = 0;
-  speed = PLAYER.runSpeedBase;
-  const contact = {};
-  while (ct < 35) {
-    speed = Math.min(PLAYER.runSpeedMax, speed + PLAYER.accelPerSec * dt);
-    if (ct < PLAYER.earlySpeedCapSec) speed = Math.min(speed, PLAYER.earlySpeedCap);
-    z += speed * dt;
-    ct += dt;
-    for (const type of ROTATION) {
-      if (!contact[type] && first[type] && z >= first[type].z) {
-        contact[type] = ct;
-      }
+      const hit = obstacles.collide(hitbox, player.jumping, player.sliding, { allowGrace: false });
+      assert.equal(hit?.type, undefined, `Fair route failed: seed ${seed}, ${1/dt}fps, ${t.toFixed(2)}s, lane ${player.lane}, ${hit?.type}, x ${player.x}, z ${player.z}, upcoming ${JSON.stringify(upcoming.slice(0,6).map(it => [it.type,it.lane,it.z,it.moverStartLane,it.moverEndLane]))}`);
+      totalClears += obstacles.collectClears(hitbox).length;
     }
   }
-
-  return { first, contact, leftoverWarmup: items.filter((it) => it.type === 'rail' || it.type === 'sign').length };
 }
-
-const { first, contact } = simulate();
-const kit = ['truck', 'mover', 'barrel', 'pepsiWide'];
-const kitBy15 = kit.filter((k) => contact[k] <= 15).length;
-
-console.log('First rotation spawns:');
-for (const type of ROTATION) {
-  const s = first[type];
-  if (!s) continue;
-  console.log(`  ${type}: z=${s.z.toFixed(0)} spawnT=${s.spawnT.toFixed(1)}s lead=${s.lead.toFixed(0)}m`);
-}
-console.log('\nContact times (playerZ crosses z, any lane):');
-for (const type of ROTATION) {
-  console.log(`  ${type}: t=${contact[type]?.toFixed(1) ?? '?'}s`);
-}
-console.log(`\nKit by t≤15s: ${kitBy15}/4 (need ≥3)`);
-console.log(`Ramp: t=${contact.ramp?.toFixed(1)}s (want ~18–22s)`);
-
-const ok =
-  kitBy15 >= 3 &&
-  contact.truck >= 8 &&
-  contact.truck <= 12 &&
-  contact.ramp >= 17 &&
-  contact.ramp <= 23 &&
-  first.truck.lead >= 55 &&
-  first.truck.lead <= 140;
-
-if (!ok) {
-  console.error('\nFAIL spawn-contact checks');
-  process.exit(1);
-}
-console.log('\nPASS spawn-contact checks');
-process.exit(0);
+Math.random = originalRandom;
+obstacles.reset();
+assert.equal(allTypes.size, 8, 'The full obstacle kit remains represented');
+assert.ok(totalClears > 100, 'Simulations actually clear hazards');
+delete globalThis.document;
+console.log(`PASS twelve 90-second runs at 60/20fps with real movement and collisions (${totalClears} clears, all 8 obstacle types)`);

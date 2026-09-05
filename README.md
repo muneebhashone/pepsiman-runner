@@ -41,8 +41,11 @@ Both modes save independent personal bests on the current device. A countdown pr
 
 ## Gameplay
 
-- Collect lines of cans to grow a combo, up to ×12. Keep collecting before the combo expires.
-- Fill the fizz meter through pickups, close calls, and missions. A six-second **Pepsi Rush** grants invincibility, a magnet across lanes, and double points.
+- Cans earn 10 points, with a combo level added every 6 consecutive pickups, up to ×5. A 1.5-second gap or a collision breaks the streak. Rush preserves an earned combo but its magnet pickups cannot increase it.
+- Fill the fizz meter through pickups, close calls, and missions. A three-second **Pepsi Rush** grants invincibility, a magnet across lanes, and double points on pickups and clears. It has a four-second recharge delay, and collisions drain 35% of the meter.
+- After the short tutorial, traffic gates, full-width jump/slide rows, and mixed obstacles require active decisions. Speed rises from 20 to 40 m/s; row spacing tightens from 1.7 to 1.05 seconds, with a small random variation. Every row has a clear or actionable route; moving trucks stay out of the guaranteed route.
+- Jump and slide missions require actually clearing a hazard. Empty-road inputs, tutorial forgiveness, and invincibility cannot complete them. Distance earns a flat 0.2 points per meter.
+- Challenge records use a fresh local score table because the scoring rules changed. Previous records remain stored under the original key.
 - Three rotating missions award bonus points and fizz. Survival missions reset their unfinished progress on a hit.
 - Collisions cost one life and grant a short recovery window. The first jump and slide lessons offer a forgiving retry.
 - Trucks require a lane change. Low striped barriers and barrels can be jumped. Overhead striped gates require a slide. Ramps launch the runner.

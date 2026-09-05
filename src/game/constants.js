@@ -33,12 +33,12 @@ export const COLORS = {
 };
 
 export const PLAYER = {
-  runSpeedBase: 18,
-  runSpeedMax: 34,
-  accelPerSec: 0.22,
-  /** Hold early pace flat so median run stretches toward 30–45s */
-  earlySpeedCap: 19,
-  earlySpeedCapSec: 16,
+  runSpeedBase: 20,
+  runSpeedMax: 40,
+  accelPerSec: 0.42,
+  /** A short teaching runway, then continuous acceleration. */
+  earlySpeedCap: 21,
+  earlySpeedCapSec: 6,
   /** Lane switch: 0.18–0.22s with overshoot settle */
   laneSwitchDuration: 0.2,
   laneOvershoot: 0.14,
@@ -52,7 +52,7 @@ export const PLAYER = {
   /** Slide: ~0.5s flat squash */
   slideDuration: 0.82,
   slideHeight: 0.55,
-  invulnAfterHit: 0,
+  invulnAfterHit: 1.15,
   radius: 0.55,
   height: 1.8,
 };
@@ -80,49 +80,19 @@ export const WORLD = {
 export const SPAWN = {
   runwayZ: 55,
   minSpawnAhead: 55,
-  /** Contact-time spawn band — first rotation entries ~55–140m ahead, not full world pool */
+  /** Hazards enter the visible preview 55–140m ahead. */
   obstacleSpawnAheadMin: 55,
   obstacleSpawnAheadMax: 140,
-  /** Recycle non-tutorial warmup rail/sign beyond this lead when rotation begins */
-  warmupRecycleAhead: 50,
-  /** First N rotation entries use tight pack gaps (~32–38m) */
-  rotationPackCount: 5,
-  rotationGapMin: 32,
-  rotationGapMax: 38,
-  /** Wider gap before ramp (5th pack entry) so ramp contact ~18–22s */
-  rotationRampGapMin: 72,
-  rotationRampGapMax: 88,
-  /** Z gap between patterns — ~1.8–2.5s at base speed, tightens slowly with velocity */
-  obstacleMinGap: 38,
-  obstacleMaxGap: 48,
-  obstacleGapTighten: 0.1,
   obstacleWarmupZ: 105,
   obstacleWarmupGapMin: 36,
   obstacleWarmupGapMax: 48,
-  /** Wider Z gap between first forced tutorial obstacles so lesson 2 isn't stacked on lesson 1 */
-  obstacleTutorialGapMin: 72,
-  obstacleTutorialGapMax: 82,
-  /** How many initial tutorial patterns use the wider gap */
-  obstacleTutorialWideGapCount: 4,
-  /** Post-warmup patterns that keep wide gaps before density ramps (0 = pack kit immediately) */
-  postWarmupWideGapCount: 0,
-  /** No double-lane blocks until after this many patterns (post-warmup) */
-  earlyNoDoublePatterns: 8,
-  warmupPatternCount: 4,
-  /** First N post-warmup patterns alternate forced slide/jump obstacles in center lane */
-  postWarmupTutorialPatterns: 0,
-  /** Forced obstacle-type rotation length after center tutorial */
-  rotationTableLength: 20,
-  /** Max hazards visible ahead of player at once */
-  maxConcurrentBlockers: 4,
-  /** Rolling window (seconds) — must include jump + slide threats */
-  varietyWindowSec: 15,
+  /** Enough capacity for complete three-lane rows inside the preview band. */
+  maxConcurrentBlockers: 12,
+  rowSecondsStart: 1.7,
+  rowSecondsMin: 1.05,
+  rowSecondsJitter: 0.22,
   varietyHistorySize: 10,
-  collectibleChance: 0.9,
   collectibleWarmupZ: 200,
-  collectibleCluster: 1,
-  chainChance: 0.06,
-  chainLength: 3,
   /** Seconds of runway warning at current speed (~0.7–0.9s strip) */
   telegraphLead: 0.8,
   /** Extra spawn margin beyond leadDist so warnings are fully readable */
@@ -131,7 +101,6 @@ export const SPAWN = {
   telegraphStripWidth: 2.1,
   /** World-Z gap between strip end and obstacle front */
   telegraphObstacleGap: 1.5,
-  telegraphAhead: 14,
   telegraphChevronCount: 4,
   /** Minimum telegraph opacity at far edge of warn zone */
   telegraphMinAlpha: 0.42,
@@ -155,29 +124,25 @@ export const SPAWN = {
   tutorialHintReadyStartSec: 2.9,
   /** Min spawn lead so first tutorial threats enter teaching range with full dwell */
   tutorialHintMinSpawnTtcSec: 3.2,
-  /** Bias spawn toward jump/slide obstacles after warmup */
-  verticalObstacleBias: 0.82,
   /** Obstacle fill horizon in segment lengths (~120m) — decoupled from WORLD.segmentsAhead */
   patternLookahead: 3,
-  doubleChanceBase: 0.03,
-  doubleChanceMax: 0.16,
   starterCanSpacing: 8,
   starterCanCount: 4,
   hitboxShrink: 0.78,
 };
 
 export const SCORE = {
-  perMeter: 0.65,
-  canBase: 25,
-  comboMultStep: 0.18,
-  comboMax: 12,
-  comboDecay: 2.65,
-  /** Min seconds between pickups to advance combo */
-  comboSpacing: 0.12,
+  perMeter: 0.2,
+  canBase: 10,
+  clearBase: 8,
+  smashBase: 10,
+  cansPerCombo: 6,
+  comboMax: 5,
+  comboDecay: 1.5,
   /** Combo shout thresholds */
-  shoutNice: 3,
-  shoutWow: 5,
-  shoutPerfect: 8,
+  shoutNice: 2,
+  shoutWow: 4,
+  shoutPerfect: 5,
 };
 
 export const NEAR_MISS = {
@@ -185,7 +150,7 @@ export const NEAR_MISS = {
   proximityX: 0.52,
   /** Z band behind obstacle front where near-miss registers */
   proximityZ: 2.1,
-  scoreBonus: 18,
+  scoreBonus: 10,
   cooldown: 0.55,
   hitStop: 0.045,
 };
@@ -193,12 +158,14 @@ export const NEAR_MISS = {
 export const FIZZ = {
   max: 1,
   emptyAfterRush: 0,
-  perCan: 0.09,
-  perCanStreak: 0.008,
+  perCan: 0.03,
+  perCanStreak: 0.002,
   streakWindow: 1.4,
-  streakCap: 0.04,
-  perNearMiss: 0.16,
-  rushDuration: 6,
+  streakCap: 0.008,
+  perNearMiss: 0.05,
+  rushDuration: 3,
+  rechargeDelay: 4,
+  hitPenalty: 0.35,
   speedBoost: 1.12,
   magnetAllLanes: true,
   /** Fizz bar pulses when this full — rush is imminent */

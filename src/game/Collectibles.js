@@ -56,6 +56,7 @@ export class Collectibles {
         : ((this._laneCursor = (this._laneCursor || 0) + 1) - 1) % 3;
     if (this.obstacles?.openLanesNear) {
       const open = this.obstacles.openLanesNear(z, 6);
+      if (!open.length) return -1;
       if (open.includes(cycle)) return cycle;
       // Prefer any open non-center lane if available, else any open
       const nonCenter = open.filter((l) => l !== 1);
@@ -140,11 +141,15 @@ export class Collectibles {
   }
 
   _spawnCluster(z, diff, forceLane = -1) {
+    const candidates = [0, 1, 2].filter((lane) => lane !== this._lastClusterLane);
+    const preferred = candidates[(Math.random() * candidates.length) | 0];
     const lane =
       forceLane >= 0
         ? forceLane
-        : this._pickOpenLane(z, (Math.random() * 3) | 0);
-    const count = 4 + (diff > 0.5 ? 1 : 0);
+        : this._pickOpenLane(z, preferred);
+    if (lane < 0) return;
+    this._lastClusterLane = lane;
+    const count = 4;
     for (let i = 0; i < count; i++) {
       const lz = z + i * 4.4;
       if (this.obstacles && !this.obstacles.openLanesNear(lz, 6).includes(lane))
@@ -175,7 +180,7 @@ export class Collectibles {
 
   _seedStarterCans() {
     const startZ = 10;
-    // Starter cans across all three lanes, not center-only
+    // Four starter cans introduce collection without handing out a multiplier.
     for (let i = 0; i < SPAWN.starterCanCount; i++) {
       const lane = 1;
       this._acquire(lane, startZ + i * SPAWN.starterCanSpacing);
@@ -371,6 +376,7 @@ export class Collectibles {
     this.nextZ = 14;
     this.bobT = 0;
     this._laneCursor = 0;
+    this._lastClusterLane = 1;
     this.rushActive = false;
     this._seedStarterCans();
   }
